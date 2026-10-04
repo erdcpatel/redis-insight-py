@@ -55,37 +55,6 @@ def init_db():
             conn.execute("ALTER TABLE connections ADD COLUMN source TEXT NOT NULL DEFAULT 'ui'")
         conn.commit()
 
-        # Seed default localhost connection if table is completely empty
-        cur = conn.execute("SELECT COUNT(*) FROM connections")
-        count = cur.fetchone()[0]
-        if count == 0:
-            now = datetime.now(timezone.utc).isoformat()
-            default_id = str(uuid.uuid4())
-            conn.execute("""
-                INSERT INTO connections (
-                    id, name, host, port, db, username, password_encrypted, use_tls, is_active,
-                    env, conn_type, cluster_nodes, sentinel_master, source, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                default_id,
-                "Local Redis",
-                "localhost",
-                6379,
-                0,
-                None,
-                "",
-                0,
-                1,  # Active by default
-                "LOCAL",
-                "standalone",
-                "",
-                "",
-                "ui",
-                now,
-                now
-            ))
-            conn.commit()
-
 
 def list_connections(search: Optional[str] = None, env: Optional[str] = None) -> List[Dict[str, Any]]:
     query = "SELECT * FROM connections WHERE 1=1"

@@ -16,16 +16,10 @@ def test_crypto():
     assert decrypted == secret
 
 
-def test_db_init_and_default_connection():
+def test_db_init():
     init_db()
     connections = list_connections()
-    assert len(connections) >= 1
-    # Check default localhost
-    local_conns = [c for c in connections if c["name"] == "Local Redis"]
-    assert len(local_conns) >= 1
-    default_conn = local_conns[0]
-    assert default_conn["host"] == "localhost"
-    assert default_conn["port"] == 6379
+    assert isinstance(connections, list)
 
 
 def test_api_list_connections():
@@ -33,8 +27,6 @@ def test_api_list_connections():
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
-    assert len(data) >= 1
-    assert "has_password" in data[0]
 
 
 def test_api_test_connection_endpoint():

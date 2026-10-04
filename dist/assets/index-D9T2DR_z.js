@@ -235,7 +235,6 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
           </div>
           <div class="env-filter-pills" id="envFilterPills">
             <button type="button" class="env-pill-btn active" data-env="ALL">ALL</button>
-            <button type="button" class="env-pill-btn" data-env="LOCAL">LOCAL</button>
             <button type="button" class="env-pill-btn" data-env="DEV">DEV</button>
             <button type="button" class="env-pill-btn" data-env="UAT">UAT</button>
             <button type="button" class="env-pill-btn" data-env="PROD">PROD</button>
