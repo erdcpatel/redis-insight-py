@@ -1,0 +1,716 @@
+{% extends "base.html" %}
+
+{% block title %}Redis Insight Py - Connection Management & Key Browser{% endblock %}
+
+{% block content %}
+<div class="app-container">
+    <!-- Left Sidebar: Connection Management -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i data-lucide="layers" style="width: 20px; height: 20px;"></i>
+                </div>
+                <div>
+                    <div class="brand-title">
+                        Redis Insight
+                        <span class="brand-badge">py</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-action-bar">
+            <span class="sidebar-heading">Connections</span>
+            <button type="button" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" onclick="openModal()">
+                <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+                Add
+            </button>
+        </div>
+
+        <div class="connections-list-wrapper" id="connectionsList" hx-get="/partials/connections-list" hx-trigger="load">
+            {% include "partials/connections_list.html" %}
+        </div>
+
+        <div class="sidebar-footer">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                <i data-lucide="cpu" style="width: 14px; height: 14px; color: var(--accent-primary);"></i>
+                <span>FastAPI + Perspective</span>
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted);">v0.1.0</span>
+        </div>
+    </aside>
+
+    <!-- Main Section -->
+    <main class="main-wrapper">
+        <!-- Top Navigation Status Bar -->
+        <header class="top-navbar">
+            <div id="topStatsContainer" hx-get="/partials/server-stats" hx-trigger="load">
+                {% include "partials/server_stats.html" %}
+            </div>
+
+            <div class="top-actions">
+                <button type="button" class="btn btn-secondary"
+                        hx-get="/partials/server-stats"
+                        hx-target="#topStatsContainer"
+                        hx-swap="innerHTML"
+                        title="Re-check Redis Health">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                    Ping
+                </button>
+            </div>
+        </header>
+
+        <!-- Workspace Content Area -->
+        <div class="workspace-content">
+            <!-- Filter & Controls -->
+            <div class="controls-card">
+                <div class="search-group">
+                    <i data-lucide="search" class="search-icon" style="width: 16px; height: 16px;"></i>
+                    <input type="text"
+                           id="keySearchInput"
+                           name="pattern"
+                           class="search-input"
+                           placeholder="Search keys by pattern (e.g. *, user:*, bikes:*)..."
+                           value="{{ current_pattern }}"
+                           hx-get="/partials/keys-table"
+                           hx-trigger="keyup changed delay:300ms, search"
+                           hx-target="#keysTableContainer"
+                           hx-swap="innerHTML"
+                           hx-include="[name='type_filter']">
+                    <input type="hidden" id="typeFilterHidden" name="type_filter" value="{{ current_type }}">
+                </div>
+
+                <div class="type-filter-group">
+                    <button type="button" class="type-tab {% if current_type == 'all' %}active{% endif %}" onclick="setTypeFilter('all', this)">All</button>
+                    <button type="button" class="type-tab {% if current_type == 'string' %}active{% endif %}" onclick="setTypeFilter('string', this)">Strings</button>
+                    <button type="button" class="type-tab {% if current_type == 'hash' %}active{% endif %}" onclick="setTypeFilter('hash', this)">Hashes</button>
+                    <button type="button" class="type-tab {% if current_type == 'list' %}active{% endif %}" onclick="setTypeFilter('list', this)">Lists</button>
+                    <button type="button" class="type-tab {% if current_type == 'set' %}active{% endif %}" onclick="setTypeFilter('set', this)">Sets</button>
+                    <button type="button" class="type-tab {% if current_type == 'zset' %}active{% endif %}" onclick="setTypeFilter('zset', this)">ZSets</button>
+                    <button type="button" class="type-tab {% if current_type == 'json' %}active{% endif %}" onclick="setTypeFilter('json', this)">JSON</button>
+                </div>
+            </div>
+
+            <!-- Keys Table Container -->
+            <div class="table-card" id="keysTableContainer">
+                {% include "partials/keys_table.html" %}
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Classic Phase 2: Key Inspector Detail Modal -->
+<div class="modal-backdrop" id="classicDetailModal">
+    <div class="key-detail-card">
+        <div class="key-detail-header">
+            <div style="display: flex; align-items: center; gap: 0.6rem; min-width: 0;">
+                <i data-lucide="database" style="width: 20px; height: 20px; color: var(--accent-primary); flex-shrink: 0;"></i>
+                <h3 class="key-detail-title" id="classicDetailTitle">key:name</h3>
+                <button type="button" class="btn-icon" id="classicBtnCopyKey" title="Copy key name" style="color: var(--text-muted);">
+                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button type="button" class="btn btn-danger" id="classicBtnDeleteFromDetail" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+                    Delete Key
+                </button>
+                <button type="button" class="btn-icon" onclick="closeClassicDetailModal()">
+                    <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+                </button>
+            </div>
+        </div>
+        <div class="key-detail-meta" id="classicDetailMeta">
+            <span style="color: var(--text-muted);">Loading key details...</span>
+        </div>
+        <div class="key-detail-body" id="classicDetailBody">
+            <div style="padding: 2rem; text-align: center; color: var(--text-muted);">Fetching value from Redis...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Classic Phase 2: Safe Delete Confirmation Modal (Requires typing CONFIRM) -->
+<div class="modal-backdrop" id="classicDeleteModal">
+    <div class="danger-confirm-card">
+        <div class="danger-header">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <i data-lucide="alert-circle" style="width: 20px; height: 20px;"></i>
+                <h3 style="margin: 0; font-size: 1rem; font-weight: 700;">Confirm Key Deletion</h3>
+            </div>
+            <button type="button" class="btn-icon" onclick="closeClassicDeleteModal()" style="color: #fca5a5;">
+                <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+            </button>
+        </div>
+
+        <div style="padding: 1.25rem 1.5rem;">
+            <p style="color: #fca5a5; font-size: 0.85rem; line-height: 1.4; margin-bottom: 0.75rem;">
+                ⚠️ <strong>This is a permanent and risky operation.</strong> Deleting this key will instantly remove all its associated data from the active Redis database.
+            </p>
+            <div class="key-delete-target-badge" id="classicDeleteTargetBadge">key:name</div>
+            <div style="margin-top: 1rem;">
+                <label style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted); letter-spacing: 0.05em; display: block; margin-bottom: 0.35rem;">
+                    Type <span style="color: var(--accent-danger); font-family: var(--font-mono); font-weight: 700;">CONFIRM</span> to enable deletion:
+                </label>
+                <input type="text" id="classicInputConfirmDelete" class="confirm-input-field" placeholder="Type CONFIRM here" autocomplete="off">
+            </div>
+        </div>
+
+        <div style="padding: 1rem 1.5rem; background: rgba(0,0,0,0.3); border-top: 1px solid rgba(239, 68, 68, 0.25); display: flex; justify-content: flex-end; gap: 0.6rem;">
+            <button type="button" class="btn btn-secondary" onclick="closeClassicDeleteModal()">Cancel</button>
+            <button type="button" class="btn-danger-confirm" id="classicBtnSubmitDelete" disabled>
+                Delete Permanently
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Classic Phase 2: Connected Clients Modal -->
+<div class="modal-backdrop" id="classicClientsModal">
+    <div class="clients-modal-card">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <i data-lucide="users" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
+                <h3 class="modal-title">Connected Clients</h3>
+                <span class="badge-db" id="classicClientsCountBadge" style="margin-left: 4px;">0</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="loadClassicConnectedClients()" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                    Refresh
+                </button>
+                <button type="button" class="btn-icon" onclick="closeClassicClientsModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+        </div>
+
+        <div style="padding: 0.85rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+            <div class="search-group" style="flex: 1; max-width: 450px;">
+                <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+                <input type="text" id="classicClientsSearchInput" class="search-input" placeholder="Search by IP, port, client name, user, or cmd..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;" oninput="filterClassicClients()">
+            </div>
+            <div id="classicClientsQuickStats" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+                Loading...
+            </div>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="classicClientsTableContainer">
+            <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching connected clients...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let classicActiveKey = null;
+let classicPendingDeleteKey = null;
+
+function setTypeFilter(type, element) {
+    document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+    element.classList.add('active');
+
+    const hidden = document.getElementById('typeFilterHidden');
+    if (hidden) hidden.value = type;
+
+    const searchInput = document.getElementById('keySearchInput');
+    const pattern = searchInput ? (searchInput.value.trim() || '*') : '*';
+
+    htmx.ajax('GET', `/partials/keys-table?pattern=${encodeURIComponent(pattern)}&type_filter=${encodeURIComponent(type)}`, {
+        target: '#keysTableContainer',
+        swap: 'innerHTML'
+    });
+}
+
+function refreshKeysTable() {
+    const searchInput = document.getElementById('keySearchInput');
+    const pattern = searchInput ? (searchInput.value.trim() || '*') : '*';
+    const hidden = document.getElementById('typeFilterHidden');
+    const type = hidden ? hidden.value : 'all';
+
+    htmx.ajax('GET', `/partials/keys-table?pattern=${encodeURIComponent(pattern)}&type_filter=${encodeURIComponent(type)}`, {
+        target: '#keysTableContainer',
+        swap: 'innerHTML'
+    });
+}
+
+// Close detail modal
+function closeClassicDetailModal() {
+    document.getElementById("classicDetailModal").classList.remove("active");
+}
+
+// Close delete confirm modal
+function closeClassicDeleteModal() {
+    document.getElementById("classicDeleteModal").classList.remove("active");
+    classicPendingDeleteKey = null;
+}
+
+// Trigger Safe Delete Confirmation Modal (Type CONFIRM)
+function triggerClassicDeleteConfirmation(keyName) {
+    classicPendingDeleteKey = keyName;
+    const modal = document.getElementById("classicDeleteModal");
+    const badge = document.getElementById("classicDeleteTargetBadge");
+    const input = document.getElementById("classicInputConfirmDelete");
+    const btnSubmit = document.getElementById("classicBtnSubmitDelete");
+
+    badge.textContent = keyName;
+    input.value = "";
+    btnSubmit.disabled = true;
+    modal.classList.add("active");
+    setTimeout(() => input.focus(), 60);
+
+    input.oninput = () => {
+        const val = input.value.trim().toUpperCase();
+        btnSubmit.disabled = (val !== "CONFIRM" && input.value.trim() !== keyName);
+    };
+
+    input.onkeydown = (e) => {
+        if (e.key === "Enter" && !btnSubmit.disabled) {
+            btnSubmit.click();
+        }
+    };
+
+    btnSubmit.onclick = async () => {
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = "Deleting...";
+
+        try {
+            const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}?confirmed=true`, {
+                method: "DELETE"
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Failed to delete key");
+
+            closeClassicDeleteModal();
+            closeClassicDetailModal();
+            refreshKeysTable();
+        } catch (err) {
+            alert("Error deleting key: " + err.message);
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = "Delete Permanently";
+        }
+    };
+}
+
+// Open Key Inspector Modal
+async function openClassicKeyDetail(keyName) {
+    classicActiveKey = keyName;
+    const modal = document.getElementById("classicDetailModal");
+    const title = document.getElementById("classicDetailTitle");
+    const meta = document.getElementById("classicDetailMeta");
+    const body = document.getElementById("classicDetailBody");
+
+    title.textContent = keyName;
+    title.title = keyName;
+    meta.innerHTML = `<span style="color: var(--text-muted);">Loading key details...</span>`;
+    body.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Fetching value from Redis...</div>`;
+    modal.classList.add("active");
+
+    try {
+        const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/detail`);
+        if (!res.ok) throw new Error("Key not found or could not be read");
+        const data = await res.json();
+
+        // Render Meta
+        const memFormatted = data.memory_bytes ? (data.memory_bytes > 1024 ? `${(data.memory_bytes / 1024).toFixed(1)} KB` : `${data.memory_bytes} B`) : "N/A";
+        const ttlText = data.ttl === -1 ? "No expiration" : data.ttl === -2 ? "Expired" : `${data.ttl}s`;
+
+        meta.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                <span style="color: var(--text-muted);">Type:</span>
+                <span class="badge-db" style="color: var(--accent-primary); font-weight: 600;">${data.type.toUpperCase()}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                <span style="color: var(--text-muted);">Size:</span>
+                <span style="font-family: var(--font-mono);">${data.length} items / ${memFormatted}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                <span style="color: var(--text-muted);">Encoding:</span>
+                <span style="font-family: var(--font-mono);">${data.encoding}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: auto;">
+                <i data-lucide="clock" style="width: 13px; height: 13px; color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};"></i>
+                <span style="font-family: var(--font-mono); color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'}; font-weight: 600;">${ttlText}</span>
+                <button type="button" class="btn btn-secondary" onclick="promptClassicUpdateTTL('${escapeJs(data.name)}', ${data.ttl})" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; margin-left: 0.25rem;">
+                    Edit TTL
+                </button>
+            </div>
+        `;
+
+        // Render Value
+        const lowerType = data.type.toLowerCase();
+        if (lowerType === "hash") {
+            const fields = data.fields || [];
+            body.innerHTML = `
+                <div class="fields-toolbar">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="text" id="classicHashFieldSearch" class="field-search-input" placeholder="Search ${fields.length} fields..." oninput="filterClassicHashFields('${escapeJs(keyName)}')">
+                        <span style="font-size: 0.75rem; color: var(--text-muted);" id="classicHashFieldCount">${fields.length} fields</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="promptClassicAddHashField('${escapeJs(keyName)}')" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
+                        <i data-lucide="plus" style="width: 13px; height: 13px;"></i> Add Field
+                    </button>
+                </div>
+                <div class="fields-table-container">
+                    <table class="data-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 35%;">Field</th>
+                                <th style="width: 53%;">Value</th>
+                                <th style="width: 12%; text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="classicHashFieldsBody">
+                            ${renderClassicHashRows(keyName, fields)}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            window._currentHashFields = fields;
+        } else if (data.is_json || lowerType.includes("json")) {
+            const jsonStr = data.parsed_json ? JSON.stringify(data.parsed_json, null, 2) : (data.value || "");
+            body.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">JSON Document</span>
+                    <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText(${JSON.stringify(jsonStr)}); alert('Copied JSON!');" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+                        <i data-lucide="copy" style="width: 13px; height: 13px;"></i> Copy JSON
+                    </button>
+                </div>
+                <div class="json-view-box">${escapeHtml(jsonStr)}</div>
+            `;
+        } else if (lowerType === "string") {
+            body.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">String Value (${data.length} bytes)</span>
+                    <button type="button" class="btn btn-secondary" onclick="navigator.clipboard.writeText(${JSON.stringify(data.value || '')}); alert('Copied value!');" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+                        <i data-lucide="copy" style="width: 13px; height: 13px;"></i> Copy Value
+                    </button>
+                </div>
+                <div class="json-view-box" style="color: #f8fafc;">${escapeHtml(data.value || "")}</div>
+            `;
+        } else if (Array.isArray(data.value)) {
+            const isZset = lowerType === "zset";
+            body.innerHTML = `
+                <div class="fields-table-container">
+                    <table class="data-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 15%;">${isZset ? 'Score' : 'Index'}</th>
+                                <th style="width: 85%;">Element / Member</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.value.map((item, idx) => `
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                    <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); color: var(--text-muted); font-size: 0.8rem;">
+                                        ${isZset ? item.score : `[${idx}]`}
+                                    </td>
+                                    <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem;">
+                                        ${escapeHtml(isZset ? item.member : String(item))}
+                                    </td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            body.innerHTML = `<div class="json-view-box">${escapeHtml(String(data.value))}</div>`;
+        }
+
+        if (window.lucide) lucide.createIcons();
+    } catch (err) {
+        meta.innerHTML = `<span style="color: var(--accent-danger);">Error</span>`;
+        body.innerHTML = `
+            <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
+                <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
+                <h4>Failed to inspect key</h4>
+                <p style="font-size: 0.85rem; margin-top: 0.5rem;">${err.message}</p>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function renderClassicHashRows(keyName, fields) {
+    if (!fields || fields.length === 0) {
+        return `<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No fields found in hash</td></tr>`;
+    }
+    return fields.map(f => `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
+                ${escapeHtml(f.field)}
+            </td>
+            <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; word-break: break-all;">
+                ${escapeHtml(f.value)}
+            </td>
+            <td style="padding: 0.6rem 1rem; text-align: right;">
+                <button type="button" class="btn-icon danger" onclick="deleteClassicHashField('${escapeJs(keyName)}', '${escapeJs(f.field)}')" title="Delete field">
+                    <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+                </button>
+            </td>
+        </tr>
+    `).join("");
+}
+
+function filterClassicHashFields(keyName) {
+    const input = document.getElementById("classicHashFieldSearch");
+    const countEl = document.getElementById("classicHashFieldCount");
+    const tbody = document.getElementById("classicHashFieldsBody");
+    const q = input.value.trim().toLowerCase();
+    const all = window._currentHashFields || [];
+    const filtered = q ? all.filter(f => f.field.toLowerCase().includes(q) || f.value.toLowerCase().includes(q)) : all;
+    tbody.innerHTML = renderClassicHashRows(keyName, filtered);
+    countEl.textContent = `${filtered.length} of ${all.length} fields`;
+    if (window.lucide) lucide.createIcons();
+}
+
+async function promptClassicUpdateTTL(keyName, currentTtl) {
+    const input = prompt(`Enter new TTL in seconds for '${keyName}':\n(-1 to persist with no expiration, or number of seconds)`, currentTtl > 0 ? currentTtl : "3600");
+    if (input === null) return;
+    const seconds = parseInt(input.trim(), 10);
+    if (isNaN(seconds)) {
+        alert("Please enter a valid integer.");
+        return;
+    }
+    try {
+        const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/ttl`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ seconds })
+        });
+        if (!res.ok) throw new Error("Failed to update TTL");
+        openClassicKeyDetail(keyName);
+        refreshKeysTable();
+    } catch (err) {
+        alert("Error updating TTL: " + err.message);
+    }
+}
+
+async function promptClassicAddHashField(keyName) {
+    const field = prompt(`Enter field name for hash '${keyName}':`);
+    if (!field) return;
+    const val = prompt(`Enter value for field '${field}':`);
+    if (val === null) return;
+    try {
+        const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field, value: val })
+        });
+        if (!res.ok) throw new Error("Failed to set field");
+        openClassicKeyDetail(keyName);
+    } catch (err) {
+        alert("Error setting field: " + err.message);
+    }
+}
+
+async function deleteClassicHashField(keyName, field) {
+    if (confirm(`Delete field '${field}' from hash '${keyName}'?`)) {
+        try {
+            const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field/${encodeURIComponent(field)}`, {
+                method: "DELETE"
+            });
+            if (!res.ok) throw new Error("Failed to delete field");
+            openClassicKeyDetail(keyName);
+        } catch (err) {
+            alert("Error: " + err.message);
+        }
+    }
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function escapeJs(str) {
+    return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// Copy key button
+document.getElementById("classicBtnCopyKey").addEventListener("click", () => {
+    if (classicActiveKey) {
+        navigator.clipboard.writeText(classicActiveKey);
+        alert(`Copied '${classicActiveKey}' to clipboard!`);
+    }
+});
+
+// Delete from detail modal
+document.getElementById("classicBtnDeleteFromDetail").addEventListener("click", () => {
+    if (classicActiveKey) {
+        triggerClassicDeleteConfirmation(classicActiveKey);
+    }
+});
+
+// Click outside modal backdrop to close
+document.getElementById("classicDetailModal").addEventListener("click", (e) => {
+    if (e.target.id === "classicDetailModal") closeClassicDetailModal();
+});
+document.getElementById("classicDeleteModal").addEventListener("click", (e) => {
+    if (e.target.id === "classicDeleteModal") closeClassicDeleteModal();
+});
+document.getElementById("classicClientsModal").addEventListener("click", (e) => {
+    if (e.target.id === "classicClientsModal") closeClassicClientsModal();
+});
+
+// ==========================================
+// Classic Connected Clients Functions
+// ==========================================
+let classicClientsData = [];
+
+function openClassicClientsModal() {
+    const modal = document.getElementById("classicClientsModal");
+    modal.classList.add("active");
+    loadClassicConnectedClients();
+}
+
+function closeClassicClientsModal() {
+    document.getElementById("classicClientsModal").classList.remove("active");
+}
+
+async function loadClassicConnectedClients() {
+    const container = document.getElementById("classicClientsTableContainer");
+    const countBadge = document.getElementById("classicClientsCountBadge");
+    const quickStats = document.getElementById("classicClientsQuickStats");
+    const searchInput = document.getElementById("classicClientsSearchInput");
+
+    container.innerHTML = `<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);"><i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i><br>Fetching connected clients...</div>`;
+    if (window.lucide) lucide.createIcons();
+
+    try {
+        const res = await fetch("/api/clients");
+        if (!res.ok) throw new Error("Failed to load connected clients");
+        classicClientsData = await res.json();
+
+        if (countBadge) countBadge.textContent = classicClientsData.length;
+        if (quickStats) quickStats.textContent = `${classicClientsData.length} total connections`;
+        if (searchInput) searchInput.value = "";
+
+        renderClassicClientsTable(classicClientsData);
+    } catch (err) {
+        container.innerHTML = `
+            <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
+                <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
+                <h4>Error loading clients</h4>
+                <p style="font-size: 0.85rem; margin-top: 0.25rem;">${err.message}</p>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function renderClassicClientsTable(clients) {
+    const container = document.getElementById("classicClientsTableContainer");
+    if (!clients || clients.length === 0) {
+        container.innerHTML = `
+            <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                <i data-lucide="users" style="width: 32px; height: 32px; margin-bottom: 0.5rem; opacity: 0.4;"></i>
+                <p>No matching connected clients found.</p>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    container.innerHTML = `
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th style="width: 7%;">ID</th>
+                    <th style="width: 25%;">Client Name / Host</th>
+                    <th style="width: 22%;">Remote Address (IP:Port)</th>
+                    <th style="width: 8%;">DB</th>
+                    <th style="width: 12%;">Last CMD</th>
+                    <th style="width: 10%;">Age</th>
+                    <th style="width: 10%;">Idle</th>
+                    <th style="width: 6%; text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${clients.map(c => `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                        <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); color: var(--text-muted); font-size: 0.8rem;">
+                            #${c.id}
+                        </td>
+                        <td style="padding: 0.65rem 0.85rem;">
+                            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
+                                <span>${escapeHtml(c.name)}</span>
+                                ${c.flags && c.flags.includes("O") ? '<span class="badge-db" style="background: rgba(234, 179, 8, 0.15); color: #fde047; font-size: 0.65rem;">MONITOR</span>' : ''}
+                            </div>
+                            <div class="client-sub-text">User: ${escapeHtml(c.user)} | Flags: ${escapeHtml(c.flags || 'none')}</div>
+                        </td>
+                        <td style="padding: 0.65rem 0.85rem;">
+                            <div class="client-ip-cell">${escapeHtml(c.addr)}</div>
+                            <div class="client-sub-text">Target: ${escapeHtml(c.laddr || "localhost")}</div>
+                        </td>
+                        <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.82rem;">
+                            DB${c.db}
+                        </td>
+                        <td style="padding: 0.65rem 0.85rem;">
+                            <span class="client-cmd-badge">${escapeHtml(c.cmd || "idle")}</span>
+                        </td>
+                        <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">
+                            ${c.age_human}
+                        </td>
+                        <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; color: ${c.idle > 300 ? 'var(--accent-warning)' : 'var(--accent-success)'};">
+                            ${c.idle_human}
+                        </td>
+                        <td style="padding: 0.65rem 0.85rem; text-align: right;">
+                            <button type="button" class="btn-icon danger" onclick="killClassicConnectedClient('${c.id}', '${escapeJs(c.addr)}')" title="Disconnect client">
+                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        </table>
+    `;
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function filterClassicClients() {
+    const input = document.getElementById("classicClientsSearchInput");
+    const q = input ? input.value.trim().toLowerCase() : "";
+    const filtered = q
+        ? classicClientsData.filter(c =>
+            (c.addr && c.addr.toLowerCase().includes(q)) ||
+            (c.ip && c.ip.toLowerCase().includes(q)) ||
+            (c.name && c.name.toLowerCase().includes(q)) ||
+            (c.cmd && c.cmd.toLowerCase().includes(q)) ||
+            (c.user && c.user.toLowerCase().includes(q)) ||
+            (c.id && String(c.id).includes(q))
+        )
+        : classicClientsData;
+    renderClassicClientsTable(filtered);
+}
+
+async function killClassicConnectedClient(clientId, clientAddr) {
+    if (!confirm(`Are you sure you want to disconnect client #${clientId} (${clientAddr})?`)) {
+        return;
+    }
+    try {
+        const res = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Failed to disconnect client");
+        loadClassicConnectedClients();
+        // Refresh server stats in navbar
+        htmx.ajax('GET', '/partials/server-stats', { target: '#topStatsContainer', swap: 'innerHTML' });
+    } catch (err) {
+        alert("Error disconnecting client: " + err.message);
+    }
+}
+
+// Listen for HTMX content swaps to re-render lucide icons
+document.body.addEventListener('htmx:afterSwap', function() {
+    if (window.lucide) lucide.createIcons();
+});
+</script>
+{% endblock %}

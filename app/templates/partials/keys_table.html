@@ -1,0 +1,93 @@
+<div class="table-header-meta">
+    <div>
+        {% if keys_data %}
+            Found <strong>{{ keys_data.matched_count }}</strong> keys in batch
+            (Total keys in DB: <strong>{{ keys_data.total_in_db }}</strong>)
+        {% else %}
+            No data
+        {% endif %}
+    </div>
+    <div style="font-size: 0.75rem;">
+        Pattern: <code style="font-family: var(--font-mono); color: var(--accent-primary);">{{ current_pattern }}</code>
+        {% if current_type != 'all' %} | Type: <span class="type-badge type-{{ current_type }}">{{ current_type }}</span>{% endif %}
+    </div>
+</div>
+
+{% if error_msg %}
+<div class="empty-state">
+    <div class="empty-icon" style="color: var(--accent-danger);">
+        <i data-lucide="alert-triangle"></i>
+    </div>
+    <h4 style="color: var(--text-primary);">Error reading keys</h4>
+    <p>{{ error_msg }}</p>
+</div>
+{% elif keys_data and keys_data.keys|length > 0 %}
+<div class="table-scroll">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 55%;">Key Name</th>
+                <th style="width: 15%;">Type</th>
+                <th style="width: 18%;">TTL</th>
+                <th style="width: 12%; text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for k in keys_data.keys %}
+            <tr class="clickable-key-row" onclick="openClassicKeyDetail('{{ k.name | e }}')" style="cursor: pointer;">
+                <td>
+                    <div class="key-cell">
+                        <i data-lucide="key-round" class="key-icon" style="width: 15px; height: 15px;"></i>
+                        <span title="{{ k.name }}">{{ k.name }}</span>
+                    </div>
+                </td>
+                <td>
+                    {% set clean_type = k.type.lower() %}
+                    <span class="type-badge {% if clean_type in ['string', 'hash', 'list', 'set', 'zset', 'json', 'rejson-rl'] %}type-{{ clean_type }}{% else %}type-other{% endif %}">
+                        {{ k.type }}
+                    </span>
+                </td>
+                <td>
+                    <div class="ttl-cell">
+                        {% if k.ttl == -1 %}
+                            <span class="ttl-no-expire">No expiration</span>
+                        {% elif k.ttl == -2 %}
+                            <span style="color: var(--accent-danger);">Expired / Not found</span>
+                        {% else %}
+                            <span style="color: var(--accent-warning);"><i data-lucide="clock" style="width: 12px; height: 12px; display: inline; vertical-align: -1px;"></i> {{ k.ttl }}s</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td style="text-align: right;" onclick="event.stopPropagation()">
+                    <button type="button" class="btn-icon danger" title="Delete key"
+                            onclick="triggerClassicDeleteConfirmation('{{ k.name | e }}')">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if keys_data.cursor != 0 %}
+<div style="padding: 0.85rem 1.25rem; border-top: 1px solid var(--border-subtle); display: flex; justify-content: center; background: rgba(0,0,0,0.15);">
+    <button class="btn btn-secondary"
+            hx-get="/partials/keys-table?pattern={{ current_pattern }}&cursor={{ keys_data.cursor }}&type_filter={{ current_type }}"
+            hx-target="#keysTableContainer"
+            hx-swap="innerHTML">
+        <i data-lucide="arrow-down-circle"></i>
+        Scan Next Page (Cursor: {{ keys_data.cursor }})
+    </button>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">
+        <i data-lucide="search-x"></i>
+    </div>
+    <h4 style="color: var(--text-primary);">No keys found</h4>
+    <p>No keys match the pattern "<strong>{{ current_pattern }}</strong>" in the active database.</p>
+</div>
+{% endif %}

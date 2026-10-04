@@ -1,0 +1,32 @@
+{% for conn in connections %}
+<div class="conn-card {% if conn.is_active %}active{% endif %}"
+     hx-post="/partials/connections/{{ conn.id }}/activate"
+     hx-target="#connectionsList"
+     hx-swap="innerHTML">
+    <div class="conn-card-header">
+        <div class="conn-name-group">
+            <span class="conn-status-dot"></span>
+            <span class="conn-name" title="{{ conn.name }}">{{ conn.name }}</span>
+        </div>
+        <div class="conn-actions" onclick="event.stopPropagation()">
+            <button type="button" class="btn-icon danger" title="Delete connection"
+                    hx-delete="/partials/connections/{{ conn.id }}"
+                    hx-target="#connectionsList"
+                    hx-swap="innerHTML"
+                    hx-confirm="Are you sure you want to delete '{{ conn.name }}'?">
+                <i data-lucide="trash-2"></i>
+            </button>
+        </div>
+    </div>
+    <div class="conn-details">
+        <span>{{ conn.host }}:{{ conn.port }}</span>
+        <span class="badge-db">DB {{ conn.db }}</span>
+        {% if conn.use_tls %}<i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--accent-primary);" title="TLS enabled"></i>{% endif %}
+        {% if conn.has_password %}<i data-lucide="lock" style="width: 14px; height: 14px; color: var(--text-muted);" title="Password protected"></i>{% endif %}
+    </div>
+</div>
+{% else %}
+<div style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+    No connections saved yet.<br>Click "Add Connection" to start.
+</div>
+{% endfor %}

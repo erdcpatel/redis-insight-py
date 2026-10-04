@@ -1,0 +1,57 @@
+# Redis Insight Py - Static Connection Configuration
+# You can define multiple standalone, cluster, and sentinel connections here.
+# Environments supported: LOCAL, DEV, UAT, PROD
+# Types supported: standalone, cluster, sentinel
+
+connections:
+  - name: "Local Redis"
+    environment: "LOCAL"
+    type: "standalone"
+    host: "localhost"
+    port: 6379
+    db: 0
+
+  - name: "Dev 6-Node Redis Cluster"
+    environment: "DEV"
+    type: "cluster"
+    nodes:
+      - host: "127.0.0.1"
+        port: 7000
+      - host: "127.0.0.1"
+        port: 7001
+      - host: "127.0.0.1"
+        port: 7002
+      - host: "127.0.0.1"
+        port: 7003
+      - host: "127.0.0.1"
+        port: 7004
+      - host: "127.0.0.1"
+        port: 7005
+    use_tls: false
+
+  - name: "UAT Analytics Cluster"
+    environment: "UAT"
+    type: "cluster"
+    nodes:
+      - host: "uat-redis-01.internal"
+        port: 6379
+      - host: "uat-redis-02.internal"
+        port: 6379
+      - host: "uat-redis-03.internal"
+        port: 6379
+    username: "uat_viewer"
+    use_tls: true
+
+  - name: "Prod Sentinel High-Availability"
+    environment: "PROD"
+    type: "sentinel"
+    sentinel_master: "mymaster"
+    nodes:
+      - host: "sentinel-01.prod.internal"
+        port: 26379
+      - host: "sentinel-02.prod.internal"
+        port: 26379
+      - host: "sentinel-03.prod.internal"
+        port: 26379
+    username: "prod_admin"
+    use_tls: true

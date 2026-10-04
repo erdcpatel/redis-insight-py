@@ -1,0 +1,44 @@
+<div class="status-pill-group">
+    <div class="status-pill">
+        <span class="status-indicator {% if status.connected %}connected{% else %}disconnected{% endif %}"></span>
+        <span>
+            {% if status.connected %}
+                {{ status.connection_name or "Connected" }}
+                <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 4px;">({{ status.host }}:{{ status.port }} / DB{{ status.db }})</span>
+            {% else %}
+                Disconnected
+            {% endif %}
+        </span>
+    </div>
+
+    {% if status.connected %}
+    <div class="stat-item">
+        <span>Latency:</span>
+        <span class="stat-value" style="color: var(--accent-success);">{{ status.latency_ms }} ms</span>
+    </div>
+
+    <div class="stat-item">
+        <span>Version:</span>
+        <span class="stat-value">v{{ status.redis_version }}</span>
+    </div>
+
+    <div class="stat-item">
+        <span>Keys:</span>
+        <span class="stat-value">{{ status.dbsize }}</span>
+    </div>
+
+    <div class="stat-item">
+        <span>Memory:</span>
+        <span class="stat-value">{{ status.used_memory_human or "N/A" }}</span>
+    </div>
+
+    <div class="stat-item stat-item-clickable" onclick="openClassicClientsModal()" title="Click to view all connected clients details" style="cursor: pointer;">
+        <span>Clients:</span>
+        <span class="stat-value link-highlight">{{ status.connected_clients or 1 }} <i data-lucide="external-link" style="width: 11px; height: 11px; display: inline; vertical-align: middle;"></i></span>
+    </div>
+    {% elif status.error %}
+    <div class="stat-item" style="color: var(--accent-danger);">
+        <span>Error: {{ status.error }}</span>
+    </div>
+    {% endif %}
+</div>

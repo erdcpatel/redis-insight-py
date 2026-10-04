@@ -1,0 +1,79 @@
+<div class="modal-backdrop" id="connectionModal" onclick="if(event.target===this) closeModal()">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <i data-lucide="database-zap" style="color: var(--accent-primary);"></i>
+                Add Redis Connection
+            </h3>
+            <button type="button" class="btn-icon" onclick="closeModal()">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <form hx-post="/partials/connections"
+              hx-target="#connectionsList"
+              hx-swap="innerHTML">
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="connName">Connection Name *</label>
+                    <input class="form-input" type="text" id="connName" name="name" placeholder="e.g. Local Redis, Production Staging" required value="New Connection">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="connHost">Host *</label>
+                        <input class="form-input" type="text" id="connHost" name="host" placeholder="localhost" required value="localhost">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="connPort">Port *</label>
+                        <input class="form-input" type="number" id="connPort" name="port" placeholder="6379" required value="6379">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="connDb">Database Index</label>
+                        <input class="form-input" type="number" id="connDb" name="db" min="0" max="15" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="connUsername">Username</label>
+                        <input class="form-input" type="text" id="connUsername" name="username" placeholder="Optional (Redis 6+ ACL)">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="connPassword">Password</label>
+                    <input class="form-input" type="password" id="connPassword" name="password" placeholder="Leave empty if none">
+                </div>
+
+                <div style="display: flex; gap: 1.5rem; margin-top: 0.25rem;">
+                    <label class="form-checkbox-group">
+                        <input type="checkbox" id="connTls" name="use_tls" value="true">
+                        <span>Use TLS/SSL</span>
+                    </label>
+                    <label class="form-checkbox-group">
+                        <input type="checkbox" id="connAutoActivate" name="auto_activate" value="true" checked>
+                        <span>Activate on save</span>
+                    </label>
+                </div>
+
+                <div id="testResultBox" class="test-result-box"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btnTestConnection" onclick="testConnectionFromModal()">
+                    <i data-lucide="zap"></i>
+                    Test Connection
+                </button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="save"></i>
+                        Save Connection
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
