@@ -63,6 +63,19 @@ class ConnectionTestRequest(BaseModel):
     sentinel_master: Optional[str] = None
 
 
+class SavedConnectionTestRequest(BaseModel):
+    host: Optional[str] = None
+    port: Optional[int] = None
+    db: Optional[int] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    use_tls: Optional[bool] = None
+    conn_type: Optional[str] = None
+    cluster_nodes: Optional[str] = None
+    sentinel_master: Optional[str] = None
+
+
+
 class ConnectionTestResponse(BaseModel):
     success: bool
     latency_ms: Optional[float] = None

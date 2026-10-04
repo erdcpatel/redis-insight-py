@@ -15,6 +15,7 @@ from app.models import (
     ConnectionOut,
     ConnectionLimitModel,
     ConnectionTestRequest,
+    SavedConnectionTestRequest,
     ConnectionTestResponse,
     ActiveConnectionStatus,
     ClusterDiscoveryRequest,
@@ -245,7 +246,7 @@ async def select_connection_endpoint(conn_id: str):
 
 
 @router.post("/{conn_id}/test", response_model=ConnectionTestResponse)
-async def test_saved_connection_endpoint(conn_id: str, payload: Optional[ConnectionTestRequest] = None):
+async def test_saved_connection_endpoint(conn_id: str, payload: Optional[SavedConnectionTestRequest] = None):
     """
     Test an existing saved connection using its stored encrypted credentials (or optional overrides).
     """
@@ -263,19 +264,19 @@ async def test_saved_connection_endpoint(conn_id: str, payload: Optional[Connect
     cluster_nodes = conn.get("cluster_nodes")
 
     if payload:
-        if payload.host and payload.host != "localhost":
+        if payload.host is not None:
             host = payload.host
-        if payload.port and payload.port != 6379:
+        if payload.port is not None:
             port = payload.port
-        if payload.db != 0:
+        if payload.db is not None:
             db = payload.db
         if payload.username is not None:
             username = payload.username
         if payload.password is not None:
             password = payload.password
-        if payload.use_tls:
+        if payload.use_tls is not None:
             use_tls = payload.use_tls
-        if payload.conn_type and payload.conn_type != "standalone":
+        if payload.conn_type is not None:
             conn_type = payload.conn_type
         if payload.cluster_nodes is not None:
             cluster_nodes = payload.cluster_nodes
