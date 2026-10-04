@@ -374,25 +374,51 @@ function renderAppShell() {
               </div>
             </div>
 
-            <div class="form-row">
+            <div class="form-row" id="connHostPortRow">
               <div class="form-group">
-                <label class="form-label" for="connHost">Host / Seed Node *</label>
+                <label class="form-label" for="connHost" id="connHostLabel">Host *</label>
                 <input class="form-input" type="text" id="connHost" name="host" placeholder="localhost" required value="localhost">
               </div>
               <div class="form-group">
-                <label class="form-label" for="connPort">Port *</label>
+                <label class="form-label" for="connPort" id="connPortLabel">Port *</label>
                 <input class="form-input" type="number" id="connPort" name="port" placeholder="6379" required value="6379">
               </div>
             </div>
 
+            <!-- Cluster Multi-Node Builder & Auto-Discovery Panel -->
             <div class="form-group" id="clusterNodesGroup" style="display: none;">
-              <label class="form-label" for="connClusterNodes">Cluster Seed Nodes (optional)</label>
-              <input class="form-input" type="text" id="connClusterNodes" name="cluster_nodes" placeholder="e.g. 10.0.0.1:7000, 10.0.0.2:7001, 10.0.0.3:7002">
-              <span style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">Comma-separated cluster nodes. Redis will auto-discover the remaining nodes in topology.</span>
+              <div class="cluster-nodes-panel">
+                <div class="cluster-discover-header">
+                  <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="network" style="width: 15px; height: 15px; color: #a855f7;"></i>
+                    <strong style="font-size: 0.8rem; color: var(--text-primary);">Cluster Nodes & Discovery</strong>
+                    <span id="clusterNodeCountBadge" class="cluster-node-count-badge">0 configured</span>
+                  </div>
+                  <button type="button" class="cluster-discover-btn" id="btnAutoDiscoverCluster" title="Connect to the seed node above to automatically discover all cluster nodes">
+                    <i data-lucide="sparkles" style="width: 13px; height: 13px;"></i>
+                    <span>Auto-Discover Nodes</span>
+                  </button>
+                </div>
+
+                <div id="clusterDiscoveryStatus" class="cluster-discovery-status" style="display: none;"></div>
+
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.35rem;">
+                  Configured seed nodes for high-availability cluster discovery:
+                </div>
+
+                <div id="clusterNodesList" class="cluster-nodes-list"></div>
+
+                <div class="cluster-add-node-bar">
+                  <input class="form-input" type="text" id="inputCustomClusterNode" placeholder="Add node e.g. 127.0.0.1:7001" style="font-size: 0.78rem; padding: 0.35rem 0.6rem;">
+                  <button type="button" class="btn btn-secondary" id="btnAddCustomClusterNode" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; white-space: nowrap;">
+                    <i data-lucide="plus" style="width: 13px; height: 13px;"></i> Add Node
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
+            <div class="form-row" id="connDbRow">
+              <div class="form-group" id="connDbGroup">
                 <label class="form-label" for="connDb">Database Index</label>
                 <input class="form-input" type="number" id="connDb" name="db" min="0" max="15" value="0">
               </div>
@@ -3136,12 +3162,228 @@ function setupEventListeners() {
     });
   }
 
+  // Cluster Multi-Node Builder State
+  let configuredClusterNodes = [];
+
+  function renderConfiguredClusterNodes() {
+    const listEl = document.getElementById("clusterNodesList");
+    const countBadge = document.getElementById("clusterNodeCountBadge");
+    if (!listEl) return;
+
+    if (countBadge) {
+      countBadge.textContent = `${configuredClusterNodes.length} configured`;
+    }
+
+    if (configuredClusterNodes.length === 0) {
+      listEl.innerHTML = `
+        <div style="font-size: 0.73rem; color: var(--text-muted); font-style: italic; padding: 0.25rem 0;">
+          No nodes configured yet. Enter a seed node above and click Auto-Discover, or add nodes manually below.
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = configuredClusterNodes.map((n, idx) => {
+      const isMaster = n.role === "master";
+      const isReplica = n.role === "replica";
+      const isSeed = n.role === "seed";
+      const chipClass = isMaster ? "master" : isReplica ? "replica" : "";
+      const roleBadgeClass = isMaster ? "master" : isReplica ? "replica" : isSeed ? "seed" : "manual";
+      const roleText = isMaster ? "Master" : isReplica ? "Replica" : isSeed ? "Seed" : "Node";
+
+      return `
+        <span class="cluster-node-chip ${chipClass}">
+          <i data-lucide="server" style="width: 11px; height: 11px; opacity: 0.75;"></i>
+          <span>${escapeHtml(n.host)}:${n.port}</span>
+          <span class="cluster-node-role-badge ${roleBadgeClass}">${roleText}</span>
+          <button type="button" class="cluster-node-chip-remove" data-idx="${idx}" title="Remove node">
+            <i data-lucide="x" style="width: 11px; height: 11px;"></i>
+          </button>
+        </span>
+      `;
+    }).join("");
+
+    listEl.querySelectorAll(".cluster-node-chip-remove").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.getAttribute("data-idx"), 10);
+        if (!isNaN(idx) && idx >= 0 && idx < configuredClusterNodes.length) {
+          configuredClusterNodes.splice(idx, 1);
+          renderConfiguredClusterNodes();
+        }
+      });
+    });
+
+    setupIcons();
+  }
+
   // Connection Type toggle in Add Modal
   const typeSelect = document.getElementById("connTypeSelect");
   const clusterGroup = document.getElementById("clusterNodesGroup");
+  const hostLabel = document.getElementById("connHostLabel");
+  const portLabel = document.getElementById("connPortLabel");
+  const hostInput = document.getElementById("connHost");
+  const portInput = document.getElementById("connPort");
+  const dbGroup = document.getElementById("connDbGroup");
+
   if (typeSelect && clusterGroup) {
     typeSelect.addEventListener("change", () => {
-      clusterGroup.style.display = typeSelect.value === "cluster" ? "block" : "none";
+      const isCluster = typeSelect.value === "cluster";
+      clusterGroup.style.display = isCluster ? "block" : "none";
+      if (dbGroup) dbGroup.style.display = isCluster ? "none" : "block";
+
+      if (isCluster) {
+        if (hostLabel) hostLabel.textContent = "Primary Seed Host *";
+        if (portLabel) portLabel.textContent = "Seed Port *";
+        if (hostInput && (hostInput.value === "localhost" || !hostInput.value)) {
+          hostInput.value = "127.0.0.1";
+        }
+        if (portInput && (portInput.value === "6379" || !portInput.value)) {
+          portInput.value = "7000";
+        }
+        if (configuredClusterNodes.length === 0 && hostInput && hostInput.value && portInput && portInput.value) {
+          configuredClusterNodes.push({
+            host: hostInput.value.trim(),
+            port: parseInt(portInput.value, 10) || 7000,
+            role: "seed"
+          });
+        }
+        renderConfiguredClusterNodes();
+      } else {
+        if (hostLabel) hostLabel.textContent = "Host *";
+        if (portLabel) portLabel.textContent = "Port *";
+        if (portInput && portInput.value === "7000") {
+          portInput.value = "6379";
+        }
+      }
+    });
+  }
+
+  // Auto-Discover Cluster Nodes Button
+  const btnAutoDiscover = document.getElementById("btnAutoDiscoverCluster");
+  const discoveryStatusEl = document.getElementById("clusterDiscoveryStatus");
+
+  if (btnAutoDiscover) {
+    btnAutoDiscover.addEventListener("click", async () => {
+      const host = hostInput ? hostInput.value.trim() : "127.0.0.1";
+      const port = portInput ? parseInt(portInput.value, 10) || 7000 : 7000;
+      const username = document.getElementById("connUsername").value.trim() || null;
+      const password = document.getElementById("connPassword").value || null;
+      const use_tls = document.getElementById("connTls").checked;
+
+      if (!host) {
+        if (discoveryStatusEl) {
+          discoveryStatusEl.className = "cluster-discovery-status error";
+          discoveryStatusEl.style.display = "flex";
+          discoveryStatusEl.innerHTML = `<i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i><span>Please enter a Seed Host.</span>`;
+          setupIcons();
+        }
+        return;
+      }
+
+      btnAutoDiscover.disabled = true;
+      btnAutoDiscover.innerHTML = `<i class="lucide-spin" data-lucide="loader-2" style="width: 13px; height: 13px;"></i> Discovering...`;
+      setupIcons();
+
+      if (discoveryStatusEl) {
+        discoveryStatusEl.className = "cluster-discovery-status";
+        discoveryStatusEl.style.display = "none";
+      }
+
+      try {
+        const res = await fetch("/api/connections/discover-cluster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host, port, username, password, use_tls })
+        });
+        const data = await res.json();
+
+        if (data.success && data.nodes && data.nodes.length > 0) {
+          // Replace configured nodes with discovered nodes
+          configuredClusterNodes = data.nodes.map(n => ({
+            host: n.host,
+            port: n.port,
+            role: n.role,
+            is_myself: n.is_myself,
+            slots: n.slots
+          }));
+
+          renderConfiguredClusterNodes();
+
+          if (discoveryStatusEl) {
+            discoveryStatusEl.className = "cluster-discovery-status success";
+            discoveryStatusEl.style.display = "flex";
+            discoveryStatusEl.innerHTML = `
+              <i data-lucide="check-circle-2" style="width: 14px; height: 14px;"></i>
+              <span>Discovered <strong>${data.total_nodes} nodes</strong> (${data.masters_count} masters, ${data.replicas_count} replicas) • Cluster state: <strong>${data.cluster_state.toUpperCase()}</strong></span>
+            `;
+          }
+        } else {
+          if (discoveryStatusEl) {
+            discoveryStatusEl.className = "cluster-discovery-status error";
+            discoveryStatusEl.style.display = "flex";
+            discoveryStatusEl.innerHTML = `
+              <i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i>
+              <span>${escapeHtml(data.error || "Cluster discovery failed. Ensure seed node is part of a cluster.")}</span>
+            `;
+          }
+        }
+      } catch (err) {
+        if (discoveryStatusEl) {
+          discoveryStatusEl.className = "cluster-discovery-status error";
+          discoveryStatusEl.style.display = "flex";
+          discoveryStatusEl.innerHTML = `
+            <i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i>
+            <span>Network error: ${escapeHtml(err.message)}</span>
+          `;
+        }
+      } finally {
+        btnAutoDiscover.disabled = false;
+        btnAutoDiscover.innerHTML = `<i data-lucide="sparkles" style="width: 13px; height: 13px;"></i> Auto-Discover Nodes`;
+        setupIcons();
+      }
+    });
+  }
+
+  // Manual Add Node to Cluster Builder
+  const inputCustomNode = document.getElementById("inputCustomClusterNode");
+  const btnAddCustomNode = document.getElementById("btnAddCustomClusterNode");
+
+  function handleAddCustomNode() {
+    if (!inputCustomNode) return;
+    const val = inputCustomNode.value.trim();
+    if (!val) return;
+
+    let h = "127.0.0.1";
+    let p = 7000;
+    if (val.includes(":")) {
+      const parts = val.split(":");
+      h = parts[0].trim() || "127.0.0.1";
+      p = parseInt(parts[1].trim(), 10) || 7000;
+    } else if (!isNaN(parseInt(val, 10))) {
+      p = parseInt(val, 10);
+      h = hostInput ? hostInput.value.trim() : "127.0.0.1";
+    } else {
+      h = val;
+    }
+
+    const exists = configuredClusterNodes.some(n => n.host === h && n.port === p);
+    if (!exists) {
+      configuredClusterNodes.push({ host: h, port: p, role: "manual" });
+      renderConfiguredClusterNodes();
+    }
+    inputCustomNode.value = "";
+  }
+
+  if (btnAddCustomNode) {
+    btnAddCustomNode.addEventListener("click", handleAddCustomNode);
+  }
+  if (inputCustomNode) {
+    inputCustomNode.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddCustomNode();
+      }
     });
   }
 
@@ -3307,12 +3549,18 @@ function setupEventListeners() {
 
   // Modal test connection
   document.getElementById("btnTestConnModal").addEventListener("click", async () => {
+    const conn_type = document.getElementById("connTypeSelect").value;
     const host = document.getElementById("connHost").value.trim() || "localhost";
     const port = parseInt(document.getElementById("connPort").value, 10) || 6379;
     const db = parseInt(document.getElementById("connDb").value, 10) || 0;
     const username = document.getElementById("connUsername").value.trim() || null;
     const password = document.getElementById("connPassword").value || null;
     const use_tls = document.getElementById("connTls").checked;
+
+    let cluster_nodes = null;
+    if (conn_type === "cluster" && configuredClusterNodes.length > 0) {
+      cluster_nodes = JSON.stringify(configuredClusterNodes.map(n => ({ host: n.host, port: n.port })));
+    }
 
     const resBox = document.getElementById("testResultBox");
     const btnTest = document.getElementById("btnTestConnModal");
@@ -3326,27 +3574,30 @@ function setupEventListeners() {
       const res = await fetch("/api/connections/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host, port, db, username, password, use_tls })
+        body: JSON.stringify({ host, port, db, username, password, use_tls, conn_type, cluster_nodes })
       });
       const data = await res.json();
       if (data.success) {
         resBox.className = "test-result-box success";
+        const clusterInfo = data.is_cluster
+          ? ` • Cluster Mode (${data.cluster_nodes_count || configuredClusterNodes.length} nodes reachable)`
+          : "";
         resBox.innerHTML = `
           <i data-lucide="check-circle-2"></i>
-          <span>Connected! Latency: <strong>${data.latency_ms} ms</strong> (Redis v${data.redis_version})</span>
+          <span>Connected! Latency: <strong>${data.latency_ms} ms</strong>${clusterInfo} (Redis v${data.redis_version})</span>
         `;
       } else {
         resBox.className = "test-result-box error";
         resBox.innerHTML = `
           <i data-lucide="alert-circle"></i>
-          <span>Failed: ${data.error || "Connection refused"}</span>
+          <span>Failed: ${escapeHtml(data.error || "Connection refused")}</span>
         `;
       }
     } catch (err) {
       resBox.className = "test-result-box error";
       resBox.innerHTML = `
         <i data-lucide="alert-circle"></i>
-        <span>Error: ${err.message}</span>
+        <span>Error: ${escapeHtml(err.message)}</span>
       `;
     } finally {
       btnTest.disabled = false;
@@ -3361,14 +3612,24 @@ function setupEventListeners() {
     const name = document.getElementById("connName").value.trim();
     const env = document.getElementById("connEnv").value;
     const conn_type = document.getElementById("connTypeSelect").value;
-    const host = document.getElementById("connHost").value.trim() || "localhost";
-    const port = parseInt(document.getElementById("connPort").value, 10) || 6379;
-    const cluster_nodes = document.getElementById("connClusterNodes") ? document.getElementById("connClusterNodes").value.trim() || null : null;
+    let host = document.getElementById("connHost").value.trim() || "localhost";
+    let port = parseInt(document.getElementById("connPort").value, 10) || 6379;
     const db = parseInt(document.getElementById("connDb").value, 10) || 0;
     const username = document.getElementById("connUsername").value.trim() || null;
     const password = document.getElementById("connPassword").value || null;
     const use_tls = document.getElementById("connTls").checked;
     const auto_activate = document.getElementById("connAutoActivate").checked;
+
+    let cluster_nodes = null;
+    if (conn_type === "cluster") {
+      if (configuredClusterNodes.length > 0) {
+        cluster_nodes = JSON.stringify(configuredClusterNodes.map(n => ({ host: n.host, port: n.port })));
+        host = configuredClusterNodes[0].host;
+        port = configuredClusterNodes[0].port;
+      } else {
+        cluster_nodes = JSON.stringify([{ host, port }]);
+      }
+    }
 
     try {
       const res = await fetch(`/api/connections?auto_activate=${auto_activate}`, {
@@ -3379,6 +3640,8 @@ function setupEventListeners() {
       if (!res.ok) throw new Error("Failed to save connection");
       modal.classList.remove("active");
       document.getElementById("connectionForm").reset();
+      configuredClusterNodes = [];
+      renderConfiguredClusterNodes();
       await loadConnections();
       await refreshStatus();
       await resetAndScan();

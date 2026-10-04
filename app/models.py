@@ -73,6 +73,37 @@ class ConnectionTestResponse(BaseModel):
     cluster_nodes_count: Optional[int] = None
 
 
+class ClusterDiscoveryRequest(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 7000
+    username: Optional[str] = None
+    password: Optional[str] = None
+    use_tls: bool = False
+
+
+class DiscoveredClusterNode(BaseModel):
+    id: str
+    host: str
+    port: int
+    role: str
+    is_myself: bool = False
+    master_id: Optional[str] = None
+    link_state: str = "connected"
+    slots: Optional[str] = None
+    slot_count: int = 0
+
+
+class ClusterDiscoveryResponse(BaseModel):
+    success: bool
+    cluster_state: Optional[str] = "unknown"
+    total_nodes: Optional[int] = 0
+    masters_count: Optional[int] = 0
+    replicas_count: Optional[int] = 0
+    slots_assigned: Optional[int] = 0
+    nodes: Optional[List[DiscoveredClusterNode]] = []
+    error: Optional[str] = None
+
+
 class ActiveConnectionStatus(BaseModel):
     connected: bool
     connection_id: Optional[str] = None

@@ -21,6 +21,8 @@ from app.models import (
     MemoryTypeBreakdown,
     MemoryOverviewResponse,
     MemoryAnalysisResponse,
+    ClusterDiscoveryResponse,
+    DiscoveredClusterNode,
 )
 
 
@@ -332,6 +334,179 @@ class RedisManager:
             if temp_client:
                 try:
                     await temp_client.aclose()
+                except Exception:
+                    pass
+
+    async def discover_cluster_nodes(
+        self,
+        host: str,
+        port: int,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        use_tls: bool = False,
+    ) -> ClusterDiscoveryResponse:
+        """
+        Connect to a single candidate seed node and discover all cluster nodes via CLUSTER NODES / CLUSTER INFO.
+        Safely derives IPs, ports, roles, and cluster state, taking 'myself' flag, NAT, and hostname mappings into account.
+        """
+        temp_c = None
+        try:
+            temp_c = aioredis.Redis(
+                host=host,
+                port=port,
+                username=username or None,
+                password=password or None,
+                ssl=use_tls,
+                decode_responses=True,
+                encoding_errors="replace",
+                socket_connect_timeout=3.0,
+                socket_timeout=4.0,
+            )
+            # 1. Verify connection and cluster mode
+            await temp_c.ping()
+
+            c_info = {}
+            try:
+                c_info = await temp_c.info("cluster")
+            except Exception:
+                pass
+
+            if c_info.get("cluster_enabled") != 1:
+                return ClusterDiscoveryResponse(
+                    success=False,
+                    error=f"The Redis instance at {host}:{port} is standalone (cluster_enabled: 0). Switch connection type to Standalone Redis."
+                )
+
+            # 2. Query CLUSTER NODES
+            raw_nodes = await temp_c.execute_command("CLUSTER NODES")
+            if isinstance(raw_nodes, bytes):
+                raw_nodes = raw_nodes.decode("utf-8", errors="replace")
+
+            # 3. Query CLUSTER INFO for cluster state and slot count
+            cluster_state = "ok"
+            slots_assigned = 16384
+            try:
+                raw_info = await temp_c.execute_command("CLUSTER INFO")
+                if isinstance(raw_info, bytes):
+                    raw_info = raw_info.decode("utf-8", errors="replace")
+                if isinstance(raw_info, str):
+                    for line in raw_info.splitlines():
+                        if line.startswith("cluster_state:"):
+                            cluster_state = line.split(":", 1)[1].strip()
+                        elif line.startswith("cluster_slots_assigned:"):
+                            try:
+                                slots_assigned = int(line.split(":", 1)[1].strip())
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
+            # 4. Parse nodes text safely
+            discovered: List[DiscoveredClusterNode] = []
+            masters_count = 0
+            replicas_count = 0
+
+            for line in raw_nodes.strip().splitlines():
+                parts = line.split()
+                if len(parts) < 8:
+                    continue
+                node_id = parts[0]
+                addr_part = parts[1]
+                flags = parts[2].split(",")
+                master_id = parts[3] if parts[3] != "-" else None
+                link_state = parts[7]
+                slots = " ".join(parts[8:]) if len(parts) > 8 else None
+
+                is_myself = "myself" in flags
+                is_master = "master" in flags
+                role = "master" if is_master else "replica"
+
+                # Parse addr_part: e.g. "127.0.0.1:7000@17000,hostname" or ":0@0" or "host:7000"
+                # Strip Redis 7 hostname if present
+                addr_main = addr_part.split(",")[0] if "," in addr_part else addr_part
+                # Strip cluster bus port
+                clean_addr = addr_main.split("@")[0] if "@" in addr_main else addr_main
+
+                node_host = host
+                node_port = port
+
+                if ":" in clean_addr:
+                    h_cand, p_cand = clean_addr.rsplit(":", 1)
+                    if h_cand and h_cand != "" and h_cand != "0.0.0.0":
+                        node_host = h_cand
+                    else:
+                        node_host = host
+                    try:
+                        p_val = int(p_cand)
+                        if p_val > 0:
+                            node_port = p_val
+                        elif is_myself:
+                            node_port = port
+                    except Exception:
+                        if is_myself:
+                            node_port = port
+                elif clean_addr and clean_addr != "":
+                    node_host = clean_addr
+                    node_port = port
+
+                # If myself or loopback node and user contacted via specific seed host/port, maintain reachable seed endpoint
+                if is_myself:
+                    if not clean_addr or clean_addr.startswith(":") or clean_addr.startswith("0.0.0.0"):
+                        node_host = host
+                        node_port = port
+
+                slot_count = 0
+                if slots:
+                    for s_range in slots.split():
+                        if s_range.startswith("["):
+                            continue
+                        if "-" in s_range:
+                            try:
+                                s1, s2 = s_range.split("-")
+                                slot_count += int(s2) - int(s1) + 1
+                            except Exception:
+                                pass
+                        elif s_range.isdigit():
+                            slot_count += 1
+
+                if is_master:
+                    masters_count += 1
+                else:
+                    replicas_count += 1
+
+                discovered.append(DiscoveredClusterNode(
+                    id=node_id,
+                    host=node_host,
+                    port=node_port,
+                    role=role,
+                    is_myself=is_myself,
+                    master_id=master_id,
+                    link_state=link_state,
+                    slots=slots,
+                    slot_count=slot_count,
+                ))
+
+            # Sort discovered nodes: masters first by port, then replicas
+            discovered.sort(key=lambda n: (0 if n.role == "master" else 1, n.port, n.host))
+
+            return ClusterDiscoveryResponse(
+                success=True,
+                cluster_state=cluster_state,
+                total_nodes=len(discovered),
+                masters_count=masters_count,
+                replicas_count=replicas_count,
+                slots_assigned=slots_assigned,
+                nodes=discovered,
+            )
+        except Exception as e:
+            return ClusterDiscoveryResponse(
+                success=False,
+                error=f"Failed to discover cluster nodes: {str(e)}"
+            )
+        finally:
+            if temp_c:
+                try:
+                    await temp_c.aclose()
                 except Exception:
                     pass
 

@@ -18,10 +18,16 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Configuration source (`config/connections.yaml` or Local SQLite DB).
 - **Direct Actions**:
   - **Connect**: Connect to the cluster after reviewing configuration.
-  - **Test Connection**: Run an isolated latency and version check without saving or connecting.
+  - **Test Connection**: Run an isolated latency, version, and cluster reachability check without saving or connecting.
   - **Disconnect**: Safely disconnect and release connection pools.
   - **Switch & View Keys**: Switch focus between connected clusters.
   - **Topology & Nodes**: View live slot distribution, node states, and cluster health.
+- **Smart Multi-Node Cluster Builder & ⚡ Auto-Discovery**:
+  - Prevents single-point-of-failure startup risks by saving redundant seed nodes for the cluster client.
+  - Enter a single seed node and click **Auto-Discover Nodes**: connects to the seed node, queries `CLUSTER NODES` & `CLUSTER INFO`, and automatically discovers all masters and replicas across the cluster.
+  - Robust handling of Redis 7 hostname syntax, `myself` node resolution, NAT/Docker IP mappings, and slot assignments.
+  - Interactive chip manager to inspect, add, or remove custom seed endpoints before saving.
+  - Cluster-aware **Test Connection** verifying live node reachability and cluster health.
 
 ---
 

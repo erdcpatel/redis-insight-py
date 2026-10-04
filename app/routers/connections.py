@@ -15,7 +15,9 @@ from app.models import (
     ConnectionLimitModel,
     ConnectionTestRequest,
     ConnectionTestResponse,
-    ActiveConnectionStatus
+    ActiveConnectionStatus,
+    ClusterDiscoveryRequest,
+    ClusterDiscoveryResponse,
 )
 from app.redis_manager import redis_manager
 
@@ -238,6 +240,23 @@ async def test_connection_endpoint(payload: ConnectionTestRequest):
         host=payload.host,
         port=payload.port,
         db=payload.db,
+        username=payload.username,
+        password=payload.password,
+        use_tls=payload.use_tls,
+        conn_type=payload.conn_type,
+        cluster_nodes=payload.cluster_nodes
+    )
+
+
+@router.post("/discover-cluster", response_model=ClusterDiscoveryResponse)
+async def discover_cluster_endpoint(payload: ClusterDiscoveryRequest):
+    """
+    Connect to a candidate seed node and query CLUSTER NODES / CLUSTER INFO
+    to discover all active cluster nodes and their assigned roles and slots.
+    """
+    return await redis_manager.discover_cluster_nodes(
+        host=payload.host,
+        port=payload.port,
         username=payload.username,
         password=payload.password,
         use_tls=payload.use_tls
