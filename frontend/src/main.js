@@ -33,7 +33,9 @@ import {
   Power,
   ChevronLeft,
   ChevronRight,
-  PanelLeft
+  PanelLeft,
+  Download,
+  FileText
 } from "lucide";
 
 // Global State
@@ -112,7 +114,9 @@ function setupIcons() {
       Power,
       ChevronLeft,
       ChevronRight,
-      PanelLeft
+      PanelLeft,
+      Download,
+      FileText
     }
   });
 }
@@ -284,6 +288,14 @@ function renderAppShell() {
               <button type="button" class="btn btn-secondary" id="btnResetScan" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
                 <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                 Refresh
+              </button>
+              <button type="button" class="btn btn-secondary" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
+                <i data-lucide="download" style="width: 13px; height: 13px;"></i>
+                Export
+              </button>
+              <button type="button" class="btn btn-secondary" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; color: var(--accent-danger); border-color: rgba(239, 68, 68, 0.4);">
+                <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+                Bulk Delete
               </button>
             </div>
           </div>
@@ -728,6 +740,158 @@ function renderAppShell() {
         </div>
       </div>
     </div>
+
+    <!-- Export Keys Modal -->
+    <div class="modal-backdrop" id="exportKeysModal">
+      <div class="config-modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="download" style="color: var(--accent-primary); width: 20px; height: 20px;"></i>
+            <div>
+              <h3 class="modal-title">Export Matched Keys</h3>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Export key names, data types, and TTLs</div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseExportModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.8rem;">
+            <div style="display: flex; justify-content: space-between;">
+              <span>Pattern:</span>
+              <code id="exportPatternDisplay" style="color: var(--accent-primary); font-weight: 600;">*</code>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span>Type Filter:</span>
+              <span id="exportTypeDisplay" style="font-weight: 500;">All Types</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span>Loaded in Browser:</span>
+              <strong id="exportLoadedCount">0 keys</strong>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem; display: block;">Export Format</label>
+            <div style="display: flex; gap: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportFormatRadio" value="csv" checked>
+                <span>CSV (Key, Type, TTL)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportFormatRadio" value="txt">
+                <span>TXT (Keys only)</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem; display: block;">Export Scope</label>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportScopeRadio" value="loaded" checked>
+                <span>Currently Loaded Keys (<strong id="exportScopeLoadedText">0</strong>)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportScopeRadio" value="all">
+                <span>All Matched Keys in Database (Scans Redis)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 0.85rem 1.25rem; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.6rem;">
+          <button type="button" class="btn btn-secondary" id="btnCancelExportModal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnExecuteExport" style="display: flex; align-items: center; gap: 0.35rem;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Download</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Delete Modal -->
+    <div class="modal-backdrop" id="bulkDeleteModal">
+      <div class="config-modal-card" style="max-width: 520px; border-top: 3px solid var(--accent-danger);">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="trash-2" style="color: var(--accent-danger); width: 20px; height: 20px;"></i>
+            <div>
+              <h3 class="modal-title" style="color: var(--accent-danger);">Bulk Delete (UNLINK)</h3>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Non-blocking key deletion in batches per node</div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseBulkDeleteModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div id="bulkDeleteProdBanner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--accent-danger); border-radius: 6px; padding: 0.75rem; color: #fca5a5; font-size: 0.8rem;">
+            <div style="font-weight: 700; display: flex; align-items: center; gap: 0.35rem; color: var(--accent-danger);">
+              <i data-lucide="alert-triangle" style="width: 15px; height: 15px;"></i>
+              CRITICAL: PRODUCTION ENVIRONMENT
+            </div>
+            <div style="margin-top: 0.25rem; font-size: 0.75rem;">
+              You are performing a destructive bulk deletion on a <strong>PROD</strong> connection. Extra confirmation is required.
+            </div>
+          </div>
+
+          <div id="bulkDeleteDryRunStatus" style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 1.5rem 0;">
+            <i data-lucide="refresh-cw" class="spin" style="width: 18px; height: 18px; margin-bottom: 0.4rem; display: inline-block;"></i>
+            <div>Calculating dry-run count across Redis cluster...</div>
+          </div>
+
+          <div id="bulkDeleteDetails" style="display: none; flex-direction: column; gap: 0.85rem;">
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.8rem;">
+              <div style="display: flex; justify-content: space-between;">
+                <span>Pattern:</span>
+                <code id="bdPatternDisplay" style="font-weight: 600; color: var(--accent-danger);">*</code>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+                <span>Type Filter:</span>
+                <span id="bdTypeDisplay" style="font-weight: 500;">All Types</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 0.25rem; font-weight: 700; font-size: 0.85rem;">
+                <span>Total Matched Keys:</span>
+                <span id="bdCountDisplay" style="color: var(--accent-danger);">0</span>
+              </div>
+              <div id="bdPerNodeBreakdown" style="margin-top: 0.5rem; font-size: 0.73rem; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 0.35rem;"></div>
+            </div>
+
+            <!-- Sample keys -->
+            <div id="bdSampleKeysSection" style="font-size: 0.75rem;">
+              <div style="color: var(--text-muted); margin-bottom: 0.25rem;">Sample keys to be unlinked:</div>
+              <div id="bdSampleKeysList" style="font-family: var(--font-mono); font-size: 0.72rem; background: rgba(0,0,0,0.25); padding: 0.5rem; border-radius: 4px; max-height: 80px; overflow-y: auto;"></div>
+            </div>
+
+            <!-- Confirmation Input 1: Exact count -->
+            <div>
+              <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">
+                Type <strong id="bdRequiredCountText" style="color: var(--accent-danger); font-family: var(--font-mono);">0</strong> to confirm count:
+              </label>
+              <input type="text" id="bdCountConfirmInput" class="confirm-input-field" placeholder="Type key count here..." autocomplete="off">
+            </div>
+
+            <!-- Confirmation Input 2: PROD environment only -->
+            <div id="bdProdConfirmGroup" style="display: none;">
+              <label style="font-size: 0.78rem; font-weight: 600; color: var(--accent-danger); display: block; margin-bottom: 0.25rem;">
+                Type <strong>PROD</strong> to confirm production deletion:
+              </label>
+              <input type="text" id="bdProdConfirmInput" class="confirm-input-field" placeholder="Type PROD here..." autocomplete="off" style="border-color: var(--accent-danger);">
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 0.85rem 1.25rem; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.6rem;">
+          <button type="button" class="btn btn-secondary" id="btnCancelBulkDelete">Cancel</button>
+          <button type="button" class="btn-danger-confirm" id="btnConfirmBulkDelete" disabled>
+            <i data-lucide="trash-2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+            Unlink Keys
+          </button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -1013,6 +1177,18 @@ function renderKeyDetailMeta(data) {
       <span style="color: var(--text-muted);">Encoding:</span>
       <span style="font-family: var(--font-mono);">${data.encoding}</span>
     </div>
+    ${data.slot !== undefined && data.slot !== null ? `
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Cluster Hash Slot: slot ${data.slot} of 16384">
+        <span style="color: var(--text-muted);">Slot:</span>
+        <span class="badge-db" style="color: #c084fc; font-family: var(--font-mono); font-weight: 600;">#${data.slot}</span>
+      </div>
+    ` : ''}
+    ${data.node ? `
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Owning Cluster Node">
+        <span style="color: var(--text-muted);">Node:</span>
+        <span class="badge-db" style="color: #38bdf8; font-family: var(--font-mono); font-size: 0.72rem;">${escapeHtml(data.node)}</span>
+      </div>
+    ` : ''}
     <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: auto;">
       <i data-lucide="clock" style="width: 13px; height: 13px; color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};"></i>
       <span style="font-family: var(--font-mono); color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'}; font-weight: 600;">${ttlText}</span>
@@ -4038,6 +4214,229 @@ function setupEventListeners() {
   if (btnResetScan) {
     btnResetScan.addEventListener("click", resetAndScan);
   }
+
+  // ==========================================
+  // Export Matched Keys
+  // ==========================================
+  const modalExport = document.getElementById("exportKeysModal");
+  const btnOpenExportModal = document.getElementById("btnOpenExportModal");
+  const btnCloseExportModal = document.getElementById("btnCloseExportModal");
+  const btnCancelExportModal = document.getElementById("btnCancelExportModal");
+  const btnExecuteExport = document.getElementById("btnExecuteExport");
+
+  if (btnOpenExportModal && modalExport) {
+    btnOpenExportModal.addEventListener("click", () => {
+      document.getElementById("exportPatternDisplay").textContent = currentPattern || "*";
+      document.getElementById("exportTypeDisplay").textContent = (currentTypeFilter && currentTypeFilter !== "all") ? currentTypeFilter.toUpperCase() : "All Types";
+      document.getElementById("exportLoadedCount").textContent = `${keysTableRows.length} keys`;
+      document.getElementById("exportScopeLoadedText").textContent = `${keysTableRows.length} keys`;
+      modalExport.classList.add("active");
+      setupIcons();
+    });
+
+    const closeExport = () => modalExport.classList.remove("active");
+    if (btnCloseExportModal) btnCloseExportModal.addEventListener("click", closeExport);
+    if (btnCancelExportModal) btnCancelExportModal.addEventListener("click", closeExport);
+
+    if (btnExecuteExport) {
+      btnExecuteExport.addEventListener("click", () => {
+        const formatRadio = document.querySelector('input[name="exportFormatRadio"]:checked');
+        const scopeRadio = document.querySelector('input[name="exportScopeRadio"]:checked');
+        const format = formatRadio ? formatRadio.value : "csv";
+        const scope = scopeRadio ? scopeRadio.value : "loaded";
+
+        const pattern = currentPattern || "*";
+        const typeFilter = (currentTypeFilter && currentTypeFilter !== "all") ? currentTypeFilter : "";
+
+        if (scope === "all") {
+          let url = `/api/keys/export?pattern=${encodeURIComponent(pattern)}&format=${format}`;
+          if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
+          window.location.href = url;
+          closeExport();
+          return;
+        }
+
+        if (keysTableRows.length === 0) {
+          alert("No keys loaded to export.");
+          return;
+        }
+
+        const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const filename = `redis_keys_${dateStr}.${format}`;
+        let blob;
+
+        if (format === "csv") {
+          const header = "Key,Type,TTL_Seconds\n";
+          const rows = keysTableRows.map(r => `"${(r.key || "").replace(/"/g, '""')}",${r.type || ""},${r.ttl_seconds !== undefined ? r.ttl_seconds : -1}`);
+          blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+        } else {
+          const lines = keysTableRows.map(r => r.key);
+          blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain;charset=utf-8;" });
+        }
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        closeExport();
+      });
+    }
+  }
+
+  // ==========================================
+  // Bulk Delete (UNLINK)
+  // ==========================================
+  const modalBulkDelete = document.getElementById("bulkDeleteModal");
+  const btnOpenBulkDeleteModal = document.getElementById("btnOpenBulkDeleteModal");
+  const btnCloseBulkDeleteModal = document.getElementById("btnCloseBulkDeleteModal");
+  const btnCancelBulkDelete = document.getElementById("btnCancelBulkDelete");
+  const btnConfirmBulkDelete = document.getElementById("btnConfirmBulkDelete");
+
+  const bdCountConfirmInput = document.getElementById("bdCountConfirmInput");
+  const bdProdConfirmInput = document.getElementById("bdProdConfirmInput");
+  const bdProdConfirmGroup = document.getElementById("bdProdConfirmGroup");
+  const bdProdBanner = document.getElementById("bulkDeleteProdBanner");
+  const bdDryRunStatus = document.getElementById("bulkDeleteDryRunStatus");
+  const bdDetails = document.getElementById("bulkDeleteDetails");
+
+  let activeDryRunResult = null;
+
+  function updateBulkDeleteButtonState() {
+    if (!activeDryRunResult || !btnConfirmBulkDelete) return;
+    const requiredCount = String(activeDryRunResult.matched_count);
+    const countTyped = (bdCountConfirmInput?.value || "").trim();
+    const countValid = countTyped === requiredCount && activeDryRunResult.matched_count > 0;
+
+    let prodValid = true;
+    if (activeDryRunResult.is_prod) {
+      const prodTyped = (bdProdConfirmInput?.value || "").trim().toUpperCase();
+      prodValid = prodTyped === "PROD";
+    }
+
+    btnConfirmBulkDelete.disabled = !(countValid && prodValid);
+  }
+
+  if (bdCountConfirmInput) bdCountConfirmInput.addEventListener("input", updateBulkDeleteButtonState);
+  if (bdProdConfirmInput) bdProdConfirmInput.addEventListener("input", updateBulkDeleteButtonState);
+
+  if (btnOpenBulkDeleteModal && modalBulkDelete) {
+    btnOpenBulkDeleteModal.addEventListener("click", async () => {
+      const pattern = currentPattern || "*";
+      const typeFilter = (currentTypeFilter && currentTypeFilter !== "all") ? currentTypeFilter : null;
+
+      activeDryRunResult = null;
+      if (bdCountConfirmInput) bdCountConfirmInput.value = "";
+      if (bdProdConfirmInput) bdProdConfirmInput.value = "";
+      if (btnConfirmBulkDelete) btnConfirmBulkDelete.disabled = true;
+
+      bdDryRunStatus.style.display = "block";
+      bdDetails.style.display = "none";
+      modalBulkDelete.classList.add("active");
+      setupIcons();
+
+      try {
+        const res = await fetch("/api/keys/bulk-delete/dry-run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pattern, type_filter: typeFilter })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: "Dry run failed" }));
+          throw new Error(err.detail || "Dry run failed");
+        }
+        const data = await res.json();
+        activeDryRunResult = data;
+
+        document.getElementById("bdPatternDisplay").textContent = data.pattern;
+        document.getElementById("bdTypeDisplay").textContent = data.type_filter ? data.type_filter.toUpperCase() : "All Types";
+        document.getElementById("bdCountDisplay").textContent = data.matched_count.toLocaleString();
+        document.getElementById("bdRequiredCountText").textContent = String(data.matched_count);
+
+        if (data.is_prod) {
+          bdProdBanner.style.display = "block";
+          bdProdConfirmGroup.style.display = "block";
+        } else {
+          bdProdBanner.style.display = "none";
+          bdProdConfirmGroup.style.display = "none";
+        }
+
+        const breakdownEl = document.getElementById("bdPerNodeBreakdown");
+        const nodeEntries = Object.entries(data.per_node_counts || {});
+        if (nodeEntries.length > 1) {
+          breakdownEl.innerHTML = `<strong>Per-node breakdown:</strong> ` + nodeEntries.map(([node, cnt]) => `${escapeHtml(node)}: ${cnt.toLocaleString()}`).join(" &bull; ");
+          breakdownEl.style.display = "block";
+        } else {
+          breakdownEl.style.display = "none";
+        }
+
+        const sampleListEl = document.getElementById("bdSampleKeysList");
+        if (data.sample_keys && data.sample_keys.length > 0) {
+          sampleListEl.innerHTML = data.sample_keys.map(k => `<div>${escapeHtml(k)}</div>`).join("");
+          document.getElementById("bdSampleKeysSection").style.display = "block";
+        } else {
+          document.getElementById("bdSampleKeysSection").style.display = "none";
+        }
+
+        bdDryRunStatus.style.display = "none";
+        bdDetails.style.display = "flex";
+        setupIcons();
+      } catch (err) {
+        bdDryRunStatus.innerHTML = `
+          <div style="color: var(--accent-danger);">
+            <i data-lucide="alert-circle" style="width: 20px; height: 20px; margin-bottom: 0.35rem; display: inline-block;"></i>
+            <div>Failed to calculate dry-run: ${escapeHtml(err.message)}</div>
+          </div>
+        `;
+        setupIcons();
+      }
+    });
+
+    const closeBulkDelete = () => modalBulkDelete.classList.remove("active");
+    if (btnCloseBulkDeleteModal) btnCloseBulkDeleteModal.addEventListener("click", closeBulkDelete);
+    if (btnCancelBulkDelete) btnCancelBulkDelete.addEventListener("click", closeBulkDelete);
+
+    if (btnConfirmBulkDelete) {
+      btnConfirmBulkDelete.addEventListener("click", async () => {
+        if (!activeDryRunResult) return;
+        btnConfirmBulkDelete.disabled = true;
+        btnConfirmBulkDelete.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlinking...`;
+        setupIcons();
+
+        try {
+          const res = await fetch("/api/keys/bulk-delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pattern: activeDryRunResult.pattern,
+              type_filter: activeDryRunResult.type_filter,
+              expected_count: activeDryRunResult.matched_count,
+              confirmed_count: parseInt(bdCountConfirmInput.value.trim(), 10),
+              confirmed_env: bdProdConfirmInput ? bdProdConfirmInput.value.trim() : null
+            })
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: "Bulk delete failed" }));
+            throw new Error(err.detail || "Bulk delete failed");
+          }
+
+          const result = await res.json();
+          alert(`Bulk delete complete!\n${result.message} (Duration: ${result.duration_ms}ms)`);
+          closeBulkDelete();
+          resetAndScan();
+        } catch (err) {
+          alert(`Bulk delete error: ${err.message}`);
+          btnConfirmBulkDelete.disabled = false;
+          btnConfirmBulkDelete.innerHTML = `<i data-lucide="trash-2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlink Keys`;
+          setupIcons();
+        }
+      });
+    }
+  }
+
 
   // Sidebar Collapse & Expand Controls
   function setSidebarCollapsed(collapsed) {

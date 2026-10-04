@@ -264,3 +264,37 @@ class MemoryAnalysisResponse(BaseModel):
     scan_duration_ms: float
 
 
+# --- Bulk Delete Models ---
+class BulkDeleteDryRunRequest(BaseModel):
+    pattern: str = "*"
+    type_filter: Optional[str] = None
+
+
+class BulkDeleteDryRunResponse(BaseModel):
+    pattern: str
+    type_filter: Optional[str] = None
+    matched_count: int
+    per_node_counts: Dict[str, int] = {}
+    is_prod: bool = False
+    env: str = "LOCAL"
+    sample_keys: List[str] = []
+
+
+class BulkDeleteExecuteRequest(BaseModel):
+    pattern: str
+    type_filter: Optional[str] = None
+    expected_count: int
+    confirmed_count: int
+    confirmed_env: Optional[str] = None
+
+
+class BulkDeleteExecuteResponse(BaseModel):
+    success: bool
+    pattern: str
+    deleted_count: int
+    per_node_deleted: Dict[str, int] = {}
+    duration_ms: float
+    message: str
+
+
+

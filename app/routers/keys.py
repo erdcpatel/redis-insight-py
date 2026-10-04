@@ -1,6 +1,7 @@
+import datetime
 from urllib.parse import unquote
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Response
 from pydantic import BaseModel, Field
 from redis.exceptions import (
     RedisError,
@@ -20,6 +21,10 @@ from app.models import (
     MemoryOverviewResponse,
     MemoryAnalysisRequest,
     MemoryAnalysisResponse,
+    BulkDeleteDryRunRequest,
+    BulkDeleteDryRunResponse,
+    BulkDeleteExecuteRequest,
+    BulkDeleteExecuteResponse,
 )
 from app.redis_manager import redis_manager
 
@@ -263,5 +268,68 @@ async def analyze_memory_endpoint(request: MemoryAnalysisRequest = Body(...)):
         )
     except Exception as e:
         raise_mapped_exception(e, "Failed to analyze memory")
+
+
+@router.get("/keys/export")
+async def export_keys_endpoint(
+    pattern: str = Query("*", description="Glob pattern of keys to export"),
+    type: Optional[str] = Query(None, description="Optional Redis type filter"),
+    format: str = Query("csv", description="Export format: csv or txt")
+):
+    """Export matched key names with type and TTL as CSV or TXT."""
+    try:
+        keys_data = await redis_manager.export_keys(pattern=pattern, type_filter=type)
+        if format.lower() == "csv":
+            import io, csv
+            output = io.StringIO()
+            writer = csv.writer(output, lineterminator="\n")
+            writer.writerow(["Key", "Type", "TTL"])
+            for row in keys_data:
+                writer.writerow([row["name"], row["type"], row["ttl"]])
+            content = output.getvalue()
+            media_type = "text/csv"
+            filename = f"redis_keys_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        else:
+            content = "\n".join(row["name"] for row in keys_data) + "\n"
+            media_type = "text/plain"
+            filename = f"redis_keys_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    except Exception as e:
+        raise_mapped_exception(e, "Failed to export keys")
+
+
+@router.post("/keys/bulk-delete/dry-run", response_model=BulkDeleteDryRunResponse)
+async def bulk_delete_dry_run_endpoint(request: BulkDeleteDryRunRequest = Body(...)):
+    """Dry-run simulate bulk deletion: count matched keys without deleting."""
+    try:
+        return await redis_manager.bulk_delete_dry_run(
+            pattern=request.pattern,
+            type_filter=request.type_filter
+        )
+    except Exception as e:
+        raise_mapped_exception(e, "Failed to run bulk delete dry-run")
+
+
+@router.post("/keys/bulk-delete", response_model=BulkDeleteExecuteResponse)
+async def bulk_delete_execute_endpoint(request: BulkDeleteExecuteRequest = Body(...)):
+    """Execute bulk key deletion using UNLINK in batches per node with confirmation validation."""
+    try:
+        return await redis_manager.bulk_delete_execute(
+            pattern=request.pattern,
+            type_filter=request.type_filter,
+            expected_count=request.expected_count,
+            confirmed_count=request.confirmed_count,
+            confirmed_env=request.confirmed_env
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise_mapped_exception(e, "Failed to execute bulk delete")
+
 
 

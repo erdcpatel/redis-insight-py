@@ -25,6 +25,8 @@ from app.models import (
     ClusterDiscoveryResponse,
     DiscoveredClusterNode,
     NodeStat,
+    BulkDeleteDryRunResponse,
+    BulkDeleteExecuteResponse,
 )
 
 
@@ -1032,6 +1034,28 @@ class RedisManager:
         except Exception:
             k_memory = None
 
+        # Cluster keyslot and owning node
+        slot = None
+        node_name = None
+        if isinstance(client, RedisCluster):
+            try:
+                from redis.cluster import key_slot
+                slot = key_slot(key_name.encode("utf-8"))
+            except Exception:
+                try:
+                    slot = int(await client.execute_command("CLUSTER", "KEYSLOT", key_name))
+                except Exception:
+                    slot = None
+
+            if slot is not None:
+                try:
+                    target_node = client.nodes_manager.get_node_from_slot(slot)
+                    if target_node:
+                        server_type = getattr(target_node, "server_type", "primary")
+                        node_name = f"{target_node.name} ({server_type.capitalize()})"
+                except Exception as e:
+                    logger.debug(f"Could not map slot {slot} to node: {e}")
+
         detail: Dict[str, Any] = {
             "name": key_name,
             "type": str_type,
@@ -1042,6 +1066,8 @@ class RedisManager:
             "value": None,
             "fields": None,
             "is_json": False,
+            "slot": slot,
+            "node": node_name,
         }
 
         # Value inspection based on type
@@ -2108,6 +2134,262 @@ class RedisManager:
             top_bigkeys=top_bigkeys,
             recommendations=recommendations,
             scan_duration_ms=duration_ms,
+        )
+
+    async def export_keys(
+        self,
+        pattern: str = "*",
+        type_filter: Optional[str] = None,
+        max_keys: int = 50000
+    ) -> List[Dict[str, Any]]:
+        """
+        Scan and retrieve matched keys with type and TTL for export.
+        """
+        client = await self.get_client()
+        clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
+        matched_keys: List[str] = []
+
+        if isinstance(client, RedisCluster):
+            primaries = client.get_primaries()
+            for node in primaries:
+                cursor = 0
+                while True:
+                    next_cursor, batch = await client.scan(
+                        cursor=cursor, match=clean_pattern, count=1000, target_nodes=node
+                    )
+                    if isinstance(next_cursor, dict):
+                        next_cursor = next_cursor.get(node.name, 0)
+                    try:
+                        cursor = int(next_cursor)
+                    except Exception:
+                        cursor = 0
+
+                    if batch:
+                        matched_keys.extend(batch)
+                    if cursor == 0 or len(matched_keys) >= max_keys:
+                        break
+                if len(matched_keys) >= max_keys:
+                    break
+        else:
+            cursor = 0
+            while True:
+                cursor, batch = await client.scan(cursor=cursor, match=clean_pattern, count=1000)
+                if batch:
+                    matched_keys.extend(batch)
+                if cursor == 0 or len(matched_keys) >= max_keys:
+                    break
+
+        matched_keys = matched_keys[:max_keys]
+        if not matched_keys:
+            return []
+
+        results: List[Dict[str, Any]] = []
+        for i in range(0, len(matched_keys), 500):
+            chunk = matched_keys[i:i + 500]
+            pipe = client.pipeline(transaction=False)
+            for k in chunk:
+                pipe.type(k)
+                pipe.ttl(k)
+            pipe_res = await pipe.execute()
+            for idx, k in enumerate(chunk):
+                k_type = str(pipe_res[idx * 2])
+                k_ttl = int(pipe_res[idx * 2 + 1])
+                if type_filter and type_filter.lower() != "all" and k_type.lower() != type_filter.lower():
+                    continue
+                results.append({
+                    "name": k,
+                    "type": k_type,
+                    "ttl": k_ttl
+                })
+
+        return results
+
+    async def bulk_delete_dry_run(
+        self,
+        pattern: str = "*",
+        type_filter: Optional[str] = None
+    ) -> BulkDeleteDryRunResponse:
+        """
+        Simulate/count matched keys to be deleted without modifying data.
+        Returns matched count, sample keys, and per-node breakdown for cluster.
+        """
+        client = await self.get_client()
+        active_conn = self.active_info or get_active_connection(include_password=False) or {}
+        env = (active_conn.get("env") or "LOCAL").upper()
+        is_prod = env == "PROD"
+        clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
+
+        per_node_counts: Dict[str, int] = {}
+        sample_keys: List[str] = []
+
+        if isinstance(client, RedisCluster):
+            primaries = client.get_primaries()
+            for node in primaries:
+                node_keys_count = 0
+                cursor = 0
+                while True:
+                    next_cursor, batch = await client.scan(
+                        cursor=cursor, match=clean_pattern, count=1000, target_nodes=node
+                    )
+                    if isinstance(next_cursor, dict):
+                        next_cursor = next_cursor.get(node.name, 0)
+                    try:
+                        cursor = int(next_cursor)
+                    except Exception:
+                        cursor = 0
+
+                    if type_filter and type_filter.lower() != "all" and batch:
+                        pipe = client.pipeline(transaction=False)
+                        for k in batch:
+                            pipe.type(k)
+                        types = await pipe.execute()
+                        matching_batch = [k for k, t in zip(batch, types) if str(t).lower() == type_filter.lower()]
+                        node_keys_count += len(matching_batch)
+                        if len(sample_keys) < 10:
+                            sample_keys.extend(matching_batch[:10 - len(sample_keys)])
+                    else:
+                        node_keys_count += len(batch)
+                        if len(sample_keys) < 10:
+                            sample_keys.extend(batch[:10 - len(sample_keys)])
+
+                    if cursor == 0:
+                        break
+                per_node_counts[node.name] = node_keys_count
+        else:
+            node_name = f"{active_conn.get('host', 'localhost')}:{active_conn.get('port', 6379)}"
+            cursor = 0
+            total_count = 0
+            while True:
+                cursor, batch = await client.scan(cursor=cursor, match=clean_pattern, count=1000)
+                if type_filter and type_filter.lower() != "all" and batch:
+                    pipe = client.pipeline(transaction=False)
+                    for k in batch:
+                        pipe.type(k)
+                    types = await pipe.execute()
+                    matching_batch = [k for k, t in zip(batch, types) if str(t).lower() == type_filter.lower()]
+                    total_count += len(matching_batch)
+                    if len(sample_keys) < 10:
+                        sample_keys.extend(matching_batch[:10 - len(sample_keys)])
+                else:
+                    total_count += len(batch)
+                    if len(sample_keys) < 10:
+                        sample_keys.extend(batch[:10 - len(sample_keys)])
+                if cursor == 0:
+                    break
+            per_node_counts[node_name] = total_count
+
+        total_matched = sum(per_node_counts.values())
+        return BulkDeleteDryRunResponse(
+            pattern=clean_pattern,
+            type_filter=type_filter,
+            matched_count=total_matched,
+            per_node_counts=per_node_counts,
+            is_prod=is_prod,
+            env=env,
+            sample_keys=sample_keys
+        )
+
+    async def bulk_delete_execute(
+        self,
+        pattern: str,
+        type_filter: Optional[str],
+        expected_count: int,
+        confirmed_count: int,
+        confirmed_env: Optional[str]
+    ) -> BulkDeleteExecuteResponse:
+        """
+        Execute non-blocking bulk deletion with UNLINK in batches per node.
+        Requires exact confirmed count, and typing 'PROD' for PROD connections.
+        """
+        client = await self.get_client()
+        active_conn = self.active_info or get_active_connection(include_password=False) or {}
+        env = (active_conn.get("env") or "LOCAL").upper()
+        clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
+
+        if confirmed_count != expected_count:
+            raise ValueError(
+                f"Confirmation count mismatch. Expected: {expected_count}, Confirmed: {confirmed_count}."
+            )
+
+        if env == "PROD":
+            if not confirmed_env or confirmed_env.strip().upper() != "PROD":
+                raise ValueError("Destructive operation on PROD requires typing 'PROD' to confirm.")
+
+        start_time = time.perf_counter()
+        per_node_deleted: Dict[str, int] = {}
+        BATCH_SIZE = 200
+
+        if isinstance(client, RedisCluster):
+            primaries = client.get_primaries()
+            for node in primaries:
+                node_deleted = 0
+                cursor = 0
+                while True:
+                    next_cursor, batch = await client.scan(
+                        cursor=cursor, match=clean_pattern, count=BATCH_SIZE, target_nodes=node
+                    )
+                    if isinstance(next_cursor, dict):
+                        next_cursor = next_cursor.get(node.name, 0)
+                    try:
+                        cursor = int(next_cursor)
+                    except Exception:
+                        cursor = 0
+
+                    keys_to_unlink = batch
+                    if type_filter and type_filter.lower() != "all" and batch:
+                        pipe = client.pipeline(transaction=False)
+                        for k in batch:
+                            pipe.type(k)
+                        types = await pipe.execute()
+                        keys_to_unlink = [k for k, t in zip(batch, types) if str(t).lower() == type_filter.lower()]
+
+                    if keys_to_unlink:
+                        for chunk_start in range(0, len(keys_to_unlink), 100):
+                            sub_chunk = keys_to_unlink[chunk_start:chunk_start + 100]
+                            await client.execute_command("UNLINK", *sub_chunk, target_nodes=node)
+                        node_deleted += len(keys_to_unlink)
+
+                    if cursor == 0:
+                        break
+                per_node_deleted[node.name] = node_deleted
+        else:
+            node_name = f"{active_conn.get('host', 'localhost')}:{active_conn.get('port', 6379)}"
+            total_deleted = 0
+            cursor = 0
+            while True:
+                cursor, batch = await client.scan(cursor=cursor, match=clean_pattern, count=BATCH_SIZE)
+                keys_to_unlink = batch
+                if type_filter and type_filter.lower() != "all" and batch:
+                    pipe = client.pipeline(transaction=False)
+                    for k in batch:
+                        pipe.type(k)
+                    types = await pipe.execute()
+                    keys_to_unlink = [k for k, t in zip(batch, types) if str(t).lower() == type_filter.lower()]
+
+                if keys_to_unlink:
+                    for chunk_start in range(0, len(keys_to_unlink), 100):
+                        sub_chunk = keys_to_unlink[chunk_start:chunk_start + 100]
+                        await client.unlink(*sub_chunk)
+                    total_deleted += len(keys_to_unlink)
+
+                if cursor == 0:
+                    break
+            per_node_deleted[node_name] = total_deleted
+
+        duration_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+        total_deleted_count = sum(per_node_deleted.values())
+        logger.warning(
+            f"BULK DELETE executed on connection '{active_conn.get('name')}' ({env}): "
+            f"{total_deleted_count} keys unlinked for pattern '{clean_pattern}' in {duration_ms}ms"
+        )
+
+        return BulkDeleteExecuteResponse(
+            success=True,
+            pattern=clean_pattern,
+            deleted_count=total_deleted_count,
+            per_node_deleted=per_node_deleted,
+            duration_ms=duration_ms,
+            message=f"Successfully unlinked {total_deleted_count} keys across {len(per_node_deleted)} node(s)."
         )
 
     async def close(self):
