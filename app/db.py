@@ -240,8 +240,9 @@ def update_connection(conn_id: str, data: Dict[str, Any]) -> Optional[Dict[str, 
 def upsert_config_connection(data: Dict[str, Any]) -> Dict[str, Any]:
     """Insert or update a connection defined in configuration file."""
     name = data["name"].strip()
+    env = (data.get("env") or "LOCAL").upper()
     with get_db_connection() as conn:
-        cur = conn.execute("SELECT id FROM connections WHERE name = ?", (name,))
+        cur = conn.execute("SELECT id FROM connections WHERE name = ? AND UPPER(env) = ?", (name, env))
         existing = cur.fetchone()
 
     data["source"] = "config"

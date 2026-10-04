@@ -1632,17 +1632,18 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
           `}).join("")}
       </tbody>
     </table>
-  `,u()}async function N(){const e=document.getElementById("topConnContainer"),t=document.getElementById("topVitalsContainer");try{const o=await(await fetch("/api/status")).json();if(o.connected){const i=E.find(f=>f.is_selected)||E.find(f=>f.id===o.connection_id)||E.find(f=>f.is_connected),a=i&&i.conn_type==="cluster"||o.cluster_nodes&&o.cluster_nodes.length>0||o.is_cluster,r=i&&i.cluster_nodes?"6":o.cluster_nodes_count||1;e&&(e.innerHTML=`
+  `,u()}async function N(){const e=document.getElementById("topConnContainer"),t=document.getElementById("topVitalsContainer");try{const o=await(await fetch("/api/status")).json();if(o.connected){const i=E.find(f=>f.is_selected)||E.find(f=>f.id===o.connection_id)||E.find(f=>f.is_connected),a=i&&i.conn_type==="cluster"||o.cluster_nodes&&o.cluster_nodes.length>0||o.is_cluster,r=i&&i.cluster_nodes?"6":o.cluster_nodes_count||1;if(e){const f=(o.env||i?.env||"LOCAL").toUpperCase();e.innerHTML=`
           <div class="top-conn-badge">
             <span class="status-indicator connected"></span>
             <span class="top-conn-name" title="${d(o.connection_name||"Connected")}">${d(o.connection_name||"Connected")}</span>
+            <span class="badge-env badge-env-${f.toLowerCase()}" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; margin-right: 0.25rem;">${f}</span>
             <span class="top-conn-endpoint">${o.host}:${o.port}</span>
             <span class="top-conn-tag">${a?"CLUSTER":`DB${o.db}`}</span>
             <button type="button" class="top-conn-disconnect" id="btnTopDisconnect" title="Disconnect ${d(o.connection_name||"instance")}">
               <i data-lucide="power" style="width: 12px; height: 12px;"></i>
             </button>
           </div>
-        `),t&&(t.innerHTML=`
+        `}t&&(t.innerHTML=`
           <div class="top-vitals-capsule">
             <div class="vital-item clickable" id="btnOpenTopologyTop" title="View Cluster Topology & Node Health">
               <i data-lucide="layers" style="width: 12px; height: 12px; color: ${a?"#a78bfa":"var(--accent-primary)"};"></i>

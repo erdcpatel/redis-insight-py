@@ -2963,10 +2963,12 @@ async function refreshStatus() {
       const totalNodes = (activeConn && activeConn.cluster_nodes) ? "6" : (s.cluster_nodes_count || 1);
 
       if (connContainer) {
+        const envVal = (s.env || activeConn?.env || "LOCAL").toUpperCase();
         connContainer.innerHTML = `
           <div class="top-conn-badge">
             <span class="status-indicator connected"></span>
             <span class="top-conn-name" title="${escapeHtml(s.connection_name || 'Connected')}">${escapeHtml(s.connection_name || "Connected")}</span>
+            <span class="badge-env badge-env-${envVal.toLowerCase()}" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; margin-right: 0.25rem;">${envVal}</span>
             <span class="top-conn-endpoint">${s.host}:${s.port}</span>
             <span class="top-conn-tag">${isCluster ? 'CLUSTER' : `DB${s.db}`}</span>
             <button type="button" class="top-conn-disconnect" id="btnTopDisconnect" title="Disconnect ${escapeHtml(s.connection_name || 'instance')}">
