@@ -186,7 +186,20 @@ connections:
         port: 7004
       - host: "127.0.0.1"
         port: 7005
+    password: "${DEV_REDIS_PASSWORD:-}"
     use_tls: false
+```
+
+#### Secrets & Environment Variables (.env)
+You can inject sensitive passwords dynamically using `${VAR_NAME}` or `${VAR_NAME:-default_value}`:
+```bash
+# Copy the template to .env (automatically loaded & gitignored)
+cp .env.example .env
+```
+Inside `.env`:
+```bash
+DEV_REDIS_PASSWORD=my_secure_dev_password
+PROD_REDIS_PASSWORD=my_secure_prod_password
 ```
 
 ### 3. Run the Application

@@ -1,7 +1,11 @@
 # Redis Insight Py - Static Connection Configuration
-# You can define multiple standalone, cluster, and sentinel connections here.
 # Environments supported: LOCAL, DEV, UAT, PROD
 # Types supported: standalone, cluster, sentinel
+#
+# ENVIRONMENT VARIABLES & SECRETS:
+# Supports dynamic variable interpolation: ${VAR_NAME} or ${VAR_NAME:-default_value}
+# Secrets like passwords can be stored in a local .env file (automatically loaded, excluded by .gitignore)
+# e.g., password: "${DEV_REDIS_PASSWORD:-}" or password: "${REDIS_AUTH_TOKEN}"
 
 connections:
   - name: "Local Redis"
