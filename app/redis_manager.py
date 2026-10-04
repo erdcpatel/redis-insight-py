@@ -24,6 +24,7 @@ from app.models import (
     MemoryAnalysisResponse,
     ClusterDiscoveryResponse,
     DiscoveredClusterNode,
+    NodeStat,
 )
 
 
@@ -751,7 +752,16 @@ class RedisManager:
             latency = (time.perf_counter() - start) * 1000.0
 
             # Gather stats in parallel
-            dbsize = await client.dbsize()
+            node_stats = None
+            if isinstance(client, RedisCluster):
+                node_stats = await self._cluster_node_stats(client)
+                primaries = [n for n in node_stats if n.role == "master"]
+                if any(n.keys is None for n in primaries):
+                    dbsize = await self._total_dbsize(client)
+                else:
+                    dbsize = sum(n.keys for n in primaries)
+            else:
+                dbsize = await client.dbsize()
             info_server = await client.info("server")
             info_memory = await client.info("memory")
             info_clients = await client.info("clients")
@@ -781,12 +791,16 @@ class RedisManager:
                 redis_version=info_server.get("redis_version"),
                 latency_ms=round(latency, 2),
                 dbsize=dbsize,
-                used_memory_human=info_memory.get("used_memory_human"),
+                used_memory_human=(
+                    format_bytes(sum(n.used_memory or 0 for n in node_stats if n.role == "master"))
+                    if node_stats else info_memory.get("used_memory_human")
+                ),
                 uptime_days=info_server.get("uptime_in_days"),
                 connected_clients=info_clients.get("connected_clients"),
                 is_cluster=is_cluster,
                 cluster_state=cluster_state,
                 cluster_nodes_count=cluster_nodes_count,
+                node_stats=node_stats,
             )
         except Exception as e:
             logger.warning(f"Failed to fetch active Redis status: {e}")
@@ -798,6 +812,53 @@ class RedisManager:
                 port=active_conn.get("port") if active_conn else None,
                 error=str(e),
             )
+
+    @staticmethod
+    async def _total_dbsize(client: Any) -> int:
+        """Key count for the whole keyspace; on a cluster this sums DBSIZE over all primaries."""
+        if isinstance(client, RedisCluster):
+            return int(await client.dbsize(target_nodes=RedisCluster.PRIMARIES) or 0)
+        return int(await client.dbsize() or 0)
+
+    @staticmethod
+    def _replica_masters(client: RedisCluster) -> Dict[str, str]:
+        """Map each replica node name to its primary's node name using the slot cache."""
+        mapping: Dict[str, str] = {}
+        try:
+            for slot_nodes in client.nodes_manager.slots_cache.values():
+                for replica in slot_nodes[1:]:
+                    mapping[replica.name] = slot_nodes[0].name
+        except Exception:
+            pass
+        return mapping
+
+    async def _cluster_node_stats(self, client: RedisCluster) -> List[NodeStat]:
+        """Per-node keys, memory and clients for every cluster node (primaries and replicas)."""
+        masters = self._replica_masters(client)
+
+        async def node_stat(node: Any) -> NodeStat:
+            is_primary = getattr(node, "server_type", "primary") == "primary"
+            stat = NodeStat(
+                node=node.name,
+                role="master" if is_primary else "replica",
+                master=None if is_primary else masters.get(node.name),
+            )
+            try:
+                keys, mem, clients = await asyncio.gather(
+                    client.dbsize(target_nodes=node),
+                    client.info("memory", target_nodes=node),
+                    client.info("clients", target_nodes=node),
+                )
+                stat.keys = int(keys or 0)
+                stat.used_memory = int(mem.get("used_memory", 0))
+                stat.used_memory_human = mem.get("used_memory_human") or format_bytes(stat.used_memory)
+                stat.connected_clients = int(clients.get("connected_clients", 0))
+            except Exception as e:
+                stat.error = str(e)
+            return stat
+
+        stats = await asyncio.gather(*(node_stat(n) for n in client.get_nodes()))
+        return sorted(stats, key=lambda s: (s.master or s.node, s.role != "master", s.node))
 
     @staticmethod
     def _parse_scan_cursor(cursor: Any) -> Any:
@@ -873,7 +934,7 @@ class RedisManager:
         """
         try:
             client = await self.get_client()
-            dbsize = await client.dbsize()
+            dbsize = await self._total_dbsize(client)
         except ConnectionError:
             return KeyListResponse(keys=[], cursor=0, total_in_db=0, matched_count=0)
 
@@ -1177,6 +1238,22 @@ class RedisManager:
         client = await self.get_client()
         res = await client.execute_command("CLIENT", "KILL", "ID", str(client_id))
         return bool(res)
+
+    @staticmethod
+    async def _annotate_node_keys(client: RedisCluster, node_details: List[ClusterNodeDetail]) -> None:
+        """Fill ClusterNodeDetail.keys with each node's DBSIZE where the node is reachable."""
+        by_name = {n.name: n for n in client.get_nodes()}
+
+        async def fill(detail: ClusterNodeDetail) -> None:
+            node = by_name.get(detail.addr) or by_name.get(f"{detail.ip}:{detail.port}")
+            if node is None:
+                return
+            try:
+                detail.keys = int(await client.dbsize(target_nodes=node))
+            except Exception:
+                detail.keys = None
+
+        await asyncio.gather(*(fill(d) for d in node_details))
 
     async def get_topology(self) -> ClusterTopologyResponse:
         """Retrieve cluster topology or master-replica node details."""
@@ -1500,6 +1577,9 @@ class RedisManager:
                 except Exception:
                     pass
 
+            if node_details and isinstance(client, RedisCluster):
+                await self._annotate_node_keys(client, node_details)
+
             if node_details:
                 masters_count = sum(1 for n in node_details if n.role == "master")
                 replicas_count = sum(1 for n in node_details if n.role == "replica")
@@ -1534,6 +1614,11 @@ class RedisManager:
                 slot_count=16384 if role == "master" else 0
             )
         ]
+
+        try:
+            nodes_list[0].keys = int(await client.dbsize())
+        except Exception:
+            pass
 
         for i in range(slaves_count):
             slave_str = rep_info.get(f"slave{i}")
@@ -1794,7 +1879,7 @@ class RedisManager:
             misses = int(stats_info.get("keyspace_misses", 0))
 
         try:
-            dbsize = await client.dbsize()
+            dbsize = await self._total_dbsize(client)
         except Exception:
             dbsize = 0
 
@@ -1845,7 +1930,8 @@ class RedisManager:
         # Step 1: Safe non-blocking key sampling
         sampled_keys = []
         seen = set()
-        cursor = 0
+        cursor: Any = 0
+        is_cluster = isinstance(client, RedisCluster)
         scan_batch = min(200, sample_size)
         max_iterations = 60
 
@@ -1853,7 +1939,13 @@ class RedisManager:
             if len(sampled_keys) >= sample_size:
                 break
             try:
-                new_cursor, keys = await client.scan(cursor=cursor, match=clean_pattern, count=scan_batch)
+                if is_cluster:
+                    new_cursor, keys = await self._scan_cluster_batch(
+                        client, cursor, clean_pattern, scan_batch
+                    )
+                    new_cursor = self._parse_scan_cursor(new_cursor)
+                else:
+                    new_cursor, keys = await client.scan(cursor=cursor, match=clean_pattern, count=scan_batch)
                 if keys:
                     for k in keys:
                         if isinstance(k, bytes):
@@ -1874,7 +1966,8 @@ class RedisManager:
                         cursor = int(new_cursor)
                     except Exception:
                         break
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Memory analysis SCAN stopped early: {e}")
                 break
 
         # Step 2: Concurrently query memory and metadata using Semaphore
@@ -1940,7 +2033,7 @@ class RedisManager:
 
         duration_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
         try:
-            total_dbsize = await client.dbsize()
+            total_dbsize = await self._total_dbsize(client)
         except Exception:
             total_dbsize = len(key_items)
 
