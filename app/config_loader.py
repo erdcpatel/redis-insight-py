@@ -86,17 +86,53 @@ def find_config_file(custom_path: Optional[str] = None) -> Optional[Path]:
     return None
 
 
+_last_config_mtime: float = 0
+_last_config_path: Optional[str] = None
+
+
+def check_and_sync_if_modified(custom_path: Optional[str] = None) -> bool:
+    """
+    Check if the configuration file has been modified on disk since the last sync.
+    If modified, re-syncs connections automatically.
+    Returns True if a re-sync occurred, False otherwise.
+    """
+    global _last_config_mtime, _last_config_path
+    config_file = find_config_file(custom_path)
+    if not config_file:
+        return False
+    try:
+        current_mtime = config_file.stat().st_mtime
+        if _last_config_mtime == 0:
+            # First time checking; record mtime and sync
+            sync_connections_from_config(custom_path)
+            return True
+        elif current_mtime > _last_config_mtime:
+            logger.info(f"Detected modification in {config_file.name} (mtime {current_mtime} > {_last_config_mtime}). Auto-syncing...")
+            sync_connections_from_config(custom_path)
+            return True
+    except Exception as e:
+        logger.warning(f"Error checking config file modification timestamp: {e}")
+    return False
+
+
 def sync_connections_from_config(custom_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Load connections from YAML or JSON configuration file, resolve environment variables,
     and sync them into the SQLite database.
     """
+    global _last_config_mtime, _last_config_path
     load_env_file()
     config_file = find_config_file(custom_path)
     if not config_file:
-        return {"loaded": 0, "file": None, "message": "No configuration file found"}
+        return {"loaded": 0, "total_in_file": 0, "file": None, "message": "No configuration file found"}
 
     try:
+        try:
+            _last_config_mtime = config_file.stat().st_mtime
+            _last_config_path = str(config_file)
+        except Exception:
+            pass
+
         content = config_file.read_text(encoding="utf-8")
         if config_file.suffix in [".yaml", ".yml"]:
             data = yaml.safe_load(content)
@@ -104,11 +140,11 @@ def sync_connections_from_config(custom_path: Optional[str] = None) -> Dict[str,
             data = json.loads(content)
 
         if not data or not isinstance(data, dict):
-            return {"loaded": 0, "file": str(config_file), "message": "Invalid configuration structure"}
+            return {"loaded": 0, "total_in_file": 0, "file": str(config_file), "message": "Invalid configuration structure"}
 
         raw_list = data.get("connections", [])
         if not isinstance(raw_list, list):
-            return {"loaded": 0, "file": str(config_file), "message": "No connections list in file"}
+            return {"loaded": 0, "total_in_file": 0, "file": str(config_file), "message": "No connections list in file"}
 
         raw_list = expand_env_vars(raw_list)
 
@@ -160,9 +196,11 @@ def sync_connections_from_config(custom_path: Optional[str] = None) -> Dict[str,
 
         return {
             "loaded": synced_count,
+            "total_in_file": synced_count,
             "file": str(config_file),
             "message": f"Successfully loaded {synced_count} connections from {config_file.name}"
         }
     except Exception as e:
         logger.error(f"Error reading connection config file: {e}")
-        return {"loaded": 0, "file": str(config_file), "error": str(e)}
+        return {"loaded": 0, "total_in_file": 0, "file": str(config_file), "error": str(e)}
+

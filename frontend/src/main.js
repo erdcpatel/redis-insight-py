@@ -3157,7 +3157,8 @@ function setupEventListeners() {
       try {
         const res = await fetch("/api/connections/reload-config", { method: "POST" });
         const data = await res.json();
-        alert(`Config reloaded successfully! Found ${data.total_in_file || 0} connection(s) in config.`);
+        const count = data.loaded ?? data.total_in_file ?? 0;
+        alert(`Config reloaded successfully! Synced ${count} connection(s) from config.`);
         await loadConnections();
       } catch (err) {
         alert("Failed to reload config: " + err.message);
@@ -3166,6 +3167,12 @@ function setupEventListeners() {
       }
     });
   }
+
+  // Auto-refresh connections when window/tab regains focus (e.g. after editing config file in editor)
+  window.addEventListener("focus", () => {
+    loadConnections().catch(() => {});
+  });
+
 
   // Cluster Multi-Node Builder State
   let configuredClusterNodes = [];

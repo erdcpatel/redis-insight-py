@@ -57,7 +57,11 @@ async def get_all_connections(
     """
     List all saved Redis connections.
     Connected clusters appear on top in the list with is_connected=True and is_selected=True.
+    Auto-syncs from config file if modified on disk.
     """
+    from app.config_loader import check_and_sync_if_modified
+    check_and_sync_if_modified()
+
     raw_conns = list_connections(search=search, env=env)
     enriched = []
     connected_ids = set(redis_manager.connected_ids)
