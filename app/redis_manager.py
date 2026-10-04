@@ -379,8 +379,6 @@ class RedisManager:
 
             # 2. Query CLUSTER NODES
             raw_nodes = await temp_c.execute_command("CLUSTER NODES")
-            if isinstance(raw_nodes, bytes):
-                raw_nodes = raw_nodes.decode("utf-8", errors="replace")
 
             # 3. Query CLUSTER INFO for cluster state and slot count
             cluster_state = "ok"
@@ -389,102 +387,286 @@ class RedisManager:
                 raw_info = await temp_c.execute_command("CLUSTER INFO")
                 if isinstance(raw_info, bytes):
                     raw_info = raw_info.decode("utf-8", errors="replace")
-                if isinstance(raw_info, str):
+                if isinstance(raw_info, dict):
+                    cluster_state = str(raw_info.get("cluster_state") or "ok")
+                    try:
+                        slots_assigned = int(raw_info.get("cluster_slots_assigned") or 16384)
+                    except Exception:
+                        pass
+                elif isinstance(raw_info, str):
                     for line in raw_info.splitlines():
-                        if line.startswith("cluster_state:"):
-                            cluster_state = line.split(":", 1)[1].strip()
-                        elif line.startswith("cluster_slots_assigned:"):
-                            try:
-                                slots_assigned = int(line.split(":", 1)[1].strip())
-                            except Exception:
-                                pass
+                        if ":" in line:
+                            k, v = line.split(":", 1)
+                            if k.strip() == "cluster_state":
+                                cluster_state = v.strip()
+                            elif k.strip() == "cluster_slots_assigned":
+                                try:
+                                    slots_assigned = int(v.strip())
+                                except Exception:
+                                    pass
             except Exception:
                 pass
 
-            # 4. Parse nodes text safely
+            # 4. Parse nodes safely (handling dict, str, or bytes)
             discovered: List[DiscoveredClusterNode] = []
             masters_count = 0
             replicas_count = 0
 
-            for line in raw_nodes.strip().splitlines():
-                parts = line.split()
-                if len(parts) < 8:
-                    continue
-                node_id = parts[0]
-                addr_part = parts[1]
-                flags = parts[2].split(",")
-                master_id = parts[3] if parts[3] != "-" else None
-                link_state = parts[7]
-                slots = " ".join(parts[8:]) if len(parts) > 8 else None
+            if isinstance(raw_nodes, bytes):
+                raw_nodes = raw_nodes.decode("utf-8", errors="replace")
 
-                is_myself = "myself" in flags
-                is_master = "master" in flags
-                role = "master" if is_master else "replica"
+            # Case A: raw_nodes is a dict (parsed automatically by redis-py response callback)
+            if isinstance(raw_nodes, dict):
+                for k, v in raw_nodes.items():
+                    if isinstance(v, (str, bytes)):
+                        line_str = v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
+                        parts = line_str.split()
+                        if len(parts) >= 8:
+                            raw_flags = parts[2].split(",")
+                            raw_addr = parts[1]
+                            n_id = parts[0]
+                            m_id = parts[3] if parts[3] != "-" else None
+                            l_state = parts[7]
+                            slots = " ".join(parts[8:]) if len(parts) > 8 else None
+                            is_myself = "myself" in raw_flags
+                            is_master = "master" in raw_flags
+                            role = "master" if is_master else "replica"
 
-                # Parse addr_part: e.g. "127.0.0.1:7000@17000,hostname" or ":0@0" or "host:7000"
-                # Strip Redis 7 hostname if present
-                addr_main = addr_part.split(",")[0] if "," in addr_part else addr_part
-                # Strip cluster bus port
-                clean_addr = addr_main.split("@")[0] if "@" in addr_main else addr_main
+                            addr_main = raw_addr.split(",")[0] if "," in raw_addr else raw_addr
+                            clean_addr = addr_main.split("@")[0] if "@" in addr_main else addr_main
+                            node_host = host
+                            node_port = port
+                            if ":" in clean_addr:
+                                hc, pc = clean_addr.rsplit(":", 1)
+                                if hc and hc not in ("", "0.0.0.0"):
+                                    node_host = hc
+                                try:
+                                    pv = int(pc)
+                                    if pv > 0:
+                                        node_port = pv
+                                except Exception:
+                                    pass
+                            elif clean_addr:
+                                node_host = clean_addr
 
-                node_host = host
-                node_port = port
+                            if is_myself and (not clean_addr or clean_addr.startswith(":") or clean_addr.startswith("0.0.0.0")):
+                                node_host = host
+                                node_port = port
 
-                if ":" in clean_addr:
-                    h_cand, p_cand = clean_addr.rsplit(":", 1)
-                    if h_cand and h_cand != "" and h_cand != "0.0.0.0":
-                        node_host = h_cand
+                            slot_count = 0
+                            if slots:
+                                for s_range in slots.split():
+                                    if s_range.startswith("["):
+                                        continue
+                                    if "-" in s_range:
+                                        try:
+                                            s1, s2 = s_range.split("-")
+                                            slot_count += int(s2) - int(s1) + 1
+                                        except Exception:
+                                            pass
+                                    elif s_range.isdigit():
+                                        slot_count += 1
+
+                            if is_master:
+                                masters_count += 1
+                            else:
+                                replicas_count += 1
+
+                            discovered.append(DiscoveredClusterNode(
+                                id=str(n_id),
+                                host=node_host,
+                                port=node_port,
+                                role=role,
+                                is_myself=is_myself,
+                                master_id=str(m_id) if m_id else None,
+                                link_state=l_state,
+                                slots=slots,
+                                slot_count=slot_count,
+                            ))
+                        continue
+
+                    if not isinstance(v, dict):
+                        continue
+
+                    n_id = v.get("id") or v.get("node_id") or str(k)
+                    raw_addr = str(v.get("addr") or v.get("name") or v.get("endpoint") or k)
+                    addr_main = raw_addr.split(",")[0] if "," in raw_addr else raw_addr
+                    clean_addr = addr_main.split("@")[0] if "@" in addr_main else addr_main
+
+                    raw_flags = v.get("flags", [])
+                    if isinstance(raw_flags, str):
+                        flags_list = [f.strip() for f in raw_flags.split(",") if f.strip()]
+                    elif isinstance(raw_flags, (list, set, tuple)):
+                        flags_list = [str(f) for f in raw_flags]
                     else:
-                        node_host = host
-                    try:
-                        p_val = int(p_cand)
-                        if p_val > 0:
-                            node_port = p_val
-                        elif is_myself:
-                            node_port = port
-                    except Exception:
-                        if is_myself:
-                            node_port = port
-                elif clean_addr and clean_addr != "":
-                    node_host = clean_addr
-                    node_port = port
+                        flags_list = []
 
-                # If myself or loopback node and user contacted via specific seed host/port, maintain reachable seed endpoint
-                if is_myself:
-                    if not clean_addr or clean_addr.startswith(":") or clean_addr.startswith("0.0.0.0"):
-                        node_host = host
+                    is_myself = "myself" in flags_list
+                    is_master = "master" in flags_list or v.get("server_type") == "primary" or v.get("role") == "master"
+                    role = "master" if is_master else "replica"
+                    m_id = v.get("master_id") or v.get("master")
+                    if m_id == "-":
+                        m_id = None
+                    l_state = str(v.get("link_state") or v.get("state") or "connected")
+
+                    node_host = v.get("ip") or host
+                    try:
+                        node_port = int(v.get("port") or port)
+                    except Exception:
                         node_port = port
 
-                slot_count = 0
-                if slots:
-                    for s_range in slots.split():
-                        if s_range.startswith("["):
-                            continue
-                        if "-" in s_range:
-                            try:
-                                s1, s2 = s_range.split("-")
-                                slot_count += int(s2) - int(s1) + 1
-                            except Exception:
-                                pass
-                        elif s_range.isdigit():
-                            slot_count += 1
+                    if ":" in clean_addr:
+                        hc, pc = clean_addr.rsplit(":", 1)
+                        if hc and hc not in ("", "0.0.0.0"):
+                            node_host = hc
+                        try:
+                            pv = int(pc)
+                            if pv > 0:
+                                node_port = pv
+                        except Exception:
+                            pass
+                    elif clean_addr and clean_addr != "":
+                        node_host = clean_addr
 
-                if is_master:
-                    masters_count += 1
-                else:
-                    replicas_count += 1
+                    if is_myself:
+                        if not clean_addr or clean_addr.startswith(":") or clean_addr.startswith("0.0.0.0"):
+                            node_host = host
+                            node_port = port
 
-                discovered.append(DiscoveredClusterNode(
-                    id=node_id,
-                    host=node_host,
-                    port=node_port,
-                    role=role,
-                    is_myself=is_myself,
-                    master_id=master_id,
-                    link_state=link_state,
-                    slots=slots,
-                    slot_count=slot_count,
-                ))
+                    raw_slots = v.get("slots")
+                    slots_str = None
+                    slot_count = 0
+                    if isinstance(raw_slots, list):
+                        sp = []
+                        for item in raw_slots:
+                            if isinstance(item, (list, tuple)) and len(item) == 2:
+                                sp.append(f"{item[0]}-{item[1]}")
+                                try:
+                                    slot_count += int(item[1]) - int(item[0]) + 1
+                                except Exception:
+                                    pass
+                            elif isinstance(item, str):
+                                sp.append(item)
+                                if "-" in item:
+                                    try:
+                                        s1, s2 = item.split("-")
+                                        slot_count += int(s2) - int(s1) + 1
+                                    except Exception:
+                                        pass
+                                elif item.isdigit():
+                                    slot_count += 1
+                            elif isinstance(item, int):
+                                sp.append(str(item))
+                                slot_count += 1
+                        slots_str = " ".join(sp) if sp else None
+                    elif isinstance(raw_slots, str):
+                        slots_str = raw_slots
+                        for sr in raw_slots.split():
+                            if sr.startswith("["):
+                                continue
+                            if "-" in sr:
+                                try:
+                                    s1, s2 = sr.split("-")
+                                    slot_count += int(s2) - int(s1) + 1
+                                except Exception:
+                                    pass
+                            elif sr.isdigit():
+                                slot_count += 1
+
+                    if is_master:
+                        masters_count += 1
+                    else:
+                        replicas_count += 1
+
+                    discovered.append(DiscoveredClusterNode(
+                        id=str(n_id),
+                        host=node_host,
+                        port=node_port,
+                        role=role,
+                        is_myself=is_myself,
+                        master_id=str(m_id) if m_id else None,
+                        link_state=l_state,
+                        slots=slots_str,
+                        slot_count=slot_count,
+                    ))
+
+            # Case B: raw_nodes is a str (raw multiline text)
+            elif isinstance(raw_nodes, str):
+                for line in raw_nodes.strip().splitlines():
+                    parts = line.split()
+                    if len(parts) < 8:
+                        continue
+                    node_id = parts[0]
+                    addr_part = parts[1]
+                    flags = parts[2].split(",")
+                    master_id = parts[3] if parts[3] != "-" else None
+                    link_state = parts[7]
+                    slots = " ".join(parts[8:]) if len(parts) > 8 else None
+
+                    is_myself = "myself" in flags
+                    is_master = "master" in flags
+                    role = "master" if is_master else "replica"
+
+                    addr_main = addr_part.split(",")[0] if "," in addr_part else addr_part
+                    clean_addr = addr_main.split("@")[0] if "@" in addr_main else addr_main
+
+                    node_host = host
+                    node_port = port
+
+                    if ":" in clean_addr:
+                        h_cand, p_cand = clean_addr.rsplit(":", 1)
+                        if h_cand and h_cand != "" and h_cand != "0.0.0.0":
+                            node_host = h_cand
+                        else:
+                            node_host = host
+                        try:
+                            p_val = int(p_cand)
+                            if p_val > 0:
+                                node_port = p_val
+                            elif is_myself:
+                                node_port = port
+                        except Exception:
+                            if is_myself:
+                                node_port = port
+                    elif clean_addr and clean_addr != "":
+                        node_host = clean_addr
+                        node_port = port
+
+                    if is_myself:
+                        if not clean_addr or clean_addr.startswith(":") or clean_addr.startswith("0.0.0.0"):
+                            node_host = host
+                            node_port = port
+
+                    slot_count = 0
+                    if slots:
+                        for s_range in slots.split():
+                            if s_range.startswith("["):
+                                continue
+                            if "-" in s_range:
+                                try:
+                                    s1, s2 = s_range.split("-")
+                                    slot_count += int(s2) - int(s1) + 1
+                                except Exception:
+                                    pass
+                            elif s_range.isdigit():
+                                slot_count += 1
+
+                    if is_master:
+                        masters_count += 1
+                    else:
+                        replicas_count += 1
+
+                    discovered.append(DiscoveredClusterNode(
+                        id=node_id,
+                        host=node_host,
+                        port=node_port,
+                        role=role,
+                        is_myself=is_myself,
+                        master_id=master_id,
+                        link_state=link_state,
+                        slots=slots,
+                        slot_count=slot_count,
+                    ))
 
             # Sort discovered nodes: masters first by port, then replicas
             discovered.sort(key=lambda n: (0 if n.role == "master" else 1, n.port, n.host))
