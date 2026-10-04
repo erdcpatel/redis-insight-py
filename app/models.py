@@ -134,3 +134,76 @@ class ClusterTopologyResponse(BaseModel):
     nodes: List[ClusterNodeDetail] = []
     replication: Optional[Dict[str, Any]] = None
 
+
+# --- Phase 3: Slowlog & Latency Profiler Models ---
+class SlowlogEntry(BaseModel):
+    id: int
+    timestamp: int
+    time_str: str
+    duration_us: int
+    duration_ms: float
+    command: List[str]
+    client_ip: Optional[str] = None
+    client_name: Optional[str] = None
+    node: Optional[str] = None
+
+
+class SlowlogResponse(BaseModel):
+    entries: List[SlowlogEntry]
+    total_len: int
+    slower_than_us: Optional[int] = None
+    max_len: Optional[int] = None
+
+
+# --- Phase 3: Memory Analysis & BigKeys Models ---
+class BigKeyItem(BaseModel):
+    key: str
+    type: str
+    memory_bytes: int
+    memory_human: str
+    length: int
+    ttl: int
+
+
+class MemoryTypeBreakdown(BaseModel):
+    type: str
+    count: int
+    total_bytes: int
+    total_human: str
+    percentage: float
+
+
+class MemoryOverviewResponse(BaseModel):
+    used_memory_bytes: int
+    used_memory_human: str
+    used_memory_peak_bytes: int
+    used_memory_peak_human: str
+    used_memory_rss_bytes: int
+    used_memory_rss_human: str
+    fragmentation_ratio: float
+    fragmentation_status: str  # healthy, warning, critical
+    maxmemory_bytes: int
+    maxmemory_human: str
+    maxmemory_policy: str
+    keyspace_hits: int
+    keyspace_misses: int
+    hit_ratio_percent: float
+    dbsize: int
+
+
+class MemoryAnalysisRequest(BaseModel):
+    sample_size: int = Field(default=500, ge=50, le=5000, description="Max keys to sample")
+    pattern: str = Field(default="*", description="Key pattern to sample")
+
+
+class MemoryAnalysisResponse(BaseModel):
+    sampled_count: int
+    total_dbsize: int
+    sampled_memory_bytes: int
+    sampled_memory_human: str
+    types_breakdown: List[MemoryTypeBreakdown]
+    top_bigkeys: List[BigKeyItem]
+    recommendations: List[str]
+    scan_duration_ms: float
+
+

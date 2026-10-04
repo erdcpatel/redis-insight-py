@@ -24,11 +24,25 @@ import {
   Server,
   Network,
   GitBranch,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Activity,
+  PieChart,
+  AlertTriangle,
+  TrendingUp,
+  BarChart2
 } from "lucide";
 
 // Global State
 let allConnectedClients = [];
+let allSlowlogEntries = [];
+let currentSlowlogMinDuration = 0;
+let currentSlowlogSearch = "";
+let currentSlowlogNode = "all";
+
+let currentMemoryOverview = null;
+let currentMemoryAnalysis = null;
+let isMemoryProfilingRunning = false;
+let bigkeysSearchQuery = "";
 
 let currentCursor = 0;
 let currentPattern = "*";
@@ -83,7 +97,12 @@ function setupIcons() {
       Server,
       Network,
       GitBranch,
-      ArrowRightLeft
+      ArrowRightLeft,
+      Activity,
+      PieChart,
+      AlertTriangle,
+      TrendingUp,
+      BarChart2
     }
   });
 }
@@ -189,7 +208,15 @@ function renderAppShell() {
           </div>
 
           <div class="top-actions">
-            <button type="button" class="btn btn-secondary" id="btnRefreshStats" title="Ping active connection">
+            <button type="button" class="btn btn-secondary" id="btnOpenSlowlog" title="Real-Time Slowlog & Latency Profiler" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">
+              <i data-lucide="activity" style="width: 14px; height: 14px; color: #38bdf8;"></i>
+              Slowlog
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnOpenMemoryModal" title="Memory Analysis & BigKeys Profiler" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">
+              <i data-lucide="pie-chart" style="width: 14px; height: 14px; color: #a78bfa;"></i>
+              Memory & BigKeys
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnRefreshStats" title="Ping active connection" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">
               <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
               Ping
             </button>
@@ -530,6 +557,96 @@ function renderAppShell() {
 
         <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="clientsTableContainer">
           <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching connected clients...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Real-Time Slowlog & Latency Profiler Modal -->
+    <div class="modal-backdrop" id="slowlogModal">
+      <div class="slowlog-modal-card">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <i data-lucide="activity" style="width: 20px; height: 20px; color: #38bdf8;"></i>
+            <h3 class="modal-title">Real-Time Slowlog & Latency Profiler</h3>
+            <span class="badge-db" id="slowlogCountBadge">0</span>
+            <span class="badge-duration badge-duration-warning" id="slowlogThresholdBadge" style="font-size: 0.7rem; font-weight: 500;">
+              Threshold: &gt; 10ms
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary" id="btnRefreshSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+              Refresh
+            </button>
+            <button type="button" class="btn btn-danger" id="btnClearSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+              <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+              Reset Slowlog
+            </button>
+            <button type="button" class="btn-icon" id="btnCloseSlowlogModal">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 0.75rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+          <div class="search-group" style="flex: 1; min-width: 260px; max-width: 420px;">
+            <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+            <input type="text" id="slowlogSearchInput" class="search-input" placeholder="Search by command, arguments, or client IP..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Min Latency:</span>
+            <button type="button" class="env-pill-btn slowlog-filter-btn active" data-min-duration="0">All</button>
+            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="1">&gt; 1ms</button>
+            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="5">&gt; 5ms</button>
+            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="10">&gt; 10ms</button>
+            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="50">&gt; 50ms</button>
+            <div id="slowlogNodeFilterContainer" style="display: inline-flex; align-items: center; margin-left: 0.5rem;"></div>
+          </div>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="slowlogTableContainer">
+          <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Loading slowlog records...</div>
+        </div>
+
+        <div style="padding: 0.6rem 1.25rem; background: rgba(15,23,42,0.6); border-top: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted);">
+          <span><i data-lucide="alert-circle" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Slowlog only measures command execution time on Redis CPU, excluding network I/O latency.</span>
+          <span id="slowlogFooterStats">Buffer size: 128</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Memory Analysis & BigKeys Profiler Modal -->
+    <div class="modal-backdrop" id="memoryModal">
+      <div class="memory-modal-card">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <i data-lucide="pie-chart" style="width: 20px; height: 20px; color: #a78bfa;"></i>
+            <div>
+              <h3 class="modal-title" style="margin: 0; line-height: 1.2;">Memory Analysis & BigKeys Profiler</h3>
+              <p style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Real-time memory diagnostics, data type allocation, and safe key profiling.</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary" id="btnRefreshMemoryModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+              Refresh Overview
+            </button>
+            <button type="button" class="btn-icon" id="btnCloseMemoryModal">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding: 1.25rem;" id="memoryModalBody">
+          <!-- Live High-Level Overview Grid -->
+          <div id="memoryOverviewContainer">
+            <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Fetching memory metrics...</div>
+          </div>
+
+          <!-- Profiling Section (Safeguarded / On-Demand) -->
+          <div id="memoryProfilingContainer" style="margin-top: 1rem;">
+            <!-- Dynamically populated: either safeguard notice, loading state, or results -->
+          </div>
         </div>
       </div>
     </div>
@@ -1198,6 +1315,695 @@ async function killConnectedClient(clientId, clientAddr) {
   } catch (err) {
     alert("Error disconnecting client: " + err.message);
   }
+}
+
+// ==========================================
+// Phase 3: Real-Time Slowlog & Latency Profiler
+// ==========================================
+
+async function openSlowlogModal() {
+  const modal = document.getElementById("slowlogModal");
+  if (!modal) return;
+  modal.classList.add("active");
+  currentSlowlogMinDuration = 0;
+  currentSlowlogSearch = "";
+  currentSlowlogNode = "all";
+
+  // Reset filter buttons
+  document.querySelectorAll(".slowlog-filter-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-min-duration") === "0");
+  });
+  const searchInput = document.getElementById("slowlogSearchInput");
+  if (searchInput) searchInput.value = "";
+
+  await loadSlowlog();
+}
+
+function closeSlowlogModal() {
+  const modal = document.getElementById("slowlogModal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function loadSlowlog() {
+  const container = document.getElementById("slowlogTableContainer");
+  const countBadge = document.getElementById("slowlogCountBadge");
+  const thresholdBadge = document.getElementById("slowlogThresholdBadge");
+  const footerStats = document.getElementById("slowlogFooterStats");
+
+  if (container) {
+    container.innerHTML = `
+      <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
+        <i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem; color: #38bdf8;"></i><br>
+        Fetching slowlog entries across Redis nodes...
+      </div>
+    `;
+    setupIcons();
+  }
+
+  try {
+    const res = await fetch("/api/slowlog?limit=250");
+    if (!res.ok) throw new Error("Failed to fetch slowlog");
+    const data = await res.json();
+    allSlowlogEntries = data.entries || [];
+
+    if (countBadge) countBadge.textContent = allSlowlogEntries.length;
+    if (thresholdBadge && data.slower_than_us !== null && data.slower_than_us !== undefined) {
+      const msThreshold = (data.slower_than_us / 1000).toFixed(1);
+      thresholdBadge.textContent = `Threshold: > ${msThreshold}ms (${data.slower_than_us} µs)`;
+    }
+    if (footerStats) {
+      footerStats.textContent = `Total buffer: ${data.total_len || allSlowlogEntries.length} entries | Max buffer: ${data.max_len || 'N/A'}`;
+    }
+
+    buildSlowlogNodeFilter(allSlowlogEntries);
+    filterAndRenderSlowlog();
+  } catch (err) {
+    if (container) {
+      container.innerHTML = `
+        <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
+          <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
+          <h4>Error Loading Slowlog</h4>
+          <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
+        </div>
+      `;
+      setupIcons();
+    }
+  }
+}
+
+function buildSlowlogNodeFilter(entries) {
+  const container = document.getElementById("slowlogNodeFilterContainer");
+  if (!container) return;
+
+  const nodes = Array.from(new Set(entries.map(e => e.node).filter(Boolean)));
+  if (nodes.length <= 1) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = `
+    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-left: 0.5rem;">Node:</span>
+    <select id="slowlogNodeSelect" class="form-select" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; width: auto; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
+      <option value="all">All Nodes (${nodes.length})</option>
+      ${nodes.map(n => `<option value="${escapeHtml(n)}" ${currentSlowlogNode === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join("")}
+    </select>
+  `;
+
+  const sel = document.getElementById("slowlogNodeSelect");
+  if (sel) {
+    sel.addEventListener("change", () => {
+      currentSlowlogNode = sel.value;
+      filterAndRenderSlowlog();
+    });
+  }
+}
+
+function filterAndRenderSlowlog() {
+  let list = allSlowlogEntries;
+
+  if (currentSlowlogMinDuration > 0) {
+    list = list.filter(e => e.duration_ms >= currentSlowlogMinDuration);
+  }
+
+  if (currentSlowlogNode && currentSlowlogNode !== "all") {
+    list = list.filter(e => e.node === currentSlowlogNode);
+  }
+
+  if (currentSlowlogSearch) {
+    const q = currentSlowlogSearch.toLowerCase();
+    list = list.filter(e => {
+      const cmdStr = (e.command || []).join(" ").toLowerCase();
+      const clientStr = (e.client_ip || "").toLowerCase();
+      const nodeStr = (e.node || "").toLowerCase();
+      return cmdStr.includes(q) || clientStr.includes(q) || nodeStr.includes(q) || String(e.id).includes(q);
+    });
+  }
+
+  renderSlowlogTable(list);
+}
+
+function renderSlowlogTable(entries) {
+  const container = document.getElementById("slowlogTableContainer");
+  if (!container) return;
+
+  if (!entries || entries.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-muted);">
+        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
+          <i data-lucide="check-circle-2" style="width: 28px; height: 28px; color: #4ade80;"></i>
+        </div>
+        <h4 style="color: var(--text-primary); margin-bottom: 0.35rem;">No Slow Queries Recorded</h4>
+        <p style="font-size: 0.85rem; max-width: 440px; margin: 0 auto; line-height: 1.5;">
+          ${allSlowlogEntries.length === 0 ? "Redis latency is healthy! All commands executed within the threshold." : "No slowlog entries matched the active filters."}
+        </p>
+      </div>
+    `;
+    setupIcons();
+    return;
+  }
+
+  container.innerHTML = `
+    <table class="keys-table" style="width: 100%;">
+      <thead>
+        <tr>
+          <th style="width: 60px;"># ID</th>
+          <th style="width: 155px;">Timestamp</th>
+          <th style="width: 110px;">Execution Time</th>
+          <th>Command & Arguments</th>
+          <th style="width: 150px;">Target Node</th>
+          <th style="width: 170px;">Client Caller</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${entries.map(e => {
+          let badgeClass = "badge-duration-fast";
+          if (e.duration_ms >= 50) {
+            badgeClass = "badge-duration-critical";
+          } else if (e.duration_ms >= 10) {
+            badgeClass = "badge-duration-warning";
+          }
+
+          const cmdStr = (e.command && e.command.length > 0) ? e.command.join(" ") : "(empty)";
+
+          return `
+            <tr>
+              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">#${e.id}</td>
+              <td style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;">
+                ${escapeHtml(e.time_str || "N/A")}
+              </td>
+              <td>
+                <span class="badge-duration ${badgeClass}">
+                  <i data-lucide="clock" style="width: 11px; height: 11px;"></i>
+                  ${e.duration_ms} ms
+                </span>
+                <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px; font-family: var(--font-mono);">
+                  ${e.duration_us.toLocaleString()} µs
+                </span>
+              </td>
+              <td>
+                <span class="slowlog-cmd-code" title="${escapeHtml(cmdStr)}">${escapeHtml(cmdStr)}</span>
+              </td>
+              <td>
+                ${e.node ? `<span class="slowlog-node-pill">${escapeHtml(e.node)}</span>` : '<span style="color: var(--text-muted); font-size: 0.75rem;">Default</span>'}
+              </td>
+              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">
+                ${escapeHtml(e.client_ip || "Unknown")}
+                ${e.client_name ? `<span style="color: var(--text-muted); display: block; font-size: 0.7rem;">(${escapeHtml(e.client_name)})</span>` : ''}
+              </td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+
+  setupIcons();
+}
+
+async function clearSlowlog() {
+  if (!confirm("Are you sure you want to reset the Redis Slowlog buffer?\n\nThis will clear recorded slow commands across all connected Redis instances.")) {
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/slowlog/reset", { method: "POST" });
+    if (!res.ok) throw new Error("Failed to reset slowlog");
+    await loadSlowlog();
+  } catch (err) {
+    alert("Error resetting slowlog: " + err.message);
+  }
+}
+
+// ==========================================
+// Phase 3: Memory Analysis & BigKeys Profiler
+// ==========================================
+
+async function openMemoryModal() {
+  const modal = document.getElementById("memoryModal");
+  if (!modal) return;
+  modal.classList.add("active");
+
+  await loadMemoryOverview();
+
+  if (!currentMemoryAnalysis) {
+    renderMemoryProfilingSafeguardUI();
+  } else {
+    renderMemoryAnalysisUI(currentMemoryAnalysis);
+  }
+}
+
+function closeMemoryModal() {
+  const modal = document.getElementById("memoryModal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function loadMemoryOverview() {
+  const container = document.getElementById("memoryOverviewContainer");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
+      <i data-lucide="refresh-cw" class="spin" style="width: 20px; height: 20px; margin-bottom: 0.5rem; color: #a78bfa;"></i><br>
+      Refreshing live memory metrics...
+    </div>
+  `;
+  setupIcons();
+
+  try {
+    const res = await fetch("/api/memory/overview");
+    if (!res.ok) throw new Error("Failed to fetch memory overview");
+    currentMemoryOverview = await res.json();
+    renderMemoryOverviewUI(currentMemoryOverview);
+  } catch (err) {
+    container.innerHTML = `
+      <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
+        <i data-lucide="alert-circle" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i>
+        <p style="font-size: 0.85rem;">Error loading memory overview: ${escapeHtml(err.message)}</p>
+      </div>
+    `;
+    setupIcons();
+  }
+}
+
+function renderMemoryOverviewUI(data) {
+  const container = document.getElementById("memoryOverviewContainer");
+  if (!container || !data) return;
+
+  let fragStatusClass = "mem-status-healthy";
+  let fragStatusLabel = "Optimal (1.0 - 1.5)";
+  if (data.fragmentation_status === "critical") {
+    fragStatusClass = "mem-status-critical";
+    fragStatusLabel = "Critical (> 2.0)";
+  } else if (data.fragmentation_status === "warning") {
+    fragStatusClass = "mem-status-warning";
+    fragStatusLabel = data.fragmentation_ratio < 0.9 ? "Swapping (< 0.9)" : "Warning (> 1.5)";
+  }
+
+  container.innerHTML = `
+    <div class="mem-grid">
+      <!-- Used Memory -->
+      <div class="mem-stat-card" style="--card-border-glow: rgba(56, 189, 248, 0.6);">
+        <div class="mem-stat-label">
+          <span>Used Memory</span>
+          <i data-lucide="database" style="width: 14px; height: 14px; color: #38bdf8;"></i>
+        </div>
+        <div class="mem-stat-value" style="color: #38bdf8;">${data.used_memory_human}</div>
+        <div class="mem-stat-sub">
+          Peak: <span style="font-family: var(--font-mono); color: var(--text-primary); font-weight: 600;">${data.used_memory_peak_human}</span>
+        </div>
+      </div>
+
+      <!-- Fragmentation Ratio -->
+      <div class="mem-stat-card" style="--card-border-glow: rgba(245, 158, 11, 0.6);">
+        <div class="mem-stat-label">
+          <span>Fragmentation</span>
+          <span class="mem-status-badge ${fragStatusClass}">${data.fragmentation_status}</span>
+        </div>
+        <div class="mem-stat-value" style="color: ${data.fragmentation_status === 'healthy' ? '#4ade80' : '#fbbf24'};">
+          ${data.fragmentation_ratio}
+        </div>
+        <div class="mem-stat-sub">
+          RSS: <span style="font-family: var(--font-mono); color: var(--text-primary); font-weight: 600;">${data.used_memory_rss_human}</span> (${fragStatusLabel})
+        </div>
+      </div>
+
+      <!-- Cache Hit Ratio -->
+      <div class="mem-stat-card" style="--card-border-glow: rgba(34, 197, 94, 0.6);">
+        <div class="mem-stat-label">
+          <span>Cache Hit Ratio</span>
+          <i data-lucide="trending-up" style="width: 14px; height: 14px; color: #4ade80;"></i>
+        </div>
+        <div class="mem-stat-value" style="color: #4ade80;">${data.hit_ratio_percent}%</div>
+        <div class="mem-stat-sub">
+          <span style="font-family: var(--font-mono); color: var(--text-primary);">${data.keyspace_hits.toLocaleString()}</span> hits / 
+          <span style="font-family: var(--font-mono); color: var(--text-muted);">${data.keyspace_misses.toLocaleString()}</span> misses
+        </div>
+      </div>
+
+      <!-- Total Keys & Max Memory -->
+      <div class="mem-stat-card" style="--card-border-glow: rgba(168, 85, 247, 0.6);">
+        <div class="mem-stat-label">
+          <span>Keys & Eviction</span>
+          <i data-lucide="server" style="width: 14px; height: 14px; color: #c084fc;"></i>
+        </div>
+        <div class="mem-stat-value" style="color: #c084fc;">${data.dbsize.toLocaleString()}</div>
+        <div class="mem-stat-sub">
+          Max: <span style="font-family: var(--font-mono); color: var(--text-primary);">${data.maxmemory_human}</span> | Policy: ${escapeHtml(data.maxmemory_policy)}
+        </div>
+      </div>
+    </div>
+  `;
+
+  setupIcons();
+}
+
+function renderMemoryProfilingSafeguardUI() {
+  const container = document.getElementById("memoryProfilingContainer");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="mem-safeguard-box">
+      <div class="mem-safeguard-header">
+        <i data-lucide="alert-triangle" style="width: 22px; height: 22px;"></i>
+        <span>Performance Notice: Safe Non-Blocking Key Sampling</span>
+      </div>
+      <div class="mem-safeguard-body">
+        Profiling analyzes data structure allocation and identifies the <strong>Top 50 BigKeys</strong> by running non-blocking <code>SCAN</code> and computing memory footprints with <code>MEMORY USAGE</code>.
+        To ensure zero downtime and prevent CPU spikes on high-throughput environments, profiling is only run on-demand with controlled sampling limits.
+      </div>
+      <div class="mem-safeguard-controls">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">Sample Limit:</span>
+          <select id="memSampleSizeSelect" class="form-select" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
+            <option value="100">100 keys (Fastest)</option>
+            <option value="250">250 keys (Balanced)</option>
+            <option value="500" selected>500 keys (Recommended)</option>
+            <option value="1000">1,000 keys (Deep Scan)</option>
+            <option value="2500">2,500 keys (Thorough)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">Pattern:</span>
+          <input type="text" id="memSamplePatternInput" class="form-input" value="*" placeholder="e.g. *, user:*" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; width: 140px; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
+        </div>
+
+        <button type="button" class="btn btn-primary" id="btnStartProfilingAction" style="margin-left: auto; padding: 0.45rem 1rem;">
+          <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
+          Start Memory & BigKeys Profiling
+        </button>
+      </div>
+    </div>
+  `;
+
+  setupIcons();
+
+  const btnStart = document.getElementById("btnStartProfilingAction");
+  if (btnStart) {
+    btnStart.addEventListener("click", () => {
+      const sampleSize = parseInt(document.getElementById("memSampleSizeSelect").value, 10) || 500;
+      const pattern = document.getElementById("memSamplePatternInput").value || "*";
+      triggerMemoryAnalysis(sampleSize, pattern);
+    });
+  }
+}
+
+async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*") {
+  const container = document.getElementById("memoryProfilingContainer");
+  if (!container) return;
+
+  isMemoryProfilingRunning = true;
+  container.innerHTML = `
+    <div style="padding: 3.5rem 1.5rem; text-align: center;">
+      <i data-lucide="refresh-cw" class="spin" style="width: 36px; height: 36px; color: #a78bfa; margin-bottom: 1rem;"></i>
+      <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 0.4rem;">Analyzing Redis Keyspace...</h3>
+      <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 480px; margin: 0 auto; line-height: 1.5;">
+        Scanning sample of up to <strong>${sampleSize.toLocaleString()}</strong> keys (pattern <code>${escapeHtml(pattern)}</code>) and measuring memory allocations...
+      </p>
+    </div>
+  `;
+  setupIcons();
+
+  try {
+    const res = await fetch("/api/memory/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sample_size: sampleSize, pattern: pattern })
+    });
+    if (!res.ok) throw new Error("Failed to complete memory profiling");
+    currentMemoryAnalysis = await res.json();
+    isMemoryProfilingRunning = false;
+    renderMemoryAnalysisUI(currentMemoryAnalysis);
+  } catch (err) {
+    isMemoryProfilingRunning = false;
+    container.innerHTML = `
+      <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
+        <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
+        <h4>Memory Profiling Failed</h4>
+        <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
+        <button type="button" class="btn btn-secondary" id="btnRetryProfiling" style="margin-top: 1rem;">Try Again</button>
+      </div>
+    `;
+    setupIcons();
+    const btnRetry = document.getElementById("btnRetryProfiling");
+    if (btnRetry) btnRetry.addEventListener("click", renderMemoryProfilingSafeguardUI);
+  }
+}
+
+function renderMemoryAnalysisUI(data) {
+  const container = document.getElementById("memoryProfilingContainer");
+  if (!container || !data) return;
+
+  const typeColorMap = {
+    string: "#38bdf8",
+    hash: "#ec4899",
+    list: "#a855f7",
+    set: "#eab308",
+    zset: "#22c55e",
+    stream: "#06b6d4",
+    json: "#f97316",
+    other: "#94a3b8"
+  };
+
+  container.innerHTML = `
+    <!-- Summary Header Bar -->
+    <div style="background: rgba(15,23,42,0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.825rem;">
+        <div>
+          <span style="color: var(--text-muted);">Sampled Keys:</span>
+          <strong style="color: var(--text-primary); font-family: var(--font-mono); margin-left: 4px;">${data.sampled_count.toLocaleString()}</strong>
+        </div>
+        <div style="color: var(--border-subtle);">|</div>
+        <div>
+          <span style="color: var(--text-muted);">Scan Duration:</span>
+          <strong style="color: #4ade80; font-family: var(--font-mono); margin-left: 4px;">${data.scan_duration_ms} ms</strong>
+        </div>
+        <div style="color: var(--border-subtle);">|</div>
+        <div>
+          <span style="color: var(--text-muted);">Sampled Memory:</span>
+          <strong style="color: #38bdf8; font-family: var(--font-mono); margin-left: 4px;">${data.sampled_memory_human}</strong>
+        </div>
+      </div>
+      <button type="button" class="btn btn-secondary" id="btnReRunProfiling" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+        <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
+        Re-Run Profiling
+      </button>
+    </div>
+
+    <!-- Visual Memory Breakdown by Type -->
+    <div class="mem-bar-wrapper">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+          <i data-lucide="pie-chart" style="width: 15px; height: 15px; color: #a78bfa;"></i>
+          Memory Allocation by Data Type
+        </span>
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+          ${data.types_breakdown.length} active types
+        </span>
+      </div>
+
+      <!-- Stacked Proportion Bar -->
+      <div class="mem-stacked-bar">
+        ${data.types_breakdown.map(t => {
+          const color = typeColorMap[t.type.toLowerCase()] || "#94a3b8";
+          return `
+            <div class="mem-stacked-segment" style="width: ${t.percentage}%; background: ${color};" title="${t.type.toUpperCase()}: ${t.percentage}% (${t.total_human})"></div>
+          `;
+        }).join("")}
+      </div>
+
+      <!-- Type Cards Grid -->
+      <div class="mem-type-cards-grid">
+        ${data.types_breakdown.map(t => {
+          const color = typeColorMap[t.type.toLowerCase()] || "#94a3b8";
+          return `
+            <div class="mem-type-card" style="border-left: 3px solid ${color};">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span class="type-badge ${t.type.toLowerCase()}" style="font-size: 0.68rem; padding: 0.1rem 0.4rem;">${t.type.toUpperCase()}</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; color: var(--text-primary);">${t.percentage}%</span>
+              </div>
+              <div style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; color: ${color}; margin-top: 2px;">
+                ${t.total_human}
+              </div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">
+                ${t.count.toLocaleString()} keys
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+
+    <!-- Bottleneck Recommendations -->
+    ${data.recommendations && data.recommendations.length > 0 ? `
+      <div class="mem-recommendations-wrapper">
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+          <i data-lucide="zap" style="width: 15px; height: 15px; color: #fbbf24;"></i>
+          Bottleneck Insights & Recommendations
+        </div>
+        ${data.recommendations.map(r => `
+          <div class="recommendation-item">
+            <span>${escapeHtml(r)}</span>
+          </div>
+        `).join("")}
+      </div>
+    ` : ''}
+
+    <!-- Top 50 BigKeys Leaderboard -->
+    <div style="background: rgba(15,23,42,0.45); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 1.25rem;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+        <div>
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+            <i data-lucide="bar-chart-2" style="width: 16px; height: 16px; color: #38bdf8;"></i>
+            Top 50 BigKeys Leaderboard
+          </h4>
+          <span style="font-size: 0.72rem; color: var(--text-secondary);">Highest memory consumers discovered in key sample</span>
+        </div>
+        <div class="search-group" style="max-width: 320px;">
+          <i data-lucide="search" class="search-icon" style="width: 13px; height: 13px;"></i>
+          <input type="text" id="bigkeysSearchInput" class="search-input" placeholder="Filter big keys..." style="padding: 0.35rem 0.65rem 0.35rem 1.85rem; font-size: 0.78rem;">
+        </div>
+      </div>
+
+      <div id="bigkeysTableContainer">
+        ${renderBigKeysTableHtml(data.top_bigkeys)}
+      </div>
+    </div>
+  `;
+
+  setupIcons();
+
+  const btnReRun = document.getElementById("btnReRunProfiling");
+  if (btnReRun) {
+    btnReRun.addEventListener("click", renderMemoryProfilingSafeguardUI);
+  }
+
+  const searchInput = document.getElementById("bigkeysSearchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? data.top_bigkeys.filter(k => k.key.toLowerCase().includes(q) || k.type.toLowerCase().includes(q)) : data.top_bigkeys;
+      const tableContainer = document.getElementById("bigkeysTableContainer");
+      if (tableContainer) {
+        tableContainer.innerHTML = renderBigKeysTableHtml(filtered);
+        setupIcons();
+        attachBigKeyRowHandlers();
+      }
+    });
+  }
+
+  attachBigKeyRowHandlers();
+}
+
+function renderBigKeysTableHtml(keys) {
+  if (!keys || keys.length === 0) {
+    return `<div style="padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">No keys found</div>`;
+  }
+
+  const maxMem = keys[0] ? keys[0].memory_bytes : 1;
+
+  return `
+    <table class="keys-table" style="width: 100%;">
+      <thead>
+        <tr>
+          <th style="width: 50px;">Rank</th>
+          <th>Key Name</th>
+          <th style="width: 90px;">Type</th>
+          <th style="width: 180px;">Memory Usage</th>
+          <th style="width: 110px;">Items / Length</th>
+          <th style="width: 110px;">TTL</th>
+          <th style="width: 130px; text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${keys.map((item, idx) => {
+          let rankClass = "rank-normal";
+          if (idx === 0) rankClass = "rank-gold";
+          else if (idx === 1) rankClass = "rank-silver";
+          else if (idx === 2) rankClass = "rank-bronze";
+
+          const memPct = maxMem > 0 ? Math.max(5, Math.round((item.memory_bytes / maxMem) * 100)) : 10;
+
+          let ttlStr = "No TTL (Persistent)";
+          let ttlColor = "var(--text-muted)";
+          if (item.ttl > 0) {
+            ttlStr = `${item.ttl.toLocaleString()}s`;
+            ttlColor = "var(--accent-warning)";
+          }
+
+          return `
+            <tr>
+              <td>
+                <span class="rank-badge ${rankClass}">#${idx + 1}</span>
+              </td>
+              <td>
+                <a href="javascript:void(0)" class="key-name-link bigkey-inspect-btn" data-key="${escapeHtml(item.key)}" style="font-family: var(--font-mono); font-size: 0.82rem; font-weight: 600; color: #38bdf8; text-decoration: none;" title="Inspect key: ${escapeHtml(item.key)}">
+                  ${escapeHtml(item.key)}
+                </a>
+              </td>
+              <td>
+                <span class="type-badge ${item.type.toLowerCase()}" style="font-size: 0.68rem; padding: 0.15rem 0.45rem;">
+                  ${item.type.toUpperCase()}
+                </span>
+              </td>
+              <td>
+                <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; color: var(--text-primary);">
+                  ${item.memory_human}
+                </div>
+                <div style="width: 100%; height: 5px; background: rgba(255,255,255,0.06); border-radius: 9999px; overflow: hidden; margin-top: 3px;">
+                  <div style="width: ${memPct}%; height: 100%; background: #38bdf8; border-radius: 9999px;"></div>
+                </div>
+              </td>
+              <td style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">
+                ${item.length.toLocaleString()}
+              </td>
+              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: ${ttlColor};">
+                ${ttlStr}
+              </td>
+              <td style="text-align: right;">
+                <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <button type="button" class="btn btn-secondary bigkey-inspect-btn" data-key="${escapeHtml(item.key)}" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" title="Inspect key detail">
+                    <i data-lucide="external-link" style="width: 11px; height: 11px;"></i>
+                    Inspect
+                  </button>
+                  <button type="button" class="btn btn-danger bigkey-delete-btn" data-key="${escapeHtml(item.key)}" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" title="Delete oversized key">
+                    <i data-lucide="trash-2" style="width: 11px; height: 11px;"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function attachBigKeyRowHandlers() {
+  document.querySelectorAll(".bigkey-inspect-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const keyName = btn.getAttribute("data-key");
+      if (keyName) {
+        closeMemoryModal();
+        openKeyDetail(keyName);
+      }
+    });
+  });
+
+  document.querySelectorAll(".bigkey-delete-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const keyName = btn.getAttribute("data-key");
+      if (keyName) {
+        triggerDeleteConfirmation(keyName, async () => {
+          if (currentMemoryAnalysis) {
+            currentMemoryAnalysis.top_bigkeys = currentMemoryAnalysis.top_bigkeys.filter(k => k.key !== keyName);
+            renderMemoryAnalysisUI(currentMemoryAnalysis);
+          }
+          await refreshStatus();
+        });
+      }
+    });
+  });
 }
 
 // Load Connections List from SQLite & connection limit
@@ -2139,9 +2945,12 @@ async function refreshStatus() {
             <span class="stat-value">${s.dbsize}</span>
           </div>
 
-          <div class="stat-item">
+          <div class="stat-item stat-item-clickable" id="btnOpenMemoryTop" title="Click to view Memory Analysis & BigKeys Profiler">
             <span>Memory:</span>
-            <span class="stat-value">${s.used_memory_human || "N/A"}</span>
+            <span class="stat-value link-highlight" style="color: #a78bfa;">
+              ${s.used_memory_human || "N/A"}
+              <i data-lucide="pie-chart" style="width: 11px; height: 11px; margin-left: 2px;"></i>
+            </span>
           </div>
 
           <div class="stat-item stat-item-clickable" id="btnOpenClientsModal" title="Click to view all connected clients details">
@@ -2169,6 +2978,10 @@ async function refreshStatus() {
       const btnTopTopology = document.getElementById("btnOpenTopologyTop");
       if (btnTopTopology) {
         btnTopTopology.addEventListener("click", () => openTopologyModal());
+      }
+      const btnMemoryTop = document.getElementById("btnOpenMemoryTop");
+      if (btnMemoryTop) {
+        btnMemoryTop.addEventListener("click", openMemoryModal);
       }
     } else {
       container.innerHTML = `
@@ -2340,6 +3153,59 @@ function setupEventListeners() {
           )
         : allConnectedClients;
       renderClientsTable(filtered);
+    });
+  }
+
+  // Top Action Buttons for Slowlog & Memory
+  const btnOpenSlowlog = document.getElementById("btnOpenSlowlog");
+  if (btnOpenSlowlog) {
+    btnOpenSlowlog.addEventListener("click", openSlowlogModal);
+  }
+  const btnOpenMemoryModal = document.getElementById("btnOpenMemoryModal");
+  if (btnOpenMemoryModal) {
+    btnOpenMemoryModal.addEventListener("click", openMemoryModal);
+  }
+
+  // Slowlog Modal Controls
+  const slowlogModal = document.getElementById("slowlogModal");
+  const btnCloseSlowlog = document.getElementById("btnCloseSlowlogModal");
+  if (btnCloseSlowlog) btnCloseSlowlog.addEventListener("click", closeSlowlogModal);
+  const btnRefreshSlowlog = document.getElementById("btnRefreshSlowlogModal");
+  if (btnRefreshSlowlog) btnRefreshSlowlog.addEventListener("click", loadSlowlog);
+  const btnClearSlowlog = document.getElementById("btnClearSlowlogModal");
+  if (btnClearSlowlog) btnClearSlowlog.addEventListener("click", clearSlowlog);
+  if (slowlogModal) {
+    slowlogModal.addEventListener("click", (e) => {
+      if (e.target === slowlogModal) closeSlowlogModal();
+    });
+  }
+
+  const slowlogSearchInput = document.getElementById("slowlogSearchInput");
+  if (slowlogSearchInput) {
+    slowlogSearchInput.addEventListener("input", () => {
+      currentSlowlogSearch = slowlogSearchInput.value.trim();
+      filterAndRenderSlowlog();
+    });
+  }
+
+  document.querySelectorAll(".slowlog-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".slowlog-filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentSlowlogMinDuration = parseFloat(btn.getAttribute("data-min-duration") || "0");
+      filterAndRenderSlowlog();
+    });
+  });
+
+  // Memory & BigKeys Modal Controls
+  const memoryModal = document.getElementById("memoryModal");
+  const btnCloseMemory = document.getElementById("btnCloseMemoryModal");
+  if (btnCloseMemory) btnCloseMemory.addEventListener("click", closeMemoryModal);
+  const btnRefreshMemory = document.getElementById("btnRefreshMemoryModal");
+  if (btnRefreshMemory) btnRefreshMemory.addEventListener("click", loadMemoryOverview);
+  if (memoryModal) {
+    memoryModal.addEventListener("click", (e) => {
+      if (e.target === memoryModal) closeMemoryModal();
     });
   }
 

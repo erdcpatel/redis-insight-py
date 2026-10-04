@@ -59,7 +59,37 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ---
 
-### 5. Security & Static Configuration Sync
+### 5. Real-Time Slowlog & Latency Profiler
+- **Cluster-Wide Slowlog Aggregation**: Executes `SLOWLOG GET` across standalone instances or aggregates slow command entries from all primary cluster nodes.
+- **Microsecond Precision**: Displays execution duration in milliseconds and microseconds, timestamp, caller IP/client name, command arguments, and target node.
+- **Visual Latency Threshold Badges**:
+  - `< 10ms`: Subtle green/cyan badge.
+  - `10ms - 50ms`: Amber warning badge.
+  - `> 50ms`: Bold red critical latency badge.
+- **Search & Filter**: Filter slow commands by search query, min latency threshold (>1ms, >5ms, >10ms, >50ms), or specific cluster node.
+- **Reset Buffer**: Safely reset the Redis Slowlog buffer with confirmation.
+
+---
+
+### 6. Memory Analysis & "BigKeys" Profiler
+- **Live Memory Overview & Health**:
+  - Live memory usage, RSS, and peak memory.
+  - **Memory Fragmentation Ratio**: Real-time status badge with intelligent classification (`Optimal 1.0-1.5`, `Warning`, or `Critical >2.0`).
+  - **Cache Hit Ratio**: Real-time keyspace hits vs misses percentage calculation.
+  - Maxmemory limits and eviction policy (`noeviction`, `volatile-lru`, `allkeys-lru`, etc.).
+- **Safe Non-Blocking Key Sampling**:
+  - **Performance Safeguard**: Does not run automatically. Warns the user upfront with a clear Performance Notice to protect production CPU.
+  - Configurable sample limits (100, 250, 500 [Default], 1,000, 2,500 keys) and pattern filtering using non-blocking `SCAN` and `MEMORY USAGE`.
+- **Data Type Allocation Bar**: Multi-colored stacked proportional bar showing exact memory % used by Hashes vs Strings vs Sets vs Lists vs ZSets.
+- **Top 50 BigKeys Leaderboard**:
+  - Ranks keys by memory consumption with gold, silver, and bronze rank badges.
+  - Interactive Key Inspector links and direct row deletion.
+- **Smart Bottleneck Recommendations**:
+  - Automatically identifies large keys (>500KB), oversized collections (>5,000 items), high ratios of non-expiring keys, and memory fragmentation.
+
+---
+
+### 7. Security & Static Configuration Sync
 - **Encrypted Password Storage**: Passwords stored in local SQLite are encrypted with **Fernet (AES-128-CBC + HMAC-SHA256)**. The encryption key is generated locally in `.secret.key` and never committed to source control.
 - **Static Configuration (`config/connections.yaml`)**: Predefine cluster endpoints and environments in YAML. Changes are automatically synced on startup.
 

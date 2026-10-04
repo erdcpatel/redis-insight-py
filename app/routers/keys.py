@@ -2,7 +2,15 @@ from urllib.parse import unquote
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel, Field
-from app.models import KeyListResponse, ActiveConnectionStatus, ClusterTopologyResponse
+from app.models import (
+    KeyListResponse,
+    ActiveConnectionStatus,
+    ClusterTopologyResponse,
+    SlowlogResponse,
+    MemoryOverviewResponse,
+    MemoryAnalysisRequest,
+    MemoryAnalysisResponse,
+)
 from app.redis_manager import redis_manager
 
 router = APIRouter(prefix="/api", tags=["Keys & Status"])
@@ -182,4 +190,47 @@ async def delete_key(
         return {"success": True, "deleted": deleted, "key": key_name}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete key: {str(e)}")
+
+
+# --- Phase 3 Endpoints: Slowlog & Memory Analysis ---
+
+@router.get("/slowlog", response_model=SlowlogResponse)
+async def get_slowlog_endpoint(limit: int = Query(100, ge=1, le=1000, description="Max entries to return")):
+    """Retrieve slowlog queries across standalone instance or all cluster primary nodes."""
+    try:
+        return await redis_manager.get_slowlog(limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch slowlog: {str(e)}")
+
+
+@router.post("/slowlog/reset")
+async def reset_slowlog_endpoint():
+    """Clear the Redis SLOWLOG buffer."""
+    try:
+        await redis_manager.reset_slowlog()
+        return {"status": "ok", "message": "Slowlog buffer cleared successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reset slowlog: {str(e)}")
+
+
+@router.get("/memory/overview", response_model=MemoryOverviewResponse)
+async def get_memory_overview_endpoint():
+    """Retrieve memory usage summary, peak, fragmentation ratio, and cache hit ratio."""
+    try:
+        return await redis_manager.get_memory_overview()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch memory overview: {str(e)}")
+
+
+@router.post("/memory/analyze", response_model=MemoryAnalysisResponse)
+async def analyze_memory_endpoint(request: MemoryAnalysisRequest = Body(...)):
+    """Sample keys non-blockingly using SCAN and profile memory hogs, data type breakdown, and bottlenecks."""
+    try:
+        return await redis_manager.analyze_memory(
+            sample_size=request.sample_size,
+            pattern=request.pattern
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to analyze memory: {str(e)}")
+
 

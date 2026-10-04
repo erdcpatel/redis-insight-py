@@ -7,6 +7,7 @@ from redis.asyncio.client import Pipeline
 from redis.asyncio.cluster import RedisCluster, ClusterNode
 
 from app.db import get_active_connection, set_active_connection, get_connection
+import datetime
 from app.models import (
     ActiveConnectionStatus,
     ConnectionTestResponse,
@@ -14,7 +15,28 @@ from app.models import (
     KeyListResponse,
     ClusterTopologyResponse,
     ClusterNodeDetail,
+    SlowlogEntry,
+    SlowlogResponse,
+    BigKeyItem,
+    MemoryTypeBreakdown,
+    MemoryOverviewResponse,
+    MemoryAnalysisResponse,
 )
+
+
+def format_bytes(bytes_val: Optional[int]) -> str:
+    """Format bytes integer into human readable string."""
+    if bytes_val is None or bytes_val <= 0:
+        return "0 B"
+    b = float(bytes_val)
+    if b < 1024:
+        return f"{int(b)} B"
+    elif b < 1024 * 1024:
+        return f"{b / 1024:.2f} KB"
+    elif b < 1024 * 1024 * 1024:
+        return f"{b / (1024 * 1024):.2f} MB"
+    else:
+        return f"{b / (1024 * 1024 * 1024):.2f} GB"
 
 
 class RedisManager:
@@ -1089,6 +1111,458 @@ class RedisManager:
             slots_assigned=16384,
             nodes=nodes_list,
             replication=rep_info
+        )
+
+    def _parse_slowlog_entry(self, item: Any, node_label: Optional[str] = None) -> SlowlogEntry:
+        if isinstance(item, dict):
+            entry_id = item.get("id", 0)
+            timestamp = item.get("start_time", 0)
+            duration_us = item.get("duration", 0)
+            cmd_raw = item.get("command", [])
+            client_addr = item.get("client_address")
+            client_name = item.get("client_name")
+        elif isinstance(item, (list, tuple)):
+            entry_id = item[0] if len(item) > 0 else 0
+            timestamp = item[1] if len(item) > 1 else 0
+            duration_us = item[2] if len(item) > 2 else 0
+            cmd_raw = item[3] if len(item) > 3 else []
+            client_addr = item[4] if len(item) > 4 else None
+            client_name = item[5] if len(item) > 5 else None
+        else:
+            entry_id, timestamp, duration_us, cmd_raw, client_addr, client_name = 0, 0, 0, [], None, None
+
+        command = []
+        if isinstance(cmd_raw, (list, tuple)):
+            for arg in cmd_raw:
+                if isinstance(arg, bytes):
+                    command.append(arg.decode("utf-8", errors="replace"))
+                else:
+                    command.append(str(arg))
+        elif isinstance(cmd_raw, bytes):
+            command.append(cmd_raw.decode("utf-8", errors="replace"))
+        elif cmd_raw:
+            command.append(str(cmd_raw))
+
+        if isinstance(client_addr, bytes):
+            client_addr = client_addr.decode("utf-8", errors="replace")
+        if isinstance(client_name, bytes):
+            client_name = client_name.decode("utf-8", errors="replace")
+
+        time_str = "Unknown"
+        if timestamp:
+            try:
+                time_str = datetime.datetime.fromtimestamp(int(timestamp)).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                time_str = str(timestamp)
+
+        duration_ms = round(int(duration_us) / 1000.0, 3)
+
+        return SlowlogEntry(
+            id=int(entry_id),
+            timestamp=int(timestamp),
+            time_str=time_str,
+            duration_us=int(duration_us),
+            duration_ms=duration_ms,
+            command=command,
+            client_ip=str(client_addr) if client_addr else None,
+            client_name=str(client_name) if client_name else None,
+            node=node_label,
+        )
+
+    async def get_slowlog(self, limit: int = 100) -> SlowlogResponse:
+        """Query SLOWLOG GET from standalone Redis or cluster nodes."""
+        client = await self.get_client()
+        limit = max(1, min(1000, limit))
+        entries: List[SlowlogEntry] = []
+        total_len = 0
+        slower_than_us = None
+        max_len = None
+
+        if isinstance(client, RedisCluster):
+            nodes = client.get_primaries() or client.get_nodes()
+            for node in nodes:
+                node_label = f"{node.host}:{node.port}"
+                try:
+                    raw_entries = await client.execute_command("SLOWLOG", "GET", limit, target_nodes=node)
+                    if isinstance(raw_entries, list):
+                        for item in raw_entries:
+                            entries.append(self._parse_slowlog_entry(item, node_label=node_label))
+                    node_len = await client.execute_command("SLOWLOG", "LEN", target_nodes=node)
+                    if isinstance(node_len, int):
+                        total_len += node_len
+                except Exception:
+                    continue
+
+            try:
+                cfg = await client.execute_command("CONFIG", "GET", "slowlog-log-slower-than", target_nodes="default")
+                if isinstance(cfg, dict):
+                    slower_than_us = int(cfg.get("slowlog-log-slower-than", 10000))
+                elif isinstance(cfg, (list, tuple)) and len(cfg) >= 2:
+                    slower_than_us = int(cfg[1])
+            except Exception:
+                pass
+
+            try:
+                cfg_max = await client.execute_command("CONFIG", "GET", "slowlog-max-len", target_nodes="default")
+                if isinstance(cfg_max, dict):
+                    max_len = int(cfg_max.get("slowlog-max-len", 128))
+                elif isinstance(cfg_max, (list, tuple)) and len(cfg_max) >= 2:
+                    max_len = int(cfg_max[1])
+            except Exception:
+                pass
+
+            entries.sort(key=lambda x: (x.timestamp, x.id), reverse=True)
+            entries = entries[:limit]
+        else:
+            conn_info = self.active_info or {}
+            host = conn_info.get("host", "127.0.0.1")
+            port = conn_info.get("port", 6379)
+            node_label = f"{host}:{port}"
+            try:
+                raw_entries = await client.slowlog_get(limit)
+                for item in raw_entries:
+                    entries.append(self._parse_slowlog_entry(item, node_label=node_label))
+            except Exception:
+                try:
+                    raw_entries = await client.execute_command("SLOWLOG", "GET", limit)
+                    if isinstance(raw_entries, list):
+                        for item in raw_entries:
+                            entries.append(self._parse_slowlog_entry(item, node_label=node_label))
+                except Exception:
+                    pass
+
+            try:
+                total_len = await client.slowlog_len()
+            except Exception:
+                total_len = len(entries)
+
+            try:
+                cfg = await client.config_get("slowlog-log-slower-than")
+                if isinstance(cfg, dict):
+                    slower_than_us = int(cfg.get("slowlog-log-slower-than", 10000))
+            except Exception:
+                pass
+
+            try:
+                cfg_max = await client.config_get("slowlog-max-len")
+                if isinstance(cfg_max, dict):
+                    max_len = int(cfg_max.get("slowlog-max-len", 128))
+            except Exception:
+                pass
+
+            entries.sort(key=lambda x: (x.timestamp, x.id), reverse=True)
+
+        return SlowlogResponse(
+            entries=entries,
+            total_len=total_len or len(entries),
+            slower_than_us=slower_than_us,
+            max_len=max_len,
+        )
+
+    async def reset_slowlog(self) -> bool:
+        """Clear SLOWLOG buffer on standalone instance or across all cluster nodes."""
+        client = await self.get_client()
+        if isinstance(client, RedisCluster):
+            nodes = client.get_primaries() or client.get_nodes()
+            for node in nodes:
+                try:
+                    await client.execute_command("SLOWLOG", "RESET", target_nodes=node)
+                except Exception:
+                    pass
+        else:
+            try:
+                await client.slowlog_reset()
+            except Exception:
+                await client.execute_command("SLOWLOG", "RESET")
+        return True
+
+    async def get_memory_overview(self) -> MemoryOverviewResponse:
+        """Fetch memory stats, peak, fragmentation ratio, hit ratio, and keyspace count."""
+        client = await self.get_client()
+
+        used_mem = 0
+        used_mem_peak = 0
+        used_mem_rss = 0
+        maxmemory = 0
+        maxmemory_policy = "noeviction"
+        hits = 0
+        misses = 0
+
+        if isinstance(client, RedisCluster):
+            nodes = client.get_primaries() or client.get_nodes()
+            for node in nodes:
+                try:
+                    mem_info = await client.execute_command("INFO", "memory", target_nodes=node)
+                    if isinstance(mem_info, bytes):
+                        mem_info = mem_info.decode("utf-8", errors="replace")
+                    mem_dict = {}
+                    if isinstance(mem_info, str):
+                        for line in mem_info.splitlines():
+                            if ":" in line and not line.startswith("#"):
+                                k, v = line.split(":", 1)
+                                mem_dict[k.strip()] = v.strip()
+                    elif isinstance(mem_info, dict):
+                        mem_dict = mem_info
+
+                    used_mem += int(mem_dict.get("used_memory", 0))
+                    used_mem_peak = max(used_mem_peak, int(mem_dict.get("used_memory_peak", 0)))
+                    used_mem_rss += int(mem_dict.get("used_memory_rss", 0))
+                    maxmemory += int(mem_dict.get("maxmemory", 0))
+                    if "maxmemory_policy" in mem_dict:
+                        maxmemory_policy = mem_dict["maxmemory_policy"]
+                except Exception:
+                    pass
+
+                try:
+                    stats_info = await client.execute_command("INFO", "stats", target_nodes=node)
+                    if isinstance(stats_info, bytes):
+                        stats_info = stats_info.decode("utf-8", errors="replace")
+                    stats_dict = {}
+                    if isinstance(stats_info, str):
+                        for line in stats_info.splitlines():
+                            if ":" in line and not line.startswith("#"):
+                                k, v = line.split(":", 1)
+                                stats_dict[k.strip()] = v.strip()
+                    elif isinstance(stats_info, dict):
+                        stats_dict = stats_info
+
+                    hits += int(stats_dict.get("keyspace_hits", 0))
+                    misses += int(stats_dict.get("keyspace_misses", 0))
+                except Exception:
+                    pass
+        else:
+            mem_info = await client.info("memory")
+            stats_info = await client.info("stats")
+            used_mem = int(mem_info.get("used_memory", 0))
+            used_mem_peak = int(mem_info.get("used_memory_peak", 0))
+            used_mem_rss = int(mem_info.get("used_memory_rss", 0))
+            maxmemory = int(mem_info.get("maxmemory", 0))
+            maxmemory_policy = mem_info.get("maxmemory_policy", "noeviction")
+            hits = int(stats_info.get("keyspace_hits", 0))
+            misses = int(stats_info.get("keyspace_misses", 0))
+
+        try:
+            dbsize = await client.dbsize()
+        except Exception:
+            dbsize = 0
+
+        # Fragmentation ratio calculation
+        if used_mem > 0 and used_mem_rss > 0:
+            frag_ratio = round(used_mem_rss / used_mem, 2)
+        else:
+            frag_ratio = 1.0
+
+        if frag_ratio < 0.9:
+            frag_status = "warning"
+        elif frag_ratio <= 1.5:
+            frag_status = "healthy"
+        elif frag_ratio <= 2.0:
+            frag_status = "warning"
+        else:
+            frag_status = "critical"
+
+        total_lookups = hits + misses
+        hit_ratio = round((hits / total_lookups) * 100.0, 2) if total_lookups > 0 else 100.0
+
+        return MemoryOverviewResponse(
+            used_memory_bytes=used_mem,
+            used_memory_human=format_bytes(used_mem),
+            used_memory_peak_bytes=used_mem_peak,
+            used_memory_peak_human=format_bytes(used_mem_peak),
+            used_memory_rss_bytes=used_mem_rss,
+            used_memory_rss_human=format_bytes(used_mem_rss),
+            fragmentation_ratio=frag_ratio,
+            fragmentation_status=frag_status,
+            maxmemory_bytes=maxmemory,
+            maxmemory_human=format_bytes(maxmemory) if maxmemory > 0 else "Unlimited",
+            maxmemory_policy=maxmemory_policy,
+            keyspace_hits=hits,
+            keyspace_misses=misses,
+            hit_ratio_percent=hit_ratio,
+            dbsize=dbsize,
+        )
+
+    async def analyze_memory(self, sample_size: int = 500, pattern: str = "*") -> MemoryAnalysisResponse:
+        """Sample keys non-blockingly using SCAN and profile memory usage, data types, and bottlenecks."""
+        client = await self.get_client()
+        sample_size = max(50, min(5000, sample_size))
+        clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
+
+        start_time = time.perf_counter()
+
+        # Step 1: Safe non-blocking key sampling
+        sampled_keys = []
+        seen = set()
+        cursor = 0
+        scan_batch = min(200, sample_size)
+        max_iterations = 60
+
+        for _ in range(max_iterations):
+            if len(sampled_keys) >= sample_size:
+                break
+            try:
+                new_cursor, keys = await client.scan(cursor=cursor, match=clean_pattern, count=scan_batch)
+                if keys:
+                    for k in keys:
+                        if isinstance(k, bytes):
+                            k = k.decode("utf-8", errors="replace")
+                        if k not in seen:
+                            seen.add(k)
+                            sampled_keys.append(k)
+                            if len(sampled_keys) >= sample_size:
+                                break
+                if isinstance(new_cursor, dict):
+                    if all(v == 0 for v in new_cursor.values()):
+                        break
+                    cursor = new_cursor
+                else:
+                    try:
+                        if int(new_cursor) == 0:
+                            break
+                        cursor = int(new_cursor)
+                    except Exception:
+                        break
+            except Exception:
+                break
+
+        # Step 2: Concurrently query memory and metadata using Semaphore
+        sem = asyncio.Semaphore(25)
+
+        async def inspect_single_key(key: str) -> BigKeyItem:
+            async with sem:
+                try:
+                    k_type = await client.type(key)
+                    str_type = str(k_type).lower() if k_type else "string"
+                except Exception:
+                    str_type = "string"
+
+                mem_bytes = 0
+                try:
+                    m = await client.memory_usage(key)
+                    if m is not None:
+                        mem_bytes = int(m)
+                except Exception:
+                    pass
+
+                ttl = -1
+                try:
+                    t = await client.ttl(key)
+                    if t is not None:
+                        ttl = int(t)
+                except Exception:
+                    pass
+
+                length = 1
+                try:
+                    if str_type == "string":
+                        length = await client.strlen(key) or 0
+                    elif str_type == "hash":
+                        length = await client.hlen(key) or 0
+                    elif str_type == "list":
+                        length = await client.llen(key) or 0
+                    elif str_type == "set":
+                        length = await client.scard(key) or 0
+                    elif str_type == "zset":
+                        length = await client.zcard(key) or 0
+                    elif str_type == "stream":
+                        length = await client.xlen(key) or 0
+                except Exception:
+                    length = 1
+
+                return BigKeyItem(
+                    key=key,
+                    type=str_type,
+                    memory_bytes=mem_bytes,
+                    memory_human=format_bytes(mem_bytes),
+                    length=length,
+                    ttl=ttl,
+                )
+
+        if sampled_keys:
+            key_items: List[BigKeyItem] = await asyncio.gather(
+                *[inspect_single_key(k) for k in sampled_keys],
+                return_exceptions=False
+            )
+        else:
+            key_items = []
+
+        duration_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+        try:
+            total_dbsize = await client.dbsize()
+        except Exception:
+            total_dbsize = len(key_items)
+
+        # Step 3: Aggregations & breakdowns
+        total_sampled_bytes = sum(item.memory_bytes for item in key_items)
+        type_groups: Dict[str, Dict[str, Any]] = {}
+
+        for item in key_items:
+            t = item.type
+            if t not in type_groups:
+                type_groups[t] = {"count": 0, "total_bytes": 0}
+            type_groups[t]["count"] += 1
+            type_groups[t]["total_bytes"] += item.memory_bytes
+
+        types_breakdown: List[MemoryTypeBreakdown] = []
+        for t, data in type_groups.items():
+            pct = round((data["total_bytes"] / total_sampled_bytes) * 100.0, 2) if total_sampled_bytes > 0 else 0.0
+            types_breakdown.append(MemoryTypeBreakdown(
+                type=t,
+                count=data["count"],
+                total_bytes=data["total_bytes"],
+                total_human=format_bytes(data["total_bytes"]),
+                percentage=pct,
+            ))
+        types_breakdown.sort(key=lambda x: x.total_bytes, reverse=True)
+
+        # Top 50 BigKeys
+        top_bigkeys = sorted(key_items, key=lambda x: x.memory_bytes, reverse=True)[:50]
+
+        # Step 4: Intelligent bottleneck recommendations
+        recommendations: List[str] = []
+
+        # Check for individual huge keys (> 500 KB)
+        huge_keys = [k for k in top_bigkeys if k.memory_bytes > 500 * 1024]
+        if huge_keys:
+            top_huge = huge_keys[0]
+            recommendations.append(
+                f"🚨 Large Key Bottleneck: '{top_huge.key}' consumes {top_huge.memory_human}. "
+                f"Keys larger than 500 KB block Redis during serialization and increase network latency. Consider JSON compression or data sharding."
+            )
+
+        # Check for massive collections (> 5000 items)
+        giant_collections = [k for k in top_bigkeys if k.type in ("hash", "list", "set", "zset") and k.length > 5000]
+        if giant_collections:
+            top_coll = giant_collections[0]
+            recommendations.append(
+                f"⚠️ Oversized Collection: {top_coll.type.upper()} key '{top_coll.key}' contains {top_coll.length:,} elements. "
+                f"Running commands like HGETALL or SMEMBERS on this key blocks the event loop. Use HSCAN / SSCAN instead."
+            )
+
+        # Check non-expiring keys
+        if len(key_items) > 0:
+            no_ttl_count = sum(1 for k in key_items if k.ttl == -1)
+            no_ttl_pct = round((no_ttl_count / len(key_items)) * 100.0, 1)
+            if no_ttl_pct > 60:
+                recommendations.append(
+                    f"💡 Memory Leak Risk: {no_ttl_pct}% of sampled keys ({no_ttl_count}/{len(key_items)}) have no expiration TTL configured. "
+                    f"Without TTLs, keys accumulate indefinitely unless an eviction policy like volatile-lru/allkeys-lru is configured."
+                )
+
+        if not recommendations:
+            recommendations.append(
+                "✅ Memory profile is healthy! No oversized keys (>500KB) or bloated collections (>5,000 items) were detected in this sample."
+            )
+
+        return MemoryAnalysisResponse(
+            sampled_count=len(key_items),
+            total_dbsize=total_dbsize,
+            sampled_memory_bytes=total_sampled_bytes,
+            sampled_memory_human=format_bytes(total_sampled_bytes),
+            types_breakdown=types_breakdown,
+            top_bigkeys=top_bigkeys,
+            recommendations=recommendations,
+            scan_duration_ms=duration_ms,
         )
 
     async def close(self):
