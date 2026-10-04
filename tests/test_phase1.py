@@ -91,6 +91,11 @@ def test_api_create_and_delete_connection():
 
 
 def test_api_status_and_keys():
+    # Ensure Local Redis is active for status inspection
+    local_conns = [c for c in list_connections() if c["name"] == "Local Redis"]
+    if local_conns:
+        client.post(f"/api/connections/{local_conns[0]['id']}/activate")
+
     # Test active status
     status_resp = client.get("/api/status")
     assert status_resp.status_code == 200
