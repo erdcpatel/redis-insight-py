@@ -103,7 +103,7 @@ async def get_cluster_topology():
 @router.get("/keys", response_model=KeyListResponse)
 async def list_keys(
     pattern: str = Query("*", description="Glob-style pattern to match"),
-    cursor: int = Query(0, description="Cursor for SCAN iteration"),
+    cursor: str = Query("0", description="SCAN cursor: an integer for standalone, or a JSON object of per-node cursors for cluster"),
     count: int = Query(50, ge=1, le=1000, description="Page size estimate for SCAN"),
     type: Optional[str] = Query(None, description="Filter by Redis type (string, hash, list, set, zset, ReJSON-RL)")
 ):
@@ -115,6 +115,8 @@ async def list_keys(
             count=count,
             type_filter=type
         )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise_mapped_exception(e, "Failed to scan keys")
 

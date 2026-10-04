@@ -138,3 +138,119 @@ def test_spa_frontend_serving():
     assert "Redis Insight" in resp.text
 
 
+
+
+def test_keys_cursor_param_accepts_string_and_paginates():
+    """Standalone SCAN cursor round-trips as a string query param and returns an int."""
+    local_conns = [c for c in list_connections() if c["name"] == "Local Redis"]
+    if local_conns:
+        client.post(f"/api/connections/{local_conns[0]['id']}/activate")
+
+    cursor = "0"
+    pages = 0
+    while True:
+        resp = client.get("/api/keys", params={"pattern": "*", "cursor": cursor, "count": 10})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data["cursor"], int)
+        pages += 1
+        if data["cursor"] == 0 or pages > 10000:
+            break
+        cursor = str(data["cursor"])
+    assert data["cursor"] == 0
+
+
+def test_keys_invalid_cursor_returns_400():
+    resp = client.get("/api/keys", params={"cursor": "[object Object]"})
+    assert resp.status_code == 400
+
+
+class _FakeClusterNode:
+    def __init__(self, name):
+        self.name = name
+
+
+def _make_fake_cluster(node_keys, page_size=2):
+    """Build a RedisCluster stand-in whose per-node SCAN pages through node_keys."""
+    from unittest.mock import MagicMock, AsyncMock
+    from redis.asyncio.cluster import RedisCluster
+
+    nodes = {name: _FakeClusterNode(name) for name in node_keys}
+    fake = MagicMock(spec=RedisCluster)
+    fake.dbsize = AsyncMock(return_value=sum(len(v) for v in node_keys.values()))
+    fake.get_primaries.return_value = list(nodes.values())
+    fake.get_node.side_effect = lambda node_name=None, **_: nodes.get(node_name)
+    scan_calls = []
+
+    async def scan(cursor=0, match=None, count=None, target_nodes=None, **_):
+        assert target_nodes is not None, "cluster SCAN must target an individual node"
+        scan_calls.append((target_nodes.name, cursor))
+        keys = node_keys[target_nodes.name]
+        batch = keys[cursor:cursor + page_size]
+        nxt = cursor + page_size
+        return {target_nodes.name: nxt if nxt < len(keys) else 0}, batch
+
+    fake.scan = AsyncMock(side_effect=scan)
+
+    class _Pipe:
+        def __init__(self):
+            self.ops = []
+
+        def type(self, k):
+            self.ops.append("string")
+
+        def ttl(self, k):
+            self.ops.append(-1)
+
+        async def execute(self):
+            return self.ops
+
+    fake.pipeline.side_effect = lambda transaction=False: _Pipe()
+    return fake, scan_calls
+
+
+def test_cluster_scan_resumes_per_node_cursors():
+    import json
+    from unittest.mock import patch, AsyncMock
+    from app.redis_manager import redis_manager
+
+    node_keys = {
+        "10.0.0.1:7000": ["a1", "a2", "a3", "a4", "a5"],
+        "10.0.0.2:7001": ["b1"],
+        "10.0.0.3:7002": ["c1", "c2", "c3"],
+    }
+    fake, scan_calls = _make_fake_cluster(node_keys)
+
+    with patch.object(redis_manager, "get_client", AsyncMock(return_value=fake)):
+        seen = []
+        cursor = "0"
+        pages = 0
+        while True:
+            resp = client.get("/api/keys", params={"cursor": cursor, "count": 2})
+            assert resp.status_code == 200
+            data = resp.json()
+            seen.extend(k["name"] for k in data["keys"])
+            pages += 1
+            if data["cursor"] in (0, "0"):
+                break
+            assert isinstance(data["cursor"], str)
+            parsed = json.loads(data["cursor"])
+            assert set(parsed) == set(node_keys)
+            cursor = data["cursor"]
+            assert pages < 10
+
+    assert sorted(seen) == sorted(k for keys in node_keys.values() for k in keys)
+    assert len(seen) == len(set(seen))
+    assert pages == 3
+    # Finished nodes are not rescanned from 0 on later pages
+    assert scan_calls.count(("10.0.0.2:7001", 0)) == 1
+
+
+def test_cluster_scan_rejects_plain_nonzero_cursor():
+    from unittest.mock import patch, AsyncMock
+    from app.redis_manager import redis_manager
+
+    fake, _ = _make_fake_cluster({"10.0.0.1:7000": ["a1"]})
+    with patch.object(redis_manager, "get_client", AsyncMock(return_value=fake)):
+        resp = client.get("/api/keys", params={"cursor": "17"})
+    assert resp.status_code == 400

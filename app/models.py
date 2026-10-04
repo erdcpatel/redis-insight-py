@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 from pydantic import BaseModel, Field
 
 
@@ -147,7 +147,7 @@ class KeyItem(BaseModel):
 
 class KeyListResponse(BaseModel):
     keys: list[KeyItem]
-    cursor: Any = 0
+    cursor: Union[int, str] = 0
     total_in_db: int
     matched_count: int
 
