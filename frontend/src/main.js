@@ -55,6 +55,7 @@ let isScanning = false;
 let totalScanned = 0;
 let scanComplete = false;
 let dbTotalKeys = 0;
+let lastStatus = null;
 let keysTableRows = [];
 let loadedKeysSet = new Set();
 
@@ -573,6 +574,35 @@ function renderAppShell() {
       </div>
     </div>
 
+    <!-- Keyspace by Node Modal -->
+    <div class="modal-backdrop" id="keyspaceNodesModal">
+      <div class="clients-modal-card" style="max-width: 820px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="database" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
+            <h3 class="modal-title">Keyspace by Node</h3>
+            <span class="badge-db" id="keyspaceTotalBadge">0 keys</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary" id="btnKeyspaceOpenTopology" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+              <i data-lucide="layers" style="width: 13px; height: 13px;"></i>
+              Topology
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnRefreshKeyspaceModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+              Refresh
+            </button>
+            <button type="button" class="btn-icon" id="btnCloseKeyspaceModal">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="keyspaceNodesContainer">
+          <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching node key counts...</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Connected Clients Modal -->
     <div class="modal-backdrop" id="clientsListModal">
       <div class="clients-modal-card">
@@ -737,6 +767,25 @@ function isScanCursorComplete(cursor) {
   return false;
 }
 
+// Human-readable scan progress; never expose the raw (per-node JSON) cursor
+function describeScanProgress(cursor) {
+  const text = String(cursor ?? "").trim();
+  if (text.startsWith("{")) {
+    try {
+      const values = Object.values(JSON.parse(text));
+      const pending = values.filter(v => Number(v) !== 0).length;
+      return `${pending} of ${values.length} nodes still scanning`;
+    } catch {
+      return "more keys available";
+    }
+  }
+  return "more keys available";
+}
+
+function isClusterView() {
+  return Boolean(lastStatus && lastStatus.is_cluster) || String(currentCursor ?? "").trim().startsWith("{");
+}
+
 // Fetch next batch of keys without blocking Redis
 async function scanNextBatch(expectedEpoch = null) {
   if (isScanning) return;
@@ -794,9 +843,23 @@ function renderKeysTable() {
   const container = document.getElementById("gridViewerContainer");
   if (!container) return;
   if (keysTableRows.length === 0) {
-    container.innerHTML = `
+    const notStarted = !scanComplete && isScanCursorComplete(currentCursor);
+    container.innerHTML = scanComplete
+      ? `
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
         No keys found matching pattern "<code>${escapeHtml(currentPattern)}</code>".
+      </div>
+    `
+      : notStarted
+      ? `
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        Scanning keys matching "<code>${escapeHtml(currentPattern)}</code>"...
+      </div>
+    `
+      : `
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        No matches yet for "<code>${escapeHtml(currentPattern)}</code>" in the part of the keyspace scanned so far.<br>
+        The scan is not finished — click <strong>Load More</strong> to keep scanning.
       </div>
     `;
     return;
@@ -866,9 +929,9 @@ function updateScanUI() {
 
   if (statusText) {
     statusText.innerHTML = `
-      Loaded <strong>${totalScanned}</strong> keys
-      ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>' : `(Next Cursor: ${currentCursor})`}
-      | DB Total: <strong>${dbTotalKeys}</strong>
+      Loaded <strong>${totalScanned.toLocaleString()}</strong> keys
+      ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(currentCursor))})</span>`}
+      | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(dbTotalKeys || 0).toLocaleString()}</strong>
     `;
   }
 
@@ -2774,6 +2837,102 @@ async function deleteConnection(connId) {
 // Cluster Topology & Node Details Modal
 // ==========================================
 
+async function openKeyspaceModal() {
+  const modal = document.getElementById("keyspaceNodesModal");
+  if (!modal) return;
+  modal.classList.add("active");
+  renderKeyspaceNodes(lastStatus);
+  await loadKeyspaceNodes();
+}
+
+function closeKeyspaceModal() {
+  const modal = document.getElementById("keyspaceNodesModal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function loadKeyspaceNodes() {
+  try {
+    const res = await fetch("/api/status");
+    if (!res.ok) throw new Error("Failed to load node stats");
+    lastStatus = await res.json();
+    renderKeyspaceNodes(lastStatus);
+  } catch (err) {
+    const container = document.getElementById("keyspaceNodesContainer");
+    if (container) {
+      container.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--accent-danger);">${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function renderKeyspaceNodes(status) {
+  const container = document.getElementById("keyspaceNodesContainer");
+  const totalBadge = document.getElementById("keyspaceTotalBadge");
+  if (!container || !status) return;
+
+  const stats = status.node_stats || [];
+  const masters = stats.filter(n => n.role === "master");
+  const total = masters.reduce((sum, n) => sum + (n.keys || 0), 0);
+  if (totalBadge) totalBadge.textContent = `${total.toLocaleString()} keys`;
+
+  if (masters.length === 0) {
+    container.innerHTML = `<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Per-node breakdown is only available for cluster connections.</div>`;
+    return;
+  }
+
+  const fmt = v => (v === null || v === undefined) ? "—" : Number(v).toLocaleString();
+  const th = (label, align = "left") => `<th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: ${align};">${label}</th>`;
+  const td = (content, extra = "") => `<td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; ${extra}">${content}</td>`;
+
+  const rows = masters.map(m => {
+    const share = total > 0 && m.keys !== null ? ((m.keys / total) * 100).toFixed(1) : "0.0";
+    const replicas = stats.filter(n => n.role === "replica" && n.master === m.node);
+    const masterRow = `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+        ${td(`<span class="role-badge-master">MASTER</span> <span style="color: var(--text-primary); font-weight: 600; margin-left: 6px;">${escapeHtml(m.node)}</span>`)}
+        ${td(m.error ? `<span style="color: var(--accent-danger);" title="${escapeHtml(m.error)}">unreachable</span>` : fmt(m.keys), "text-align: right; color: var(--text-primary); font-weight: 600;")}
+        ${td(`${share}%`, "text-align: right; color: var(--text-secondary);")}
+        ${td(escapeHtml(m.used_memory_human || "—"), "text-align: right; color: #c084fc;")}
+        ${td(fmt(m.connected_clients), "text-align: right; color: #38bdf8;")}
+      </tr>`;
+    const replicaRows = replicas.map(r => {
+      const drift = (r.keys !== null && m.keys !== null) ? r.keys - m.keys : null;
+      const driftHtml = drift === null
+        ? ""
+        : drift === 0
+        ? `<span style="color: var(--accent-success); margin-left: 6px;">in sync</span>`
+        : `<span style="color: var(--accent-warning); margin-left: 6px;" title="Replica key count differs from its master (replication lag or expiring keys)">${drift > 0 ? "+" : ""}${drift.toLocaleString()}</span>`;
+      return `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); background: rgba(0,0,0,0.12);">
+        ${td(`<span style="color: var(--text-muted); margin-left: 0.75rem;">↳</span> <span class="role-badge-replica">REPLICA</span> <span style="color: var(--text-secondary); margin-left: 6px;">${escapeHtml(r.node)}</span>`)}
+        ${td(r.error ? `<span style="color: var(--accent-danger);" title="${escapeHtml(r.error)}">unreachable</span>` : `${fmt(r.keys)}${driftHtml}`, "text-align: right; color: var(--text-secondary);")}
+        ${td("", "")}
+        ${td(escapeHtml(r.used_memory_human || "—"), "text-align: right; color: var(--text-muted);")}
+        ${td(fmt(r.connected_clients), "text-align: right; color: var(--text-muted);")}
+      </tr>`;
+    }).join("");
+    return masterRow + replicaRows;
+  }).join("");
+
+  container.innerHTML = `
+    <table class="data-table" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr>${th("NODE")}${th("KEYS", "right")}${th("SHARE", "right")}${th("MEMORY", "right")}${th("CLIENTS", "right")}</tr>
+      </thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr>
+          ${td("Cluster total (masters)", "color: var(--text-muted); font-family: inherit;")}
+          ${td(total.toLocaleString(), "text-align: right; color: var(--accent-primary); font-weight: 700;")}
+          ${td("100%", "text-align: right; color: var(--text-muted);")}
+          ${td(escapeHtml(status.used_memory_human || "—"), "text-align: right; color: #c084fc;")}
+          ${td("", "")}
+        </tr>
+      </tfoot>
+    </table>
+  `;
+  setupIcons();
+}
+
 async function openTopologyModal(connId = null) {
   const modal = document.getElementById("clusterTopologyModal");
   if (!modal) return;
@@ -2918,6 +3077,7 @@ function renderTopologyNodes() {
           <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">NODE ID</th>
           <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">ROLE</th>
           <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">ENDPOINT (IP:PORT)</th>
+          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: right;">KEYS</th>
           <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">LINK STATE</th>
           <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">ASSIGNED SLOTS</th>
           <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">MASTER / REPLICA OF</th>
@@ -2941,6 +3101,9 @@ function renderTopologyNodes() {
               </td>
               <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-weight: 600; font-size: 0.82rem; color: var(--text-primary);">
                 ${escapeHtml(n.addr || `${n.ip}:${n.port}`)}
+              </td>
+              <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.82rem; text-align: right; color: ${isMaster ? 'var(--text-primary)' : 'var(--text-secondary)'};">
+                ${n.keys === null || n.keys === undefined ? '—' : Number(n.keys).toLocaleString()}
               </td>
               <td style="padding: 0.65rem 0.85rem; font-size: 0.8rem;">
                 <span class="link-dot ${isConnected ? 'connected' : 'disconnected'}"></span>
@@ -2978,7 +3141,9 @@ async function refreshStatus() {
     if (s.connected) {
       const activeConn = cachedConnections.find(c => c.is_selected) || cachedConnections.find(c => c.id === s.connection_id) || cachedConnections.find(c => c.is_connected);
       const isCluster = (activeConn && activeConn.conn_type === "cluster") || (s.cluster_nodes && s.cluster_nodes.length > 0) || s.is_cluster;
-      const totalNodes = (activeConn && activeConn.cluster_nodes) ? "6" : (s.cluster_nodes_count || 1);
+      const totalNodes = s.cluster_nodes_count || (s.node_stats ? s.node_stats.length : 1);
+      const masterStats = (s.node_stats || []).filter(n => n.role === "master");
+      lastStatus = s;
 
       if (connContainer) {
         const envVal = (s.env || activeConn?.env || "LOCAL").toUpperCase();
@@ -3015,7 +3180,7 @@ async function refreshStatus() {
 
             <span class="vital-divider"></span>
 
-            <div class="vital-item" title="Total keys in active keyspace">
+            <div class="vital-item${masterStats.length ? ' clickable' : ''}" id="btnOpenKeyspaceTop" title="${masterStats.length ? `Total keys across ${masterStats.length} master nodes. Click for per-node breakdown` : 'Total keys in active keyspace'}">
               <span class="vital-label">Keys:</span>
               <span class="vital-val">${(s.dbsize || 0).toLocaleString()}</span>
             </div>
@@ -3060,6 +3225,10 @@ async function refreshStatus() {
       const btnTopTopology = document.getElementById("btnOpenTopologyTop");
       if (btnTopTopology) {
         btnTopTopology.addEventListener("click", () => openTopologyModal());
+      }
+      const btnKeyspaceTop = document.getElementById("btnOpenKeyspaceTop");
+      if (btnKeyspaceTop && masterStats.length) {
+        btnKeyspaceTop.addEventListener("click", openKeyspaceModal);
       }
       const btnMemoryTop = document.getElementById("btnOpenMemoryTop");
       if (btnMemoryTop) {
@@ -3447,6 +3616,18 @@ function setupEventListeners() {
       currentTopologyRole = tab.getAttribute("data-role") || "all";
       renderTopologyNodes();
     });
+  });
+
+  // Keyspace by Node Modal controls
+  const keyspaceModal = document.getElementById("keyspaceNodesModal");
+  document.getElementById("btnCloseKeyspaceModal").addEventListener("click", closeKeyspaceModal);
+  document.getElementById("btnRefreshKeyspaceModal").addEventListener("click", loadKeyspaceNodes);
+  document.getElementById("btnKeyspaceOpenTopology").addEventListener("click", () => {
+    closeKeyspaceModal();
+    openTopologyModal();
+  });
+  keyspaceModal.addEventListener("click", (e) => {
+    if (e.target === keyspaceModal) closeKeyspaceModal();
   });
 
   // Clients Modal controls

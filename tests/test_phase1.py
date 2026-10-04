@@ -254,3 +254,62 @@ def test_cluster_scan_rejects_plain_nonzero_cursor():
     with patch.object(redis_manager, "get_client", AsyncMock(return_value=fake)):
         resp = client.get("/api/keys", params={"cursor": "17"})
     assert resp.status_code == 400
+
+
+def test_cluster_total_in_db_sums_primaries():
+    from unittest.mock import patch, AsyncMock
+    from redis.asyncio.cluster import RedisCluster
+    from app.redis_manager import redis_manager
+
+    fake, _ = _make_fake_cluster({"10.0.0.1:7000": ["a1"], "10.0.0.2:7001": ["b1"]})
+    with patch.object(redis_manager, "get_client", AsyncMock(return_value=fake)):
+        resp = client.get("/api/keys", params={"cursor": "0"})
+    assert resp.status_code == 200
+    assert resp.json()["total_in_db"] == 2
+    fake.dbsize.assert_awaited_with(target_nodes=RedisCluster.PRIMARIES)
+
+
+def test_cluster_memory_analysis_samples_past_first_batch():
+    import asyncio
+    from unittest.mock import patch, AsyncMock
+    from app.redis_manager import redis_manager
+
+    node_keys = {f"10.0.0.{i}:700{i}": [f"n{i}:k{j}" for j in range(30)] for i in range(3)}
+    fake, scan_calls = _make_fake_cluster(node_keys, page_size=5)
+    with patch.object(redis_manager, "get_client", AsyncMock(return_value=fake)):
+        result = asyncio.run(redis_manager.analyze_memory(sample_size=60))
+    assert result.sampled_count == 60
+    assert {name for name, _ in scan_calls} == set(node_keys)
+
+
+def test_cluster_node_stats_maps_replicas_to_masters():
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, AsyncMock
+    from redis.asyncio.cluster import RedisCluster
+    from app.redis_manager import redis_manager
+
+    m1 = SimpleNamespace(name="10.0.0.1:7000", server_type="primary")
+    r1 = SimpleNamespace(name="10.0.0.4:7003", server_type="replica")
+    m2 = SimpleNamespace(name="10.0.0.2:7001", server_type="primary")
+    keys = {m1.name: 10, r1.name: 9, m2.name: 5}
+
+    fake = MagicMock(spec=RedisCluster)
+    fake.get_nodes.return_value = [r1, m2, m1]
+    fake.nodes_manager = SimpleNamespace(slots_cache={0: [m1, r1], 9000: [m2]})
+    fake.dbsize = AsyncMock(side_effect=lambda target_nodes=None: keys[target_nodes.name])
+
+    async def info(section, target_nodes=None):
+        if section == "memory":
+            return {"used_memory": 1024, "used_memory_human": "1.00K"}
+        return {"connected_clients": 2}
+
+    fake.info = AsyncMock(side_effect=info)
+    stats = asyncio.run(redis_manager._cluster_node_stats(fake))
+
+    assert [(s.node, s.role, s.master, s.keys) for s in stats] == [
+        ("10.0.0.1:7000", "master", None, 10),
+        ("10.0.0.4:7003", "replica", "10.0.0.1:7000", 9),
+        ("10.0.0.2:7001", "master", None, 5),
+    ]
+    assert all(s.connected_clients == 2 and s.used_memory == 1024 for s in stats)

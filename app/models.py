@@ -117,6 +117,17 @@ class ClusterDiscoveryResponse(BaseModel):
     error: Optional[str] = None
 
 
+class NodeStat(BaseModel):
+    node: str
+    role: str  # master or replica
+    master: Optional[str] = None
+    keys: Optional[int] = None
+    used_memory: Optional[int] = None
+    used_memory_human: Optional[str] = None
+    connected_clients: Optional[int] = None
+    error: Optional[str] = None
+
+
 class ActiveConnectionStatus(BaseModel):
     connected: bool
     connection_id: Optional[str] = None
@@ -135,6 +146,7 @@ class ActiveConnectionStatus(BaseModel):
     is_cluster: bool = False
     cluster_state: Optional[str] = None
     cluster_nodes_count: Optional[int] = None
+    node_stats: Optional[List[NodeStat]] = None
     error: Optional[str] = None
 
 
@@ -166,6 +178,7 @@ class ClusterNodeDetail(BaseModel):
     slot_count: int = 0
     ping_sent: int = 0
     pong_recv: int = 0
+    keys: Optional[int] = None
 
 
 class ClusterTopologyResponse(BaseModel):
