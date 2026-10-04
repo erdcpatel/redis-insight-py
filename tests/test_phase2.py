@@ -2,7 +2,7 @@ import pytest
 import urllib.parse
 from fastapi.testclient import TestClient
 from app.main import app
-from app.db import create_connection
+from app.db import create_connection, delete_connection
 from app.redis_manager import redis_manager
 
 
@@ -15,9 +15,12 @@ def client():
         "port": 6379,
         "db": 0,
     })
-    with TestClient(app) as c:
-        c.post(f"/api/connections/{conn['id']}/activate")
-        yield c
+    try:
+        with TestClient(app) as c:
+            c.post(f"/api/connections/{conn['id']}/activate")
+            yield c
+    finally:
+        delete_connection(conn["id"])
 
 
 def test_key_detail_string(client):

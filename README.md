@@ -89,7 +89,15 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ---
 
-### 7. Security & Static Configuration Sync
+### 7. Collapsible Workspace & Full-Screen Mode
+- **One-Click Sidebar Toggle**: Expand or collapse the cluster sidebar instantly via the collapse arrow (`chevron-left`), top-bar expand button, or `Ctrl+B` / `Cmd+B` keyboard shortcut.
+- **Persistent Layout State**: Remembers your sidebar visibility preference in browser local storage.
+- **Full-Screen Focus**: Expands the keys data grid, slowlog inspection, memory visualizations, and terminal views across the entire monitor.
+- **Streamlined 3-Zone Header**: Clean, non-overlapping navbar featuring an active connection pill, unified vitals capsule (Memory, Ops/sec, Connected Clients), and segmented tools launcher.
+
+---
+
+### 8. Security & Static Configuration Sync
 - **Encrypted Password Storage**: Passwords stored in local SQLite are encrypted with **Fernet (AES-128-CBC + HMAC-SHA256)**. The encryption key is generated locally in `.secret.key` and never committed to source control.
 - **Static Configuration (`config/connections.yaml`)**: Predefine cluster endpoints and environments in YAML. Changes are automatically synced on startup.
 
@@ -133,7 +141,7 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 Clone this repository and create a virtual environment:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/erdcpatel/redis-insight-py.git
 cd redis-insight-py
 
 # Create and activate virtual environment
@@ -263,8 +271,8 @@ git commit -m "Initial commit: Redis Insight Py with cluster topology discovery"
 # 4. Set branch to main
 git branch -M main
 
-# 5. Add remote and push (replace with your repository URL)
-git remote add origin https://github.com/<your-username>/<your-repo-name>.git
+# 5. Add remote and push
+git remote add origin https://github.com/erdcpatel/redis-insight-py.git
 git push -u origin main
 ```
 
