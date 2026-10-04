@@ -53,6 +53,7 @@ let currentPattern = "*";
 let currentType = "all";
 let isScanning = false;
 let totalScanned = 0;
+let scanComplete = false;
 let dbTotalKeys = 0;
 let keysTableRows = [];
 let loadedKeysSet = new Set();
@@ -707,6 +708,7 @@ async function resetAndScan() {
   const epoch = currentScanEpoch;
 
   currentCursor = 0;
+  scanComplete = false;
   totalScanned = 0;
   keysTableRows = [];
   loadedKeysSet.clear();
@@ -720,18 +722,32 @@ async function resetAndScan() {
   await scanNextBatch(epoch);
 }
 
+// SCAN cursor is an int (standalone) or a JSON string of per-node cursors (cluster)
+function isScanCursorComplete(cursor) {
+  if (cursor === null || cursor === undefined) return true;
+  const text = String(cursor).trim();
+  if (text === "" || text === "0") return true;
+  if (text.startsWith("{")) {
+    try {
+      return Object.values(JSON.parse(text)).every(v => Number(v) === 0);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 // Fetch next batch of keys without blocking Redis
 async function scanNextBatch(expectedEpoch = null) {
   if (isScanning) return;
-  // If scan already completed (cursor back to 0), do not re-scan
-  if (currentCursor === 0 && totalScanned > 0) return;
+  if (scanComplete) return;
 
   const targetEpoch = expectedEpoch !== null ? expectedEpoch : currentScanEpoch;
   isScanning = true;
   updateScanUI();
 
   try {
-    const url = `/api/keys?pattern=${encodeURIComponent(currentPattern)}&cursor=${currentCursor}&count=50${currentType !== "all" ? `&type=${encodeURIComponent(currentType)}` : ""}`;
+    const url = `/api/keys?pattern=${encodeURIComponent(currentPattern)}&cursor=${encodeURIComponent(String(currentCursor ?? "0"))}&count=50${currentType !== "all" ? `&type=${encodeURIComponent(currentType)}` : ""}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error("Failed to scan keys");
     const data = await res.json();
@@ -742,6 +758,7 @@ async function scanNextBatch(expectedEpoch = null) {
     }
 
     currentCursor = data.cursor;
+    scanComplete = isScanCursorComplete(currentCursor);
     dbTotalKeys = data.total_in_db;
 
     // Deduplicate keys against loadedKeysSet
@@ -845,7 +862,7 @@ function updateScanUI() {
   const statusText = document.getElementById("scanStatusText");
   const btnScanNext = document.getElementById("btnScanNext");
 
-  const isComplete = (currentCursor === 0 && totalScanned > 0) || (totalScanned >= dbTotalKeys && dbTotalKeys > 0);
+  const isComplete = scanComplete;
 
   if (statusText) {
     statusText.innerHTML = `
@@ -2682,6 +2699,7 @@ async function disconnectCluster(connId) {
       loadedKeysSet.clear();
       totalScanned = 0;
       currentCursor = 0;
+      scanComplete = false;
       dbTotalKeys = 0;
       renderEmptyWorkspace();
     } else {

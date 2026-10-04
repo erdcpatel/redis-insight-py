@@ -799,14 +799,78 @@ class RedisManager:
                 error=str(e),
             )
 
+    @staticmethod
+    def _parse_scan_cursor(cursor: Any) -> Any:
+        """Normalize an incoming SCAN cursor into an int or a per-node dict."""
+        if isinstance(cursor, dict):
+            return {str(k): int(v) for k, v in cursor.items()}
+        if isinstance(cursor, int):
+            return cursor
+        text = str(cursor).strip() if cursor is not None else ""
+        if not text:
+            return 0
+        if text.lstrip("-").isdigit():
+            return int(text)
+        try:
+            parsed = json.loads(text)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid SCAN cursor: {cursor!r}")
+        if isinstance(parsed, dict):
+            return {str(k): int(v) for k, v in parsed.items()}
+        if isinstance(parsed, int):
+            return parsed
+        raise ValueError(f"Invalid SCAN cursor: {cursor!r}")
+
+    async def _scan_cluster_batch(
+        self,
+        client: RedisCluster,
+        cursor: Any,
+        pattern: str,
+        count: int
+    ) -> Tuple[Any, List[Any]]:
+        """Run one SCAN step on every primary node, resuming each node from its own cursor."""
+        if isinstance(cursor, dict):
+            pending = {name: cur for name, cur in cursor.items() if cur != 0}
+            next_cursors: Dict[str, int] = {name: 0 for name in cursor}
+        else:
+            if cursor != 0:
+                raise ValueError("Cluster connections require a JSON per-node cursor or 0")
+            pending = {node.name: 0 for node in client.get_primaries()}
+            next_cursors = dict(pending)
+
+        async def scan_node(name: str, node_cursor: int) -> Tuple[str, int, List[Any]]:
+            node = client.get_node(node_name=name)
+            if node is None:
+                logger.warning(f"Cluster node '{name}' no longer present; skipping its SCAN cursor")
+                return name, 0, []
+            cur, keys = await client.scan(
+                cursor=node_cursor, match=pattern, count=count, target_nodes=node
+            )
+            return name, int(cur.get(name, 0) if isinstance(cur, dict) else cur), keys
+
+        results = await asyncio.gather(*(scan_node(n, c) for n, c in pending.items()))
+
+        raw_keys: List[Any] = []
+        for name, cur, keys in results:
+            next_cursors[name] = cur
+            raw_keys.extend(keys)
+
+        if all(v == 0 for v in next_cursors.values()):
+            return 0, raw_keys
+        return json.dumps(next_cursors, sort_keys=True), raw_keys
+
     async def scan_keys_batch(
         self,
         pattern: str = "*",
-        cursor: Any = 0,
+        cursor: Any = "0",
         count: int = 50,
         type_filter: Optional[str] = None
     ) -> KeyListResponse:
-        """Scan keys using Redis SCAN, and pipeline TYPE & TTL queries for fast display."""
+        """Scan keys using Redis SCAN, and pipeline TYPE & TTL queries for fast display.
+
+        Standalone clients use a plain integer cursor. Cluster clients use a JSON-encoded
+        mapping of primary node name to that node's SCAN cursor; 0 means the scan is complete.
+        """
         try:
             client = await self.get_client()
             dbsize = await client.dbsize()
@@ -814,20 +878,19 @@ class RedisManager:
             return KeyListResponse(keys=[], cursor=0, total_in_db=0, matched_count=0)
 
         clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
+        scan_cursor = self._parse_scan_cursor(cursor)
 
-        # Pass appropriate cursor type
-        scan_cursor = cursor
-        if isinstance(cursor, str) and cursor.isdigit():
-            scan_cursor = int(cursor)
-
-        new_cursor, raw_keys = await client.scan(cursor=scan_cursor, match=clean_pattern, count=count)
-
-        if isinstance(new_cursor, dict):
-            cursor_out = 0 if all(v == 0 for v in new_cursor.values()) else new_cursor
+        if isinstance(client, RedisCluster):
+            cursor_out, raw_keys = await self._scan_cluster_batch(
+                client, scan_cursor, clean_pattern, count
+            )
         else:
+            if isinstance(scan_cursor, dict):
+                raise ValueError("Per-node cluster cursor is not valid for a standalone connection")
+            new_cursor, raw_keys = await client.scan(cursor=scan_cursor, match=clean_pattern, count=count)
             try:
                 cursor_out = int(new_cursor)
-            except Exception:
+            except (TypeError, ValueError):
                 cursor_out = 0
 
         if not raw_keys:
