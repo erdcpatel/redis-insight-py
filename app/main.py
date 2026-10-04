@@ -1,14 +1,20 @@
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.logger import setup_logging, logger
 from app.db import init_db, get_active_connection
 from app.config_loader import sync_connections_from_config
 from app.redis_manager import redis_manager
 from app.routers import connections, keys
+
+# Initialize global logging configuration
+setup_logging()
 
 
 @asynccontextmanager
@@ -20,24 +26,24 @@ async def lifespan(app: FastAPI):
     try:
         cfg_res = sync_connections_from_config()
         if cfg_res.get("loaded", 0) > 0:
-            print(f"Loaded {cfg_res['loaded']} connection(s) from config: {cfg_res.get('file')}")
+            logger.info(f"Loaded {cfg_res['loaded']} connection(s) from config: {cfg_res.get('file')}")
     except Exception as e:
-        print(f"Notice: Config file sync skipped: {e}")
+        logger.warning(f"Config file sync skipped: {e}")
 
     # 3. Attempt to connect to the active connection on startup
     try:
         active = get_active_connection(include_password=True)
         if active:
             await redis_manager.activate_connection(active["id"])
-            print(f"Successfully connected to Redis: {active['name']} ({active['host']}:{active['port']})")
+            logger.info(f"Successfully connected to active Redis: {active['name']} ({active['host']}:{active['port']})")
     except Exception as e:
-        print(f"Warning: Initial Redis connection failed: {e}")
+        logger.warning(f"Initial Redis connection failed: {e}")
 
     yield
 
     # Clean up connection pools on shutdown
     await redis_manager.close()
-    print("Redis connections closed.")
+    logger.info("Redis connections closed.")
 
 
 app = FastAPI(
@@ -46,6 +52,26 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan
 )
+
+# HTTP Request and Error Logging Middleware
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+            duration_ms = (time.perf_counter() - start) * 1000.0
+            if response.status_code >= 400:
+                logger.warning(f"{request.method} {request.url.path} -> HTTP {response.status_code} ({duration_ms:.1f}ms)")
+            return response
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - start) * 1000.0
+            logger.error(
+                f"Unhandled Exception on {request.method} {request.url.path} ({duration_ms:.1f}ms): {exc}",
+                exc_info=True
+            )
+            raise exc
+
+app.add_middleware(LoggingMiddleware)
 
 # CORS
 app.add_middleware(

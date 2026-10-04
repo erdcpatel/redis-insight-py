@@ -1,5 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, status
+from app.logger import logger
 from app.db import (
     list_connections,
     get_connection,
@@ -171,8 +172,10 @@ async def connect_connection_endpoint(conn_id: str):
             "limit": redis_manager.max_limit
         }
     except ValueError as ve:
+        logger.warning(f"Connection {conn_id} activation rejected: {ve}")
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
+        logger.error(f"Failed to activate connection {conn_id}: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Failed to connect: {str(e)}")
 
 
@@ -190,6 +193,7 @@ async def disconnect_connection_endpoint(conn_id: str):
             "status": status_info
         }
     except Exception as e:
+        logger.error(f"Failed to disconnect connection {conn_id}: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Failed to disconnect: {str(e)}")
 
 
@@ -210,6 +214,7 @@ async def disconnect_active_connection_endpoint():
             "status": status_info
         }
     except Exception as e:
+        logger.error(f"Failed to disconnect active cluster {sel_id}: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Failed to disconnect: {str(e)}")
 
 
@@ -228,8 +233,10 @@ async def select_connection_endpoint(conn_id: str):
             "status": status_info
         }
     except ValueError as ve:
+        logger.warning(f"Select connection {conn_id} failed: {ve}")
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
+        logger.error(f"Failed to select connection {conn_id}: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Failed to select: {str(e)}")
 
 

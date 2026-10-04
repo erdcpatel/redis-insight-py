@@ -6,6 +6,7 @@ import redis.asyncio as aioredis
 from redis.asyncio.client import Pipeline
 from redis.asyncio.cluster import RedisCluster, ClusterNode
 
+from app.logger import logger
 from app.db import get_active_connection, set_active_connection, get_connection
 import datetime
 from app.models import (
@@ -127,6 +128,8 @@ class RedisManager:
         use_tls = bool(conn_dict.get("use_tls", False))
         conn_type = (conn_dict.get("conn_type") or "standalone").lower()
 
+        logger.info(f"Connecting to Redis {conn_type}: {host}:{port} (db={db}, tls={use_tls})...")
+
         if conn_type == "cluster":
             nodes_data = conn_dict.get("cluster_nodes")
             startup_nodes = []
@@ -140,11 +143,12 @@ class RedisManager:
                             elif isinstance(n, str) and ":" in n:
                                 h, p = n.split(":")
                                 startup_nodes.append(ClusterNode(h.strip(), int(p.strip())))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Could not parse cluster nodes configuration: {e}")
             if not startup_nodes:
                 startup_nodes = [ClusterNode(host, port)]
 
+            logger.info(f"Initializing RedisCluster client with {len(startup_nodes)} startup node(s): {[f'{n.host}:{n.port}' for n in startup_nodes]}")
             client = RedisCluster(
                 startup_nodes=startup_nodes,
                 username=username,
@@ -172,7 +176,12 @@ class RedisManager:
             )
 
         # Test with PING
-        await client.ping()
+        try:
+            await client.ping()
+            logger.info(f"Successfully connected and verified PING with Redis at {host}:{port}")
+        except Exception as e:
+            logger.error(f"Redis PING verification failed for {host}:{port}: {e}", exc_info=True)
+            raise
         return client
 
     async def _connect_and_store(self, conn_id: str, conn_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -183,26 +192,32 @@ class RedisManager:
         # If already connected, simply select it
         if conn_id in self._clients:
             self._selected_conn_id = conn_id
+            logger.info(f"Connection ID '{conn_id}' was already open; focused as selected connection.")
             return self._conn_infos[conn_id]
 
         # Check limit
         if len(self._clients) >= self._max_connected_limit:
-            raise ValueError(
+            msg = (
                 f"Connection limit reached: Maximum {self._max_connected_limit} cluster(s) can be connected at a time. "
                 "Please disconnect an existing cluster first."
             )
+            logger.warning(msg)
+            raise ValueError(msg)
 
+        logger.info(f"Connecting connection ID '{conn_id}' ('{conn_dict.get('name')}', {conn_dict.get('conn_type', 'standalone')})")
         client = await self._create_client(conn_dict)
         self._clients[conn_id] = client
         self._conn_infos[conn_id] = conn_dict
         self._selected_conn_id = conn_id
         set_active_connection(conn_id)
+        logger.info(f"Connection ID '{conn_id}' activated (connected: {len(self._clients)}/{self._max_connected_limit})")
         return conn_dict
 
     async def activate_connection(self, conn_id: str) -> Dict[str, Any]:
         """Connect or select a connection by ID."""
         conn_dict = get_connection(conn_id, include_password=True)
         if not conn_dict:
+            logger.warning(f"Connection activation failed: ID '{conn_id}' not found in database.")
             raise ValueError(f"Connection {conn_id} not found.")
 
         async with self._get_lock():
@@ -212,14 +227,16 @@ class RedisManager:
         """Disconnect and close a connected cluster by ID."""
         from app.db import set_connection_status
 
+        logger.info(f"Disconnecting connection ID '{conn_id}'...")
         async with self._get_lock():
             client = self._clients.pop(conn_id, None)
             self._conn_infos.pop(conn_id, None)
             if client:
                 try:
                     await client.aclose()
-                except Exception:
-                    pass
+                    logger.info(f"Closed client pool for connection ID '{conn_id}'")
+                except Exception as e:
+                    logger.warning(f"Error while closing client for '{conn_id}': {e}")
 
             set_connection_status(conn_id, is_active=False)
 
@@ -227,17 +244,21 @@ class RedisManager:
                 if self._clients:
                     self._selected_conn_id = next(iter(self._clients.keys()))
                     set_active_connection(self._selected_conn_id)
+                    logger.info(f"Switched active selected connection to '{self._selected_conn_id}'")
                 else:
                     self._selected_conn_id = None
+                    logger.info("No active connected connections remaining.")
 
             return True
 
     def select_connection(self, conn_id: str) -> Dict[str, Any]:
         """Switch active focus to an already connected connection."""
         if conn_id not in self._clients:
+            logger.warning(f"Cannot select connection '{conn_id}': not currently connected.")
             raise ValueError(f"Connection {conn_id} is not connected. Connect it first.")
         self._selected_conn_id = conn_id
         set_active_connection(conn_id)
+        logger.info(f"Selected active connection switched to '{conn_id}'")
         return self._conn_infos[conn_id]
 
     async def test_connection_params(
@@ -254,6 +275,7 @@ class RedisManager:
         """Test a candidate connection without saving or making it active."""
         start = time.perf_counter()
         temp_client = None
+        logger.info(f"Testing connection: {conn_type} at {host}:{port} (db={db}, tls={use_tls})")
         try:
             if conn_type.lower() == "cluster":
                 startup_nodes = []
@@ -317,6 +339,7 @@ class RedisManager:
                 redis_ver = "unknown"
                 os_info = "unknown"
 
+            logger.info(f"Connection test passed for {conn_type} at {host}:{port} (latency: {latency:.1f}ms, redis_version: {redis_ver})")
             return ConnectionTestResponse(
                 success=True,
                 latency_ms=round(latency, 2),
@@ -326,6 +349,7 @@ class RedisManager:
                 cluster_nodes_count=cluster_nodes_count,
             )
         except Exception as e:
+            logger.warning(f"Connection test failed for {conn_type} at {host}:{port}: {e}")
             return ConnectionTestResponse(
                 success=False,
                 error=str(e),
@@ -350,6 +374,7 @@ class RedisManager:
         Safely derives IPs, ports, roles, and cluster state, taking 'myself' flag, NAT, and hostname mappings into account.
         """
         temp_c = None
+        logger.info(f"Discovering cluster nodes via candidate seed node {host}:{port} (tls={use_tls})...")
         try:
             temp_c = aioredis.Redis(
                 host=host,
@@ -372,6 +397,7 @@ class RedisManager:
                 pass
 
             if c_info.get("cluster_enabled") != 1:
+                logger.warning(f"Cluster discovery stopped: instance at {host}:{port} has cluster_enabled: 0")
                 return ClusterDiscoveryResponse(
                     success=False,
                     error=f"The Redis instance at {host}:{port} is standalone (cluster_enabled: 0). Switch connection type to Standalone Redis."
@@ -671,6 +697,9 @@ class RedisManager:
             # Sort discovered nodes: masters first by port, then replicas
             discovered.sort(key=lambda n: (0 if n.role == "master" else 1, n.port, n.host))
 
+            logger.info(
+                f"Discovered {len(discovered)} cluster node(s) ({masters_count} masters, {replicas_count} replicas) via seed {host}:{port}; cluster_state='{cluster_state}'"
+            )
             return ClusterDiscoveryResponse(
                 success=True,
                 cluster_state=cluster_state,
@@ -681,6 +710,7 @@ class RedisManager:
                 nodes=discovered,
             )
         except Exception as e:
+            logger.error(f"Failed to discover cluster nodes via seed {host}:{port}: {e}", exc_info=True)
             return ClusterDiscoveryResponse(
                 success=False,
                 error=f"Failed to discover cluster nodes: {str(e)}"
