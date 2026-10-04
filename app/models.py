@@ -155,6 +155,7 @@ class KeyItem(BaseModel):
     type: str
     ttl: int
     memory_bytes: Optional[int] = None
+    node: Optional[str] = None
 
 
 class KeyListResponse(BaseModel):
@@ -162,6 +163,9 @@ class KeyListResponse(BaseModel):
     cursor: Union[int, str] = 0
     total_in_db: int
     matched_count: int
+    nodes_total: Optional[int] = None
+    nodes_done: Optional[int] = None
+    regex_prefilter: Optional[str] = None
 
 
 

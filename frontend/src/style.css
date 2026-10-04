@@ -669,6 +669,37 @@ body {
   transition: var(--transition);
 }
 
+#keySearchInput {
+  padding-right: 3.2rem;
+}
+
+.regex-toggle {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.regex-toggle:hover {
+  color: var(--text-primary);
+}
+
+.regex-toggle.active {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background: var(--accent-primary-glow);
+}
+
 .search-input:focus {
   outline: none;
   border-color: var(--border-focus);

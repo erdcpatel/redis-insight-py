@@ -105,7 +105,8 @@ async def list_keys(
     pattern: str = Query("*", description="Glob-style pattern to match"),
     cursor: str = Query("0", description="SCAN cursor: an integer for standalone, or a JSON object of per-node cursors for cluster"),
     count: int = Query(50, ge=1, le=1000, description="Page size estimate for SCAN"),
-    type: Optional[str] = Query(None, description="Filter by Redis type (string, hash, list, set, zset, ReJSON-RL)")
+    type: Optional[str] = Query(None, description="Filter by Redis type (string, hash, list, set, zset, json/ReJSON-RL)"),
+    regex: bool = Query(False, description="Treat pattern as a regular expression (applied in the app after a SCAN glob prefilter)")
 ):
     """Scan and list keys with type and TTL for the active Redis connection."""
     try:
@@ -113,7 +114,8 @@ async def list_keys(
             pattern=pattern,
             cursor=cursor,
             count=count,
-            type_filter=type
+            type_filter=type,
+            regex=regex
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))

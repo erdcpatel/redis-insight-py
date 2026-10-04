@@ -33,7 +33,9 @@ import {
   Power,
   ChevronLeft,
   ChevronRight,
-  PanelLeft
+  PanelLeft,
+  FastForward,
+  Square
 } from "lucide";
 
 // Global State
@@ -75,6 +77,12 @@ let currentTopologySearch = "";
 let currentLimit = 2;
 let activeConfigConn = null;
 let currentScanEpoch = 0;
+let regexMode = false;
+let scanAllActive = false;
+let scanAllCapped = false;
+let lastScanError = null;
+let matchedByNode = {};
+const SCAN_ALL_MAX_KEYS = 20000;
 
 function setupIcons() {
   createIcons({
@@ -112,7 +120,9 @@ function setupIcons() {
       Power,
       ChevronLeft,
       ChevronRight,
-      PanelLeft
+      PanelLeft,
+      FastForward,
+      Square
     }
   });
 }
@@ -253,6 +263,7 @@ function renderAppShell() {
             <div class="search-group">
               <i data-lucide="search" class="search-icon" style="width: 16px; height: 16px;"></i>
               <input type="text" id="keySearchInput" class="search-input" placeholder="Search keys by pattern (e.g. *, bikes:*, sample_*) - Press Enter" value="*">
+              <button type="button" class="regex-toggle" id="btnRegexToggle" title="Regex mode: match key names with a regular expression (e.g. ^user:\\d+:profile$)">.*</button>
             </div>
 
             <div class="type-filter-group" id="typeFilterGroup">
@@ -271,7 +282,7 @@ function renderAppShell() {
             <div style="display: flex; align-items: center; gap: 0.75rem;">
               <span class="safety-badge">
                 <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
-                Safe SCAN (Chunk 50)
+                Safe SCAN (non-blocking)
               </span>
               <span id="scanStatusText">Scanning keys...</span>
             </div>
@@ -280,6 +291,10 @@ function renderAppShell() {
               <button type="button" class="btn btn-secondary" id="btnScanNext" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
                 <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
                 Load More
+              </button>
+              <button type="button" class="btn btn-secondary" id="btnScanAll" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;" title="Keep scanning every node until the scan completes (Stop at any time)">
+                <i data-lucide="fast-forward" style="width: 13px; height: 13px;"></i>
+                Scan All
               </button>
               <button type="button" class="btn btn-secondary" id="btnResetScan" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
                 <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
@@ -742,6 +757,10 @@ async function resetAndScan() {
   totalScanned = 0;
   keysTableRows = [];
   loadedKeysSet.clear();
+  scanAllActive = false;
+  scanAllCapped = false;
+  lastScanError = null;
+  matchedByNode = {};
 
   const emptyEl = document.getElementById("emptyWorkspaceState");
   const gridContainer = document.getElementById("gridViewerContainer");
@@ -782,29 +801,74 @@ function describeScanProgress(cursor) {
   return "more keys available";
 }
 
+function isSearchActive() {
+  return (currentPattern && currentPattern !== "*") || currentType !== "all";
+}
+
+function describeSearch() {
+  const what = regexMode && currentPattern !== "*"
+    ? `regex <code>${escapeHtml(currentPattern)}</code>`
+    : `"<code>${escapeHtml(currentPattern)}</code>"`;
+  return currentType !== "all" ? `${what} (type: ${escapeHtml(currentType)})` : what;
+}
+
+// Keep scanning (large pages) until the scan completes, the user stops it, or the row cap is hit
+async function scanAllKeys() {
+  if (scanAllActive) {
+    scanAllActive = false;
+    updateScanUI();
+    return;
+  }
+  if (scanComplete || isScanning || lastScanError) return;
+  const epoch = currentScanEpoch;
+  scanAllActive = true;
+  scanAllCapped = false;
+  updateScanUI();
+  while (scanAllActive && !scanComplete && epoch === currentScanEpoch) {
+    if (loadedKeysSet.size >= SCAN_ALL_MAX_KEYS) {
+      scanAllCapped = true;
+      break;
+    }
+    const ok = await scanNextBatch(epoch, 1000);
+    if (!ok) break;
+  }
+  if (epoch === currentScanEpoch) {
+    scanAllActive = false;
+    updateScanUI();
+  }
+}
+
 function isClusterView() {
   return Boolean(lastStatus && lastStatus.is_cluster) || String(currentCursor ?? "").trim().startsWith("{");
 }
 
 // Fetch next batch of keys without blocking Redis
-async function scanNextBatch(expectedEpoch = null) {
-  if (isScanning) return;
-  if (scanComplete) return;
+async function scanNextBatch(expectedEpoch = null, pageSize = 50) {
+  if (isScanning) return false;
+  if (scanComplete) return false;
 
   const targetEpoch = expectedEpoch !== null ? expectedEpoch : currentScanEpoch;
   isScanning = true;
   updateScanUI();
 
   try {
-    const url = `/api/keys?pattern=${encodeURIComponent(currentPattern)}&cursor=${encodeURIComponent(String(currentCursor ?? "0"))}&count=50${currentType !== "all" ? `&type=${encodeURIComponent(currentType)}` : ""}`;
+    const url = `/api/keys?pattern=${encodeURIComponent(currentPattern)}&cursor=${encodeURIComponent(String(currentCursor ?? "0"))}&count=${pageSize}${currentType !== "all" ? `&type=${encodeURIComponent(currentType)}` : ""}${regexMode ? "&regex=true" : ""}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to scan keys");
+    if (!res.ok) {
+      let detail = "Failed to scan keys";
+      try {
+        const body = await res.json();
+        if (body && body.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      } catch { /* non-JSON error body */ }
+      throw new Error(detail);
+    }
     const data = await res.json();
 
     // If connection was switched or reset triggered while fetch was pending, drop stale result
     if (targetEpoch !== currentScanEpoch) {
-      return;
+      return false;
     }
+    lastScanError = null;
 
     currentCursor = data.cursor;
     scanComplete = isScanCursorComplete(currentCursor);
@@ -817,6 +881,10 @@ async function scanNextBatch(expectedEpoch = null) {
       return true;
     });
 
+    newKeys.forEach(k => {
+      if (k.node) matchedByNode[k.node] = (matchedByNode[k.node] || 0) + 1;
+    });
+
     const rows = newKeys.map(k => ({
       key: k.name,
       type: k.type,
@@ -827,10 +895,18 @@ async function scanNextBatch(expectedEpoch = null) {
     if (rows.length > 0) {
       keysTableRows.push(...rows);
     }
-    renderKeysTable();
     totalScanned = loadedKeysSet.size;
+    renderKeysTable();
+    refreshKeyspaceModalIfOpen();
+    return true;
   } catch (err) {
     console.error("Scan error:", err);
+    if (targetEpoch === currentScanEpoch) {
+      lastScanError = err.message || "Failed to scan keys";
+      scanAllActive = false;
+      renderKeysTable();
+    }
+    return false;
   } finally {
     if (targetEpoch === currentScanEpoch) {
       isScanning = false;
@@ -844,22 +920,28 @@ function renderKeysTable() {
   if (!container) return;
   if (keysTableRows.length === 0) {
     const notStarted = !scanComplete && isScanCursorComplete(currentCursor);
-    container.innerHTML = scanComplete
+    container.innerHTML = lastScanError
+      ? `
+      <div style="padding: 3rem; text-align: center; color: var(--accent-danger); font-size: 0.85rem;">
+        ${escapeHtml(lastScanError)}
+      </div>
+    `
+      : scanComplete
       ? `
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No keys found matching pattern "<code>${escapeHtml(currentPattern)}</code>".
+        No keys found matching ${describeSearch()} — the whole keyspace was scanned.
       </div>
     `
       : notStarted
       ? `
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        Scanning keys matching "<code>${escapeHtml(currentPattern)}</code>"...
+        Scanning keys matching ${describeSearch()}...
       </div>
     `
       : `
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No matches yet for "<code>${escapeHtml(currentPattern)}</code>" in the part of the keyspace scanned so far.<br>
-        The scan is not finished — click <strong>Load More</strong> to keep scanning.
+        No matches yet for ${describeSearch()} in the part of the keyspace scanned so far.<br>
+        The scan is not finished — click <strong>Load More</strong> or <strong>Scan All</strong> to keep scanning.
       </div>
     `;
     return;
@@ -927,16 +1009,41 @@ function updateScanUI() {
 
   const isComplete = scanComplete;
 
+  const btnScanAll = document.getElementById("btnScanAll");
+
   if (statusText) {
-    statusText.innerHTML = `
-      Loaded <strong>${totalScanned.toLocaleString()}</strong> keys
-      ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(currentCursor))})</span>`}
-      | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(dbTotalKeys || 0).toLocaleString()}</strong>
-    `;
+    const totalLabel = `${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(dbTotalKeys || 0).toLocaleString()}</strong>`;
+    const progress = scanAllCapped && !isComplete
+      ? `<span style="color: var(--accent-warning);">(Scan All stopped at ${SCAN_ALL_MAX_KEYS.toLocaleString()} loaded keys — refine the pattern or use Load More)</span>`
+      : isComplete
+      ? `<span style="color: var(--accent-success); margin-left: 6px;">(${isSearchActive() ? "scan complete" : "All Keys Loaded"})</span>`
+      : `<span style="color: var(--text-muted);">(${scanAllActive ? "scanning all · " : ""}${escapeHtml(describeScanProgress(currentCursor))})</span>`;
+    if (lastScanError) {
+      statusText.innerHTML = `<span style="color: var(--accent-danger);">${escapeHtml(lastScanError)}</span> | ${totalLabel}`;
+    } else if (isSearchActive()) {
+      statusText.innerHTML = `
+        Matched <strong>${totalScanned.toLocaleString()}</strong>${isComplete ? "" : " so far"}
+        ${progress}
+        | ${totalLabel}
+      `;
+    } else {
+      statusText.innerHTML = `
+        Loaded <strong>${totalScanned.toLocaleString()}</strong> keys
+        ${progress}
+        | ${totalLabel}
+      `;
+    }
+  }
+
+  if (btnScanAll) {
+    btnScanAll.disabled = !scanAllActive && (isScanning || isComplete || Boolean(lastScanError));
+    btnScanAll.innerHTML = scanAllActive
+      ? `<i data-lucide="square" style="width: 13px; height: 13px;"></i> Stop`
+      : `<i data-lucide="fast-forward" style="width: 13px; height: 13px;"></i> Scan All`;
   }
 
   if (btnScanNext) {
-    btnScanNext.disabled = isScanning || isComplete;
+    btnScanNext.disabled = isScanning || isComplete || scanAllActive || Boolean(lastScanError);
     btnScanNext.innerHTML = isScanning
       ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...`
       : isComplete
@@ -2864,6 +2971,11 @@ async function loadKeyspaceNodes() {
   }
 }
 
+function refreshKeyspaceModalIfOpen() {
+  const modal = document.getElementById("keyspaceNodesModal");
+  if (modal && modal.classList.contains("active")) renderKeyspaceNodes(lastStatus);
+}
+
 function renderKeyspaceNodes(status) {
   const container = document.getElementById("keyspaceNodesContainer");
   const totalBadge = document.getElementById("keyspaceTotalBadge");
@@ -2880,6 +2992,8 @@ function renderKeyspaceNodes(status) {
   }
 
   const fmt = v => (v === null || v === undefined) ? "—" : Number(v).toLocaleString();
+  const showMatched = isSearchActive() && (keysTableRows.length > 0 || scanComplete);
+  const matchedTotal = Object.values(matchedByNode).reduce((sum, v) => sum + v, 0);
   const th = (label, align = "left") => `<th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: ${align};">${label}</th>`;
   const td = (content, extra = "") => `<td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; ${extra}">${content}</td>`;
 
@@ -2893,6 +3007,7 @@ function renderKeyspaceNodes(status) {
         ${td(`${share}%`, "text-align: right; color: var(--text-secondary);")}
         ${td(escapeHtml(m.used_memory_human || "—"), "text-align: right; color: #c084fc;")}
         ${td(fmt(m.connected_clients), "text-align: right; color: #38bdf8;")}
+        ${showMatched ? td(fmt(matchedByNode[m.node] || 0), "text-align: right; color: var(--accent-warning); font-weight: 600;") : ""}
       </tr>`;
     const replicaRows = replicas.map(r => {
       const drift = (r.keys !== null && m.keys !== null) ? r.keys - m.keys : null;
@@ -2908,15 +3023,24 @@ function renderKeyspaceNodes(status) {
         ${td("", "")}
         ${td(escapeHtml(r.used_memory_human || "—"), "text-align: right; color: var(--text-muted);")}
         ${td(fmt(r.connected_clients), "text-align: right; color: var(--text-muted);")}
+        ${showMatched ? td("", "") : ""}
       </tr>`;
     }).join("");
     return masterRow + replicaRows;
   }).join("");
 
+  const searchNote = showMatched
+    ? `<div style="padding: 0.25rem 0.25rem 0.75rem; font-size: 0.78rem; color: var(--text-muted);">
+        MATCHED = keys found for ${describeSearch()}
+        ${scanComplete ? '<span style="color: var(--accent-success);">(scan complete)</span>' : `<span>(so far — ${escapeHtml(describeScanProgress(currentCursor))})</span>`}
+      </div>`
+    : "";
+
   container.innerHTML = `
+    ${searchNote}
     <table class="data-table" style="width: 100%; border-collapse: collapse;">
       <thead>
-        <tr>${th("NODE")}${th("KEYS", "right")}${th("SHARE", "right")}${th("MEMORY", "right")}${th("CLIENTS", "right")}</tr>
+        <tr>${th("NODE")}${th("KEYS", "right")}${th("SHARE", "right")}${th("MEMORY", "right")}${th("CLIENTS", "right")}${showMatched ? th("MATCHED", "right") : ""}</tr>
       </thead>
       <tbody>${rows}</tbody>
       <tfoot>
@@ -2926,6 +3050,7 @@ function renderKeyspaceNodes(status) {
           ${td("100%", "text-align: right; color: var(--text-muted);")}
           ${td(escapeHtml(status.used_memory_human || "—"), "text-align: right; color: #c084fc;")}
           ${td("", "")}
+          ${showMatched ? td(matchedTotal.toLocaleString(), "text-align: right; color: var(--accent-warning); font-weight: 700;") : ""}
         </tr>
       </tfoot>
     </table>
@@ -4019,10 +4144,25 @@ function setupEventListeners() {
     }
   });
 
+  // Regex mode toggle
+  const btnRegexToggle = document.getElementById("btnRegexToggle");
+  if (btnRegexToggle) {
+    btnRegexToggle.addEventListener("click", () => {
+      regexMode = !regexMode;
+      btnRegexToggle.classList.toggle("active", regexMode);
+      searchInput.placeholder = regexMode
+        ? "Search keys by regex (e.g. ^user:\\d+:profile$, session|token) - Press Enter"
+        : "Search keys by pattern (e.g. *, bikes:*, sample_*) - Press Enter";
+      clearTimeout(searchDebounce);
+      currentPattern = searchInput.value.trim() || "*";
+      resetAndScan();
+    });
+  }
+
   // Type filter buttons
-  document.querySelectorAll(".type-tab").forEach(tab => {
+  document.querySelectorAll("#typeFilterGroup .type-tab").forEach(tab => {
     tab.addEventListener("click", () => {
-      document.querySelectorAll(".type-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll("#typeFilterGroup .type-tab").forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       currentType = tab.getAttribute("data-type");
       resetAndScan();
@@ -4033,6 +4173,10 @@ function setupEventListeners() {
   const btnScanNext = document.getElementById("btnScanNext");
   if (btnScanNext) {
     btnScanNext.addEventListener("click", () => scanNextBatch());
+  }
+  const btnScanAll = document.getElementById("btnScanAll");
+  if (btnScanAll) {
+    btnScanAll.addEventListener("click", () => scanAllKeys());
   }
   const btnResetScan = document.getElementById("btnResetScan");
   if (btnResetScan) {

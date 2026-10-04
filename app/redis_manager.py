@@ -1,10 +1,12 @@
 import asyncio
 import json
+import re
 import time
 from typing import Optional, Dict, Any, List, Tuple
 import redis.asyncio as aioredis
 from redis.asyncio.client import Pipeline
 from redis.asyncio.cluster import RedisCluster, ClusterNode
+from redis.exceptions import ResponseError
 
 from app.logger import logger
 from app.db import get_active_connection, set_active_connection, get_connection
@@ -26,6 +28,14 @@ from app.models import (
     DiscoveredClusterNode,
     NodeStat,
 )
+
+
+SCAN_TIME_BUDGET_S = 0.5
+SCAN_MAX_STEPS = 25
+SCAN_MAX_STEP_COUNT = 1000
+MAX_REGEX_LENGTH = 500
+SCAN_TYPE_ALIASES = {"json": "ReJSON-RL"}
+REGEX_META_CHARS = set(".^$*+?{}[]|()")
 
 
 def format_bytes(bytes_val: Optional[int]) -> str:
@@ -328,7 +338,7 @@ class RedisManager:
                 c_info = await temp_client.info("cluster")
                 if c_info.get("cluster_enabled") == 1 or isinstance(temp_client, RedisCluster):
                     is_cluster = True
-                    cluster_nodes_count = int(c_info.get("cluster_known_nodes", 1))
+                    cluster_nodes_count = len(client.get_nodes()) if isinstance(client, RedisCluster) else int(c_info.get("cluster_known_nodes", 1))
             except Exception:
                 pass
 
@@ -775,7 +785,7 @@ class RedisManager:
                 if c_info.get("cluster_enabled") == 1 or isinstance(client, RedisCluster):
                     is_cluster = True
                     cluster_state = c_info.get("cluster_state", "ok")
-                    cluster_nodes_count = int(c_info.get("cluster_known_nodes", 1))
+                    cluster_nodes_count = len(client.get_nodes()) if isinstance(client, RedisCluster) else int(c_info.get("cluster_known_nodes", 1))
             except Exception:
                 pass
 
@@ -882,14 +892,15 @@ class RedisManager:
             return parsed
         raise ValueError(f"Invalid SCAN cursor: {cursor!r}")
 
-    async def _scan_cluster_batch(
+    async def _scan_cluster_step(
         self,
         client: RedisCluster,
         cursor: Any,
         pattern: str,
-        count: int
-    ) -> Tuple[Any, List[Any]]:
-        """Run one SCAN step on every primary node, resuming each node from its own cursor."""
+        count: int,
+        scan_type: Optional[str] = None,
+    ) -> Tuple[Any, List[Tuple[str, Any]]]:
+        """Run one SCAN step on every unfinished primary; returns ({node: cursor} or 0, [(node, key)])."""
         if isinstance(cursor, dict):
             pending = {name: cur for name, cur in cursor.items() if cur != 0}
             next_cursors: Dict[str, int] = {name: 0 for name in cursor}
@@ -899,38 +910,88 @@ class RedisManager:
             pending = {node.name: 0 for node in client.get_primaries()}
             next_cursors = dict(pending)
 
+        extra = {"_type": scan_type} if scan_type else {}
+
         async def scan_node(name: str, node_cursor: int) -> Tuple[str, int, List[Any]]:
             node = client.get_node(node_name=name)
             if node is None:
                 logger.warning(f"Cluster node '{name}' no longer present; skipping its SCAN cursor")
                 return name, 0, []
             cur, keys = await client.scan(
-                cursor=node_cursor, match=pattern, count=count, target_nodes=node
+                cursor=node_cursor, match=pattern, count=count, target_nodes=node, **extra
             )
             return name, int(cur.get(name, 0) if isinstance(cur, dict) else cur), keys
 
         results = await asyncio.gather(*(scan_node(n, c) for n, c in pending.items()))
 
-        raw_keys: List[Any] = []
+        pairs: List[Tuple[str, Any]] = []
         for name, cur, keys in results:
             next_cursors[name] = cur
-            raw_keys.extend(keys)
+            pairs.extend((name, k) for k in keys)
 
         if all(v == 0 for v in next_cursors.values()):
-            return 0, raw_keys
-        return json.dumps(next_cursors, sort_keys=True), raw_keys
+            return 0, pairs
+        return next_cursors, pairs
+
+    async def _scan_cluster_batch(
+        self,
+        client: RedisCluster,
+        cursor: Any,
+        pattern: str,
+        count: int
+    ) -> Tuple[Any, List[Any]]:
+        """Run one SCAN step on every primary node, resuming each node from its own cursor."""
+        next_cursor, pairs = await self._scan_cluster_step(client, cursor, pattern, count)
+        keys = [k for _, k in pairs]
+        if next_cursor == 0:
+            return 0, keys
+        return json.dumps(next_cursor, sort_keys=True), keys
+
+    @staticmethod
+    def _regex_glob_prefilter(regex: str) -> str:
+        """Derive a safe SCAN MATCH glob from an anchored regex's literal prefix (e.g. '^user:\\d+' -> 'user:*')."""
+        if not regex.startswith("^") or "|" in regex:
+            return "*"
+        prefix: List[str] = []
+        i = 1
+        while i < len(regex):
+            ch = regex[i]
+            if ch == "\\":
+                if i + 1 < len(regex) and not regex[i + 1].isalnum():
+                    literal, step = regex[i + 1], 2
+                else:
+                    break
+            elif ch in REGEX_META_CHARS:
+                break
+            else:
+                literal, step = ch, 1
+            following = regex[i + step] if i + step < len(regex) else ""
+            if following in ("*", "?", "{"):
+                break
+            prefix.append(literal)
+            if following == "+":
+                break
+            i += step
+        if not prefix:
+            return "*"
+        return "".join("\\" + c if c in "*?[]\\" else c for c in prefix) + "*"
 
     async def scan_keys_batch(
         self,
         pattern: str = "*",
         cursor: Any = "0",
         count: int = 50,
-        type_filter: Optional[str] = None
+        type_filter: Optional[str] = None,
+        regex: bool = False,
     ) -> KeyListResponse:
         """Scan keys using Redis SCAN, and pipeline TYPE & TTL queries for fast display.
 
         Standalone clients use a plain integer cursor. Cluster clients use a JSON-encoded
         mapping of primary node name to that node's SCAN cursor; 0 means the scan is complete.
+
+        One call keeps issuing SCAN steps (growing COUNT) until about `count` matches are found,
+        the scan completes, or the step/time budget is spent, so sparse patterns still fill a page.
+        With regex=True the pattern is a Python regex applied in the app after a glob prefilter.
         """
         try:
             client = await self.get_client()
@@ -939,57 +1000,119 @@ class RedisManager:
             return KeyListResponse(keys=[], cursor=0, total_in_db=0, matched_count=0)
 
         clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
-        scan_cursor = self._parse_scan_cursor(cursor)
-
-        if isinstance(client, RedisCluster):
-            cursor_out, raw_keys = await self._scan_cluster_batch(
-                client, scan_cursor, clean_pattern, count
-            )
-        else:
-            if isinstance(scan_cursor, dict):
-                raise ValueError("Per-node cluster cursor is not valid for a standalone connection")
-            new_cursor, raw_keys = await client.scan(cursor=scan_cursor, match=clean_pattern, count=count)
+        compiled = None
+        regex_prefilter = None
+        if regex and clean_pattern != "*":
+            if len(clean_pattern) > MAX_REGEX_LENGTH:
+                raise ValueError(f"Regex is too long (max {MAX_REGEX_LENGTH} characters)")
             try:
-                cursor_out = int(new_cursor)
-            except (TypeError, ValueError):
-                cursor_out = 0
+                compiled = re.compile(clean_pattern)
+            except re.error as e:
+                raise ValueError(f"Invalid regex: {e}")
+            regex_prefilter = self._regex_glob_prefilter(clean_pattern)
+            match_glob = regex_prefilter
+        else:
+            match_glob = clean_pattern
 
-        if not raw_keys:
-            return KeyListResponse(
-                keys=[],
-                cursor=cursor_out,
-                total_in_db=dbsize,
-                matched_count=0
-            )
+        type_name = None
+        if type_filter and type_filter.lower() != "all":
+            type_name = SCAN_TYPE_ALIASES.get(type_filter.lower(), type_filter)
+
+        is_cluster = isinstance(client, RedisCluster)
+        scan_cursor = self._parse_scan_cursor(cursor)
+        if not is_cluster and isinstance(scan_cursor, dict):
+            raise ValueError("Per-node cluster cursor is not valid for a standalone connection")
+        if is_cluster:
+            nodes_total = len(scan_cursor) if isinstance(scan_cursor, dict) else len(client.get_primaries())
+
+        native_type = type_name
+        step_count = count
+        deadline = time.perf_counter() + SCAN_TIME_BUDGET_S
+        matched: List[Tuple[Optional[str], str]] = []
+        cursor_state: Any = scan_cursor
+        steps = 0
+
+        while True:
+            try:
+                if is_cluster:
+                    cursor_state, pairs = await self._scan_cluster_step(
+                        client, cursor_state, match_glob, step_count, native_type
+                    )
+                else:
+                    extra = {"_type": native_type} if native_type else {}
+                    new_cursor, keys = await client.scan(
+                        cursor=cursor_state, match=match_glob, count=step_count, **extra
+                    )
+                    try:
+                        cursor_state = int(new_cursor)
+                    except (TypeError, ValueError):
+                        cursor_state = 0
+                    pairs = [(None, k) for k in keys]
+            except ResponseError:
+                if not native_type:
+                    raise
+                logger.info("SCAN TYPE not supported by server; filtering types in app instead")
+                native_type = None
+                continue
+
+            steps += 1
+            for node_name, k in pairs:
+                name = k.decode("utf-8", errors="replace") if isinstance(k, bytes) else k
+                if compiled is None or compiled.search(name):
+                    matched.append((node_name, k))
+
+            if (
+                cursor_state == 0
+                or len(matched) >= count
+                or steps >= SCAN_MAX_STEPS
+                or time.perf_counter() >= deadline
+            ):
+                break
+            step_count = min(SCAN_MAX_STEP_COUNT, step_count * 4)
+
+        if is_cluster:
+            cursor_out: Any = 0 if cursor_state == 0 else json.dumps(cursor_state, sort_keys=True)
+            nodes_done = nodes_total if cursor_state == 0 else sum(1 for v in cursor_state.values() if v == 0)
+        else:
+            cursor_out = cursor_state
+            nodes_total = None
+            nodes_done = None
+
+        response_meta = dict(
+            cursor=cursor_out,
+            total_in_db=dbsize,
+            nodes_total=nodes_total,
+            nodes_done=nodes_done,
+            regex_prefilter=regex_prefilter,
+        )
+
+        if not matched:
+            return KeyListResponse(keys=[], matched_count=0, **response_meta)
 
         # Pipeline queries for types and TTLs
         pipe: Pipeline = client.pipeline(transaction=False)
-        for k in raw_keys:
+        for _, k in matched:
             pipe.type(k)
             pipe.ttl(k)
         results = await pipe.execute()
 
         key_items: List[KeyItem] = []
-        for i, k in enumerate(raw_keys):
+        for i, (node_name, k) in enumerate(matched):
             k_type = results[i * 2]
             k_ttl = results[i * 2 + 1]
 
-            if type_filter and type_filter.lower() != "all" and k_type.lower() != type_filter.lower():
+            if type_name and str(k_type).lower() != type_name.lower():
                 continue
 
             key_items.append(KeyItem(
                 name=k,
                 type=k_type,
                 ttl=k_ttl,
-                memory_bytes=None
+                memory_bytes=None,
+                node=node_name,
             ))
 
-        return KeyListResponse(
-            keys=key_items,
-            cursor=cursor_out,
-            total_in_db=dbsize,
-            matched_count=len(key_items)
-        )
+        return KeyListResponse(keys=key_items, matched_count=len(key_items), **response_meta)
 
     async def get_key_detail(self, key_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve rich metadata and value contents for a single Redis key."""
