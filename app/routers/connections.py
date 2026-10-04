@@ -244,6 +244,54 @@ async def select_connection_endpoint(conn_id: str):
         raise HTTPException(status_code=400, detail=f"Failed to select: {str(e)}")
 
 
+@router.post("/{conn_id}/test", response_model=ConnectionTestResponse)
+async def test_saved_connection_endpoint(conn_id: str, payload: Optional[ConnectionTestRequest] = None):
+    """
+    Test an existing saved connection using its stored encrypted credentials (or optional overrides).
+    """
+    conn = get_connection(conn_id, include_password=True)
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    host = conn["host"]
+    port = conn["port"]
+    db = conn["db"]
+    username = conn["username"]
+    password = conn.get("password")
+    use_tls = conn["use_tls"]
+    conn_type = conn["conn_type"]
+    cluster_nodes = conn.get("cluster_nodes")
+
+    if payload:
+        if payload.host and payload.host != "localhost":
+            host = payload.host
+        if payload.port and payload.port != 6379:
+            port = payload.port
+        if payload.db != 0:
+            db = payload.db
+        if payload.username is not None:
+            username = payload.username
+        if payload.password is not None:
+            password = payload.password
+        if payload.use_tls:
+            use_tls = payload.use_tls
+        if payload.conn_type and payload.conn_type != "standalone":
+            conn_type = payload.conn_type
+        if payload.cluster_nodes is not None:
+            cluster_nodes = payload.cluster_nodes
+
+    return await redis_manager.test_connection_params(
+        host=host,
+        port=port,
+        db=db,
+        username=username,
+        password=password,
+        use_tls=use_tls,
+        conn_type=conn_type,
+        cluster_nodes=cluster_nodes
+    )
+
+
 @router.post("/test", response_model=ConnectionTestResponse)
 async def test_connection_endpoint(payload: ConnectionTestRequest):
     """Test connection parameters without saving or activating."""

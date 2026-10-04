@@ -337,7 +337,7 @@ function renderAppShell() {
     <div class="modal-backdrop" id="connectionModal">
       <div class="modal-card">
         <div class="modal-header">
-          <h3 class="modal-title">
+          <h3 class="modal-title" id="connectionModalTitle">
             <i data-lucide="database" style="color: var(--accent-primary);"></i>
             Add Redis Connection
           </h3>
@@ -2492,6 +2492,10 @@ function openClusterConfigModal(conn) {
           <i data-lucide="zap" style="width: 13px; height: 13px;"></i>
           Test Connection
         </button>
+        <button type="button" class="btn btn-secondary" id="btnEditFromConfig">
+          <i data-lucide="edit" style="width: 13px; height: 13px;"></i>
+          Edit
+        </button>
       </div>
       <div style="display: flex; gap: 0.5rem;">
         <button type="button" class="btn btn-secondary" id="btnCloseConfigModal">Cancel</button>
@@ -2507,6 +2511,10 @@ function openClusterConfigModal(conn) {
         <button type="button" class="btn btn-secondary" id="btnTopologyFromConfig">
           <i data-lucide="layers" style="width: 13px; height: 13px;"></i>
           Topology & Nodes
+        </button>
+        <button type="button" class="btn btn-secondary" id="btnEditFromConfig">
+          <i data-lucide="edit" style="width: 13px; height: 13px;"></i>
+          Edit
         </button>
         <button type="button" class="btn btn-danger" id="btnDisconnectFromConfig">
           <i data-lucide="x" style="width: 13px; height: 13px;"></i>
@@ -2536,6 +2544,14 @@ function openClusterConfigModal(conn) {
   // Attach button events
   const btnClose = document.getElementById("btnCloseConfigModal");
   if (btnClose) btnClose.onclick = () => modal.classList.remove("active");
+
+  const btnEdit = document.getElementById("btnEditFromConfig");
+  if (btnEdit) {
+    btnEdit.onclick = () => {
+      modal.classList.remove("active");
+      openEditConnectionModal(conn);
+    };
+  }
 
   const btnConnect = document.getElementById("btnConnectFromConfig");
   if (btnConnect) {
@@ -2577,7 +2593,7 @@ function openClusterConfigModal(conn) {
   }
 }
 
-// Test connection params from config modal
+// Test connection params from config modal using saved encrypted credentials
 async function testConfigParams(conn) {
   const resBox = document.getElementById("cfgTestResultBox");
   const btnTest = document.getElementById("btnTestFromConfig");
@@ -2591,19 +2607,9 @@ async function testConfigParams(conn) {
   }
 
   try {
-    const res = await fetch("/api/connections/test", {
+    const res = await fetch(`/api/connections/${conn.id}/test`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        host: conn.host,
-        port: conn.port,
-        db: conn.db || 0,
-        username: conn.username || null,
-        password: null,
-        use_tls: conn.use_tls || false,
-        conn_type: conn.conn_type || "standalone",
-        cluster_nodes: conn.cluster_nodes || null
-      })
+      headers: { "Content-Type": "application/json" }
     });
     const data = await res.json();
     if (data.success) {
@@ -2616,13 +2622,13 @@ async function testConfigParams(conn) {
       resBox.className = "test-result-box error";
       resBox.innerHTML = `
         <i data-lucide="alert-circle"></i>
-        <span>Failed: ${data.error || "Connection refused"}</span>
+        <span>Failed: ${escapeHtml(data.error || "Connection refused")}</span>
       `;
     }
   } catch (err) {
     if (resBox) {
       resBox.className = "test-result-box error";
-      resBox.innerHTML = `<i data-lucide="alert-circle"></i><span>Error: ${err.message}</span>`;
+      resBox.innerHTML = `<i data-lucide="alert-circle"></i><span>Error: ${escapeHtml(err.message)}</span>`;
     }
   } finally {
     if (btnTest) {
@@ -3495,9 +3501,112 @@ function setupEventListeners() {
     });
   }
 
+  // Editing connection ID state
+  let editingConnectionId = null;
+
+  // Open Edit Connection Modal
+  window.openEditConnectionModal = function(conn) {
+    editingConnectionId = conn.id;
+    const modal = document.getElementById("connectionModal");
+    const modalTitle = document.getElementById("connectionModalTitle");
+    const btnSave = document.getElementById("btnSaveConnModal");
+    const pwdInput = document.getElementById("connPassword");
+
+    if (modalTitle) {
+      modalTitle.innerHTML = `<i data-lucide="edit" style="color: var(--accent-primary);"></i> Edit Redis Connection`;
+    }
+    if (btnSave) {
+      btnSave.textContent = "Update Connection";
+    }
+
+    document.getElementById("connName").value = conn.name || "";
+    document.getElementById("connEnv").value = (conn.env || "DEV").toUpperCase();
+    const typeSelect = document.getElementById("connTypeSelect");
+    typeSelect.value = conn.conn_type || "standalone";
+
+    document.getElementById("connHost").value = conn.host || "localhost";
+    document.getElementById("connPort").value = conn.port || 6379;
+    document.getElementById("connDb").value = conn.db || 0;
+    document.getElementById("connUsername").value = conn.username || "";
+    document.getElementById("connTls").checked = !!conn.use_tls;
+    pwdInput.value = "";
+    if (conn.has_password) {
+      pwdInput.placeholder = "•••••••• (Leave blank to keep saved password)";
+    } else {
+      pwdInput.placeholder = "Enter password (or leave empty)";
+    }
+
+    // Toggle UI according to connection type
+    const clusterNodesGroup = document.getElementById("clusterNodesGroup");
+    const connHostLabel = document.getElementById("connHostLabel");
+    const connDbRow = document.getElementById("connDbRow");
+    configuredClusterNodes = [];
+
+    if (conn.conn_type === "cluster") {
+      clusterNodesGroup.style.display = "block";
+      connHostLabel.textContent = "Seed Node Host *";
+      connDbRow.style.display = "none";
+      if (conn.cluster_nodes) {
+        try {
+          const parsed = typeof conn.cluster_nodes === "string" ? JSON.parse(conn.cluster_nodes) : conn.cluster_nodes;
+          if (Array.isArray(parsed)) {
+            configuredClusterNodes = parsed.map(n => {
+              if (typeof n === "string" && n.includes(":")) {
+                const parts = n.split(":");
+                return { host: parts[0].trim(), port: parseInt(parts[1], 10) || 6379 };
+              }
+              return { host: n.host || "127.0.0.1", port: parseInt(n.port, 10) || 6379 };
+            });
+          }
+        } catch (e) {}
+      }
+    } else {
+      clusterNodesGroup.style.display = "none";
+      connHostLabel.textContent = "Host *";
+      connDbRow.style.display = "flex";
+    }
+    renderConfiguredClusterNodes();
+
+    const resBox = document.getElementById("testResultBox");
+    if (resBox) {
+      resBox.className = "test-result-box";
+      resBox.innerHTML = "";
+    }
+    setupIcons();
+    modal.classList.add("active");
+  };
+
   // Modal controls for Add Connection
   const modal = document.getElementById("connectionModal");
   document.getElementById("btnAddConn").addEventListener("click", () => {
+    editingConnectionId = null;
+    document.getElementById("connectionForm").reset();
+    const modalTitle = document.getElementById("connectionModalTitle");
+    const btnSave = document.getElementById("btnSaveConnModal");
+    const pwdInput = document.getElementById("connPassword");
+
+    if (modalTitle) {
+      modalTitle.innerHTML = `<i data-lucide="database" style="color: var(--accent-primary);"></i> Add Redis Connection`;
+    }
+    if (btnSave) {
+      btnSave.textContent = "Save Connection";
+    }
+    if (pwdInput) {
+      pwdInput.placeholder = "Leave empty if none";
+    }
+
+    document.getElementById("clusterNodesGroup").style.display = "none";
+    document.getElementById("connHostLabel").textContent = "Host *";
+    document.getElementById("connDbRow").style.display = "flex";
+    configuredClusterNodes = [];
+    renderConfiguredClusterNodes();
+
+    const resBox = document.getElementById("testResultBox");
+    if (resBox) {
+      resBox.className = "test-result-box";
+      resBox.innerHTML = "";
+    }
+    setupIcons();
     modal.classList.add("active");
   });
   document.getElementById("btnCloseModal").addEventListener("click", () => {
@@ -3553,7 +3662,7 @@ function setupEventListeners() {
     const port = parseInt(document.getElementById("connPort").value, 10) || 6379;
     const db = parseInt(document.getElementById("connDb").value, 10) || 0;
     const username = document.getElementById("connUsername").value.trim() || null;
-    const password = document.getElementById("connPassword").value || null;
+    const pwdVal = document.getElementById("connPassword").value;
     const use_tls = document.getElementById("connTls").checked;
 
     let cluster_nodes = null;
@@ -3570,11 +3679,21 @@ function setupEventListeners() {
     resBox.innerHTML = "";
 
     try {
-      const res = await fetch("/api/connections/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host, port, db, username, password, use_tls, conn_type, cluster_nodes })
-      });
+      let res;
+      // If editing and password was left blank, test using the saved credentials on server
+      if (editingConnectionId && !pwdVal) {
+        res = await fetch(`/api/connections/${editingConnectionId}/test`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host, port, db, username, use_tls, conn_type, cluster_nodes })
+        });
+      } else {
+        res = await fetch("/api/connections/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host, port, db, username, password: pwdVal || null, use_tls, conn_type, cluster_nodes })
+        });
+      }
       const data = await res.json();
       if (data.success) {
         resBox.className = "test-result-box success";
@@ -3605,7 +3724,7 @@ function setupEventListeners() {
     }
   });
 
-  // Save Connection Form
+  // Save / Update Connection Form
   document.getElementById("connectionForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("connName").value.trim();
@@ -3615,7 +3734,7 @@ function setupEventListeners() {
     let port = parseInt(document.getElementById("connPort").value, 10) || 6379;
     const db = parseInt(document.getElementById("connDb").value, 10) || 0;
     const username = document.getElementById("connUsername").value.trim() || null;
-    const password = document.getElementById("connPassword").value || null;
+    const pwdVal = document.getElementById("connPassword").value;
     const use_tls = document.getElementById("connTls").checked;
     const auto_activate = document.getElementById("connAutoActivate").checked;
 
@@ -3631,13 +3750,35 @@ function setupEventListeners() {
     }
 
     try {
-      const res = await fetch(`/api/connections?auto_activate=${auto_activate}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, env, conn_type, host, port, cluster_nodes, db, username, password, use_tls })
-      });
-      if (!res.ok) throw new Error("Failed to save connection");
+      if (editingConnectionId) {
+        const updatePayload = { name, env, conn_type, host, port, cluster_nodes, db, username, use_tls };
+        if (pwdVal) {
+          updatePayload.password = pwdVal;
+        }
+        const res = await fetch(`/api/connections/${editingConnectionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatePayload)
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Failed to update connection");
+        }
+      } else {
+        const createPayload = { name, env, conn_type, host, port, cluster_nodes, db, username, password: pwdVal || null, use_tls };
+        const res = await fetch(`/api/connections?auto_activate=${auto_activate}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(createPayload)
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Failed to save connection");
+        }
+      }
+
       modal.classList.remove("active");
+      editingConnectionId = null;
       document.getElementById("connectionForm").reset();
       configuredClusterNodes = [];
       renderConfiguredClusterNodes();
