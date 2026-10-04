@@ -30,7 +30,10 @@ import {
   AlertTriangle,
   TrendingUp,
   BarChart2,
-  Power
+  Power,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeft
 } from "lucide";
 
 // Global State
@@ -104,7 +107,10 @@ function setupIcons() {
       AlertTriangle,
       TrendingUp,
       BarChart2,
-      Power
+      Power,
+      ChevronLeft,
+      ChevronRight,
+      PanelLeft
     }
   });
 }
@@ -126,6 +132,9 @@ function renderAppShell() {
               <span class="brand-badge">py</span>
             </div>
           </div>
+          <button type="button" class="sidebar-toggle-btn" id="btnToggleSidebar" title="Hide connections sidebar (Full Screen - Ctrl+B)">
+            <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+          </button>
         </div>
 
         <div class="sidebar-action-bar">
@@ -202,10 +211,16 @@ function renderAppShell() {
       <main class="main-wrapper">
         <!-- Top Status Bar -->
         <header class="top-navbar">
-          <div class="top-navbar-left" id="topConnContainer">
-            <div class="top-conn-badge">
-              <span class="status-indicator connected"></span>
-              <span class="top-conn-name">Connecting to Redis...</span>
+          <div class="top-navbar-left">
+            <button type="button" class="sidebar-expand-btn" id="btnShowSidebar" title="Show connections sidebar (Ctrl+B)" style="display: none;">
+              <i data-lucide="panel-left" style="width: 14px; height: 14px; color: var(--accent-primary);"></i>
+              <i data-lucide="chevron-right" style="width: 12px; height: 12px; margin-left: -2px; color: var(--text-muted);"></i>
+            </button>
+            <div id="topConnContainer">
+              <div class="top-conn-badge">
+                <span class="status-indicator connected"></span>
+                <span class="top-conn-name">Connecting to Redis...</span>
+              </div>
             </div>
           </div>
 
@@ -3412,6 +3427,48 @@ function setupEventListeners() {
   if (btnResetScan) {
     btnResetScan.addEventListener("click", resetAndScan);
   }
+
+  // Sidebar Collapse & Expand Controls
+  function setSidebarCollapsed(collapsed) {
+    const sidebar = document.querySelector(".sidebar");
+    const btnShow = document.getElementById("btnShowSidebar");
+    if (!sidebar) return;
+    if (collapsed) {
+      sidebar.classList.add("collapsed");
+      if (btnShow) btnShow.style.display = "inline-flex";
+      localStorage.setItem("redis_insight_sidebar_collapsed", "true");
+    } else {
+      sidebar.classList.remove("collapsed");
+      if (btnShow) btnShow.style.display = "none";
+      localStorage.setItem("redis_insight_sidebar_collapsed", "false");
+    }
+    setupIcons();
+  }
+
+  const btnToggleSidebar = document.getElementById("btnToggleSidebar");
+  if (btnToggleSidebar) {
+    btnToggleSidebar.addEventListener("click", () => setSidebarCollapsed(true));
+  }
+
+  const btnShowSidebar = document.getElementById("btnShowSidebar");
+  if (btnShowSidebar) {
+    btnShowSidebar.addEventListener("click", () => setSidebarCollapsed(false));
+  }
+
+  // Restore saved collapse preference
+  if (localStorage.getItem("redis_insight_sidebar_collapsed") === "true") {
+    setSidebarCollapsed(true);
+  }
+
+  // Keyboard shortcut Ctrl+B or Cmd+B to toggle sidebar
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+      const sidebar = document.querySelector(".sidebar");
+      const isCurrentlyCollapsed = sidebar && sidebar.classList.contains("collapsed");
+      setSidebarCollapsed(!isCurrentlyCollapsed);
+      e.preventDefault();
+    }
+  });
 
   // Periodic heartbeat
   setInterval(refreshStatus, 15000);
