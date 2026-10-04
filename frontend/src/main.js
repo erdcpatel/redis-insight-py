@@ -29,7 +29,8 @@ import {
   PieChart,
   AlertTriangle,
   TrendingUp,
-  BarChart2
+  BarChart2,
+  Power
 } from "lucide";
 
 // Global State
@@ -102,7 +103,8 @@ function setupIcons() {
       PieChart,
       AlertTriangle,
       TrendingUp,
-      BarChart2
+      BarChart2,
+      Power
     }
   });
 }
@@ -200,26 +202,31 @@ function renderAppShell() {
       <main class="main-wrapper">
         <!-- Top Status Bar -->
         <header class="top-navbar">
-          <div id="topStatsContainer">
-            <div class="status-pill">
+          <div class="top-navbar-left" id="topConnContainer">
+            <div class="top-conn-badge">
               <span class="status-indicator connected"></span>
-              <span>Connecting to Redis...</span>
+              <span class="top-conn-name">Connecting to Redis...</span>
             </div>
           </div>
 
-          <div class="top-actions">
-            <button type="button" class="btn btn-secondary" id="btnOpenSlowlog" title="Real-Time Slowlog & Latency Profiler" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">
-              <i data-lucide="activity" style="width: 14px; height: 14px; color: #38bdf8;"></i>
-              Slowlog
-            </button>
-            <button type="button" class="btn btn-secondary" id="btnOpenMemoryModal" title="Memory Analysis & BigKeys Profiler" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">
-              <i data-lucide="pie-chart" style="width: 14px; height: 14px; color: #a78bfa;"></i>
-              Memory & BigKeys
-            </button>
-            <button type="button" class="btn btn-secondary" id="btnRefreshStats" title="Ping active connection" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">
-              <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
-              Ping
-            </button>
+          <div class="top-navbar-center" id="topVitalsContainer">
+            <!-- Streamlined vitals capsule populated dynamically -->
+          </div>
+
+          <div class="top-navbar-right" id="topActionsContainer">
+            <div class="top-tools-group">
+              <button type="button" class="tool-pill-btn" id="btnOpenSlowlog" title="Real-Time Slowlog & Latency Profiler">
+                <i data-lucide="activity" style="width: 13px; height: 13px; color: #38bdf8;"></i>
+                <span>Slowlog</span>
+              </button>
+              <button type="button" class="tool-pill-btn" id="btnOpenMemoryModal" title="Memory Analysis & BigKeys Profiler">
+                <i data-lucide="pie-chart" style="width: 13px; height: 13px; color: #a78bfa;"></i>
+                <span>BigKeys</span>
+              </button>
+              <button type="button" class="tool-icon-btn" id="btnRefreshStats" title="Ping active instance & refresh vitals">
+                <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -2895,8 +2902,11 @@ function renderTopologyNodes() {
 }
 
 // Refresh status
+// Refresh status
 async function refreshStatus() {
-  const container = document.getElementById("topStatsContainer");
+  const connContainer = document.getElementById("topConnContainer");
+  const vitalsContainer = document.getElementById("topVitalsContainer");
+
   try {
     const res = await fetch("/api/status");
     const s = await res.json();
@@ -2904,65 +2914,71 @@ async function refreshStatus() {
     if (s.connected) {
       const activeConn = cachedConnections.find(c => c.is_selected) || cachedConnections.find(c => c.id === s.connection_id) || cachedConnections.find(c => c.is_connected);
       const isCluster = (activeConn && activeConn.conn_type === "cluster") || (s.cluster_nodes && s.cluster_nodes.length > 0) || s.is_cluster;
-      const clusterState = s.cluster_state || "ok";
       const totalNodes = (activeConn && activeConn.cluster_nodes) ? "6" : (s.cluster_nodes_count || 1);
 
-      container.innerHTML = `
-        <div class="status-pill-group">
-          <div class="status-pill">
+      if (connContainer) {
+        connContainer.innerHTML = `
+          <div class="top-conn-badge">
             <span class="status-indicator connected"></span>
-            <span>
-              ${escapeHtml(s.connection_name || "Connected")}
-              <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 4px;">(${s.host}:${s.port} ${isCluster ? '' : `/ DB${s.db}`})</span>
-            </span>
+            <span class="top-conn-name" title="${escapeHtml(s.connection_name || 'Connected')}">${escapeHtml(s.connection_name || "Connected")}</span>
+            <span class="top-conn-endpoint">${s.host}:${s.port}</span>
+            <span class="top-conn-tag">${isCluster ? 'CLUSTER' : `DB${s.db}`}</span>
+            <button type="button" class="top-conn-disconnect" id="btnTopDisconnect" title="Disconnect ${escapeHtml(s.connection_name || 'instance')}">
+              <i data-lucide="power" style="width: 12px; height: 12px;"></i>
+            </button>
           </div>
+        `;
+      }
 
-          <button type="button" class="btn-top-disconnect" id="btnTopDisconnect" title="Disconnect ${escapeHtml(s.connection_name || 'cluster')}">
-            <i data-lucide="x" style="width: 12px; height: 12px;"></i>
-            Disconnect
-          </button>
+      if (vitalsContainer) {
+        vitalsContainer.innerHTML = `
+          <div class="top-vitals-capsule">
+            <div class="vital-item clickable" id="btnOpenTopologyTop" title="View Cluster Topology & Node Health">
+              <i data-lucide="layers" style="width: 12px; height: 12px; color: ${isCluster ? '#a78bfa' : 'var(--accent-primary)'};"></i>
+              <span class="vital-val" style="color: ${isCluster ? '#c084fc' : 'var(--accent-primary)'};">
+                ${isCluster ? `${totalNodes} Nodes` : `1 Node`}
+              </span>
+            </div>
 
-          <div class="stat-item stat-item-clickable" id="btnOpenTopologyTop" title="Click to view cluster & node topology">
-            <span>${isCluster ? "Cluster:" : "Topology:"}</span>
-            <span class="stat-value link-highlight" style="color: ${isCluster ? '#a78bfa' : 'var(--accent-primary)'};">
-              ${isCluster ? `${clusterState.toUpperCase()} (${totalNodes} Nodes)` : `1 Node (DB${s.db})`}
-              <i data-lucide="layers" style="width: 11px; height: 11px; margin-left: 2px;"></i>
-            </span>
+            <span class="vital-divider"></span>
+
+            <div class="vital-item" title="PING round-trip latency">
+              <i data-lucide="zap" style="width: 11px; height: 11px; color: var(--accent-success);"></i>
+              <span class="vital-val" style="color: var(--accent-success);">${s.latency_ms} ms</span>
+            </div>
+
+            <span class="vital-divider"></span>
+
+            <div class="vital-item" title="Total keys in active keyspace">
+              <span class="vital-label">Keys:</span>
+              <span class="vital-val">${(s.dbsize || 0).toLocaleString()}</span>
+            </div>
+
+            <span class="vital-divider"></span>
+
+            <div class="vital-item clickable" id="btnOpenMemoryTop" title="Memory usage. Click to open Memory Analysis & BigKeys Profiler">
+              <i data-lucide="pie-chart" style="width: 12px; height: 12px; color: #a78bfa;"></i>
+              <span class="vital-val" style="color: #c084fc;">${s.used_memory_human || "N/A"}</span>
+            </div>
+
+            <span class="vital-divider"></span>
+
+            <div class="vital-item clickable" id="btnOpenClientsModal" title="Connected clients. Click to view clients list">
+              <i data-lucide="users" style="width: 12px; height: 12px; color: #38bdf8;"></i>
+              <span class="vital-val" style="color: #38bdf8;">${s.connected_clients || 1}</span>
+            </div>
+
+            <span class="vital-divider"></span>
+
+            <div class="vital-item" title="Redis server version">
+              <span class="vital-label">v${s.redis_version}</span>
+            </div>
           </div>
+        `;
+      }
 
-          <div class="stat-item">
-            <span>Latency:</span>
-            <span class="stat-value" style="color: var(--accent-success);">${s.latency_ms} ms</span>
-          </div>
-
-          <div class="stat-item">
-            <span>Version:</span>
-            <span class="stat-value">v${s.redis_version}</span>
-          </div>
-
-          <div class="stat-item">
-            <span>Total Keys:</span>
-            <span class="stat-value">${s.dbsize}</span>
-          </div>
-
-          <div class="stat-item stat-item-clickable" id="btnOpenMemoryTop" title="Click to view Memory Analysis & BigKeys Profiler">
-            <span>Memory:</span>
-            <span class="stat-value link-highlight" style="color: #a78bfa;">
-              ${s.used_memory_human || "N/A"}
-              <i data-lucide="pie-chart" style="width: 11px; height: 11px; margin-left: 2px;"></i>
-            </span>
-          </div>
-
-          <div class="stat-item stat-item-clickable" id="btnOpenClientsModal" title="Click to view all connected clients details">
-            <span>Clients:</span>
-            <span class="stat-value link-highlight">
-              ${s.connected_clients || 1}
-              <i data-lucide="external-link" style="width: 11px; height: 11px; margin-left: 2px;"></i>
-            </span>
-          </div>
-        </div>
-      `;
       setupIcons();
+
       const btnDisconnectTop = document.getElementById("btnTopDisconnect");
       if (btnDisconnectTop) {
         btnDisconnectTop.addEventListener("click", () => {
@@ -2984,26 +3000,40 @@ async function refreshStatus() {
         btnMemoryTop.addEventListener("click", openMemoryModal);
       }
     } else {
-      container.innerHTML = `
-        <div class="status-pill-group">
-          <div class="status-pill">
+      if (connContainer) {
+        connContainer.innerHTML = `
+          <div class="top-conn-badge disconnected">
             <span class="status-indicator disconnected"></span>
-            <span>Disconnected</span>
+            <span class="top-conn-name">Disconnected</span>
+            ${s.error ? `<span class="top-conn-error" title="${escapeHtml(s.error)}">${escapeHtml(s.error)}</span>` : ''}
           </div>
-          ${s.error ? `<div class="stat-item" style="color: var(--text-muted);"><span>${s.error}</span></div>` : ''}
-        </div>
-      `;
+        `;
+      }
+      if (vitalsContainer) {
+        vitalsContainer.innerHTML = `
+          <div class="top-vitals-idle">
+            <span>Select or connect an instance to browse keys & diagnostics</span>
+          </div>
+        `;
+      }
+      setupIcons();
       if (totalScanned === 0 && keysTableRows.length === 0) {
         renderEmptyWorkspace();
       }
     }
   } catch (err) {
-    container.innerHTML = `
-      <div class="status-pill">
-        <span class="status-indicator disconnected"></span>
-        <span>Network Error</span>
-      </div>
-    `;
+    if (connContainer) {
+      connContainer.innerHTML = `
+        <div class="top-conn-badge disconnected">
+          <span class="status-indicator disconnected"></span>
+          <span class="top-conn-name">Network Error</span>
+        </div>
+      `;
+    }
+    if (vitalsContainer) {
+      vitalsContainer.innerHTML = "";
+    }
+    setupIcons();
   }
 }
 
