@@ -43,11 +43,11 @@ let currentCursor = 0;
 let currentPattern = "*";
 let currentType = "all";
 let isScanning = false;
-let autoScanCancelled = false;
 let totalScanned = 0;
 let dbTotalKeys = 0;
 let fallbackMode = false;
 let fallbackRows = [];
+let loadedKeysSet = new Set();
 
 // Phase 2 state
 let activeDetailKey = null;
@@ -237,17 +237,13 @@ function renderAppShell() {
             </div>
 
             <div style="display: flex; align-items: center; gap: 0.5rem;" id="scanActionsGroup">
-              <button type="button" class="btn btn-secondary" id="btnScanNext" style="font-size: 0.75rem; padding: 0.35rem 0.7rem;">
+              <button type="button" class="btn btn-secondary" id="btnScanNext" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
                 <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
-                Scan Next 50
+                Load More
               </button>
-              <button type="button" class="btn btn-secondary" id="btnAutoScan" style="font-size: 0.75rem; padding: 0.35rem 0.7rem;">
-                <i data-lucide="play" style="width: 13px; height: 13px;"></i>
-                Auto-scan 500
-              </button>
-              <button type="button" class="btn btn-secondary" id="btnResetScan" style="font-size: 0.75rem; padding: 0.35rem 0.7rem;">
+              <button type="button" class="btn btn-secondary" id="btnResetScan" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
                 <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-                Reset
+                Refresh
               </button>
             </div>
           </div>
@@ -591,7 +587,6 @@ async function initPerspective() {
 
 // Safe Scan: Reset and Scan from cursor 0
 async function resetAndScan() {
-  autoScanCancelled = true;
   isScanning = false;
   currentScanEpoch++;
   const epoch = currentScanEpoch;
@@ -599,6 +594,7 @@ async function resetAndScan() {
   currentCursor = 0;
   totalScanned = 0;
   fallbackRows = [];
+  loadedKeysSet.clear();
 
   const emptyEl = document.getElementById("emptyWorkspaceState");
   const gridContainer = document.getElementById("gridViewerContainer");
@@ -621,9 +617,12 @@ async function resetAndScan() {
   await scanNextBatch(epoch);
 }
 
-// Fetch single batch of 50 keys without blocking Redis
+// Fetch next batch of keys without blocking Redis
 async function scanNextBatch(expectedEpoch = null) {
   if (isScanning) return;
+  // If scan already completed (cursor back to 0), do not re-scan
+  if (currentCursor === 0 && totalScanned > 0) return;
+
   const targetEpoch = expectedEpoch !== null ? expectedEpoch : currentScanEpoch;
   isScanning = true;
   updateScanUI();
@@ -642,7 +641,14 @@ async function scanNextBatch(expectedEpoch = null) {
     currentCursor = data.cursor;
     dbTotalKeys = data.total_in_db;
 
-    const rows = data.keys.map(k => ({
+    // Deduplicate keys against loadedKeysSet
+    const newKeys = (data.keys || []).filter(k => {
+      if (loadedKeysSet.has(k.name)) return false;
+      loadedKeysSet.add(k.name);
+      return true;
+    });
+
+    const rows = newKeys.map(k => ({
       key: k.name,
       type: k.type,
       ttl_seconds: k.ttl,
@@ -657,12 +663,11 @@ async function scanNextBatch(expectedEpoch = null) {
         fallbackRows.push(...rows);
         renderFallbackTable();
       }
-      totalScanned += rows.length;
-    } else {
-      if (fallbackMode) {
-        renderFallbackTable();
-      }
+    } else if (fallbackMode) {
+      renderFallbackTable();
     }
+
+    totalScanned = loadedKeysSet.size;
   } catch (err) {
     console.error("Scan error:", err);
   } finally {
@@ -741,51 +746,27 @@ function renderFallbackTable() {
   });
 }
 
-// Auto-scan next 500 keys progressively
-async function autoScanBatch() {
-  if (isScanning) return;
-  autoScanCancelled = false;
-  const btnAuto = document.getElementById("btnAutoScan");
-  if (btnAuto) {
-    btnAuto.innerHTML = `Stop Auto-scan`;
-    btnAuto.classList.add("btn-danger");
-  }
-
-  let steps = 0;
-  while (steps < 10 && !autoScanCancelled) {
-    if (currentCursor === 0 && steps > 0) {
-      break;
-    }
-    await scanNextBatch();
-    steps++;
-    await new Promise(r => setTimeout(r, 60));
-  }
-
-  if (btnAuto) {
-    btnAuto.innerHTML = `<i data-lucide="play" style="width: 13px; height: 13px;"></i> Auto-scan 500`;
-    btnAuto.classList.remove("btn-danger");
-    setupIcons();
-  }
-}
-
 function updateScanUI() {
   const statusText = document.getElementById("scanStatusText");
   const btnScanNext = document.getElementById("btnScanNext");
 
+  const isComplete = (currentCursor === 0 && totalScanned > 0) || (totalScanned >= dbTotalKeys && dbTotalKeys > 0);
+
   if (statusText) {
-    const isComplete = currentCursor === 0 && totalScanned > 0;
     statusText.innerHTML = `
       Loaded <strong>${totalScanned}</strong> keys
-      ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(Scan Complete)</span>' : `(Next Cursor: ${currentCursor})`}
+      ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>' : `(Next Cursor: ${currentCursor})`}
       | DB Total: <strong>${dbTotalKeys}</strong>
     `;
   }
 
   if (btnScanNext) {
-    btnScanNext.disabled = isScanning || (currentCursor === 0 && totalScanned > 0);
+    btnScanNext.disabled = isScanning || isComplete;
     btnScanNext.innerHTML = isScanning
-      ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Scanning...`
-      : `<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Scan Next 50`;
+      ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...`
+      : isComplete
+      ? `<i data-lucide="check-circle-2" style="width: 13px; height: 13px;"></i> All Keys Loaded`
+      : `<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Load More`;
     setupIcons();
   }
 }
@@ -2598,15 +2579,14 @@ function setupEventListeners() {
   });
 
   // Scan controls
-  document.getElementById("btnScanNext").addEventListener("click", scanNextBatch);
-  document.getElementById("btnAutoScan").addEventListener("click", () => {
-    if (isScanning && !autoScanCancelled) {
-      autoScanCancelled = true;
-    } else {
-      autoScanBatch();
-    }
-  });
-  document.getElementById("btnResetScan").addEventListener("click", resetAndScan);
+  const btnScanNext = document.getElementById("btnScanNext");
+  if (btnScanNext) {
+    btnScanNext.addEventListener("click", () => scanNextBatch());
+  }
+  const btnResetScan = document.getElementById("btnResetScan");
+  if (btnResetScan) {
+    btnResetScan.addEventListener("click", resetAndScan);
+  }
 
   // Periodic heartbeat
   setInterval(refreshStatus, 15000);

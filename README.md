@@ -50,8 +50,7 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ### 4. High-Performance Key Browsing & Inspector
 - **Perspective WebAssembly Datagrid**: Blazing fast rendering and virtual scrolling for thousands of keys using `@perspective-dev/viewer`.
-- **Strict Data Isolation**: Switching active clusters instantly resets the datagrid, scan cursors, and memory metrics to prevent cross-instance contamination.
-- **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with custom batch sizing (`COUNT`) and pattern filtering (`*`).
+- **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.
 - **Comprehensive Key Inspector**:
   - Type-aware viewers for `string`, `hash`, `list`, `set`, `zset`, and `stream`.
   - JSON formatting, search filtering within hash/list elements, and raw payload views.
