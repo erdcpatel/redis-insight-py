@@ -49,5 +49,9 @@ def decrypt_secret(cipher_text: str) -> str:
     cipher = get_cipher()
     try:
         return cipher.decrypt(cipher_text.encode("utf-8")).decode("utf-8")
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger("redis_insight.crypto").warning(
+            f"Failed to decrypt stored password token (encryption key may have changed): {e}"
+        )
         return ""

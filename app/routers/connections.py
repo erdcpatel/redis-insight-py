@@ -83,7 +83,11 @@ async def get_all_connections(
 async def reload_config_connections():
     """Reload static connections from YAML/JSON configuration files."""
     from app.config_loader import sync_connections_from_config
-    return sync_connections_from_config()
+    try:
+        return sync_connections_from_config()
+    except Exception as e:
+        logger.error(f"Error reloading config connections: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reload config: {str(e)}")
 
 
 @router.post("", response_model=ConnectionOut, status_code=status.HTTP_201_CREATED)
@@ -95,8 +99,8 @@ async def add_connection(payload: ConnectionCreate, auto_activate: bool = False)
         try:
             await redis_manager.activate_connection(created["id"])
             created["is_active"] = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Auto-activation for new connection '{created['id']}' failed: {e}")
     return created
 
 
@@ -122,8 +126,8 @@ async def update_connection_by_id(conn_id: str, payload: ConnectionUpdate):
     if updated.get("is_active"):
         try:
             await redis_manager.activate_connection(conn_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Re-activating connection '{conn_id}' after update failed: {e}")
 
     return updated
 
@@ -146,8 +150,8 @@ async def delete_connection_by_id(conn_id: str):
         if remaining:
             try:
                 await redis_manager.activate_connection(remaining[0]["id"])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Activating fallback connection '{remaining[0]['id']}' failed: {e}")
         else:
             await redis_manager.close()
 

@@ -2,6 +2,16 @@ from urllib.parse import unquote
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel, Field
+from redis.exceptions import (
+    RedisError,
+    AuthenticationError,
+    ConnectionError as RedisConnectionError,
+    TimeoutError as RedisTimeoutError,
+    ReadOnlyError,
+    ClusterDownError,
+    ResponseError,
+)
+from app.logger import logger
 from app.models import (
     KeyListResponse,
     ActiveConnectionStatus,
@@ -14,6 +24,31 @@ from app.models import (
 from app.redis_manager import redis_manager
 
 router = APIRouter(prefix="/api", tags=["Keys & Status"])
+
+
+def raise_mapped_exception(e: Exception, context_msg: str):
+    """
+    Map Redis and system exceptions to meaningful HTTP status codes with diagnostic logging.
+    """
+    if isinstance(e, HTTPException):
+        raise e
+
+    logger.error(f"{context_msg}: {e}", exc_info=True)
+
+    if isinstance(e, AuthenticationError):
+        raise HTTPException(status_code=401, detail=f"Redis authentication failed: {str(e)}")
+    elif isinstance(e, ReadOnlyError):
+        raise HTTPException(status_code=403, detail="Write rejected: connected Redis node is a read-only replica.")
+    elif isinstance(e, ClusterDownError):
+        raise HTTPException(status_code=503, detail=f"Redis cluster is down or partitioned: {str(e)}")
+    elif isinstance(e, (ConnectionError, RedisConnectionError)):
+        raise HTTPException(status_code=503, detail=f"Redis connection unavailable: {str(e)}")
+    elif isinstance(e, (TimeoutError, RedisTimeoutError)):
+        raise HTTPException(status_code=504, detail=f"Redis command timed out: {str(e)}")
+    elif isinstance(e, ResponseError):
+        raise HTTPException(status_code=400, detail=f"Redis command error: {str(e)}")
+    else:
+        raise HTTPException(status_code=500, detail=f"{context_msg}: {str(e)}")
 
 
 class TTLUpdateRequest(BaseModel):
@@ -41,7 +76,7 @@ async def get_connected_clients():
     try:
         return await redis_manager.get_clients()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch clients: {str(e)}")
+        raise_mapped_exception(e, "Failed to fetch clients")
 
 
 @router.delete("/clients/{client_id}")
@@ -51,7 +86,7 @@ async def kill_client_endpoint(client_id: str):
         success = await redis_manager.kill_client(client_id)
         return {"success": success, "client_id": client_id}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to kill client {client_id}: {str(e)}")
+        raise_mapped_exception(e, f"Failed to kill client {client_id}")
 
 
 @router.get("/topology", response_model=ClusterTopologyResponse)
@@ -60,7 +95,7 @@ async def get_cluster_topology():
     try:
         return await redis_manager.get_topology()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch topology: {str(e)}")
+        raise_mapped_exception(e, "Failed to fetch topology")
 
 
 
@@ -81,7 +116,7 @@ async def list_keys(
             type_filter=type
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to scan keys: {str(e)}")
+        raise_mapped_exception(e, "Failed to scan keys")
 
 
 @router.get("/keys/detail")
@@ -97,10 +132,8 @@ async def get_key_detail_query(key: str = Query(..., description="Key name to in
         if not detail:
             raise HTTPException(status_code=404, detail=f"Key '{key}' does not exist or has expired.")
         return detail
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to inspect key '{key}': {str(e)}")
+        raise_mapped_exception(e, f"Failed to inspect key '{key}'")
 
 
 @router.get("/keys/{key_name:path}/detail")
@@ -115,10 +148,8 @@ async def get_single_key_detail(key_name: str):
         if not detail:
             raise HTTPException(status_code=404, detail=f"Key '{key_name}' does not exist or has expired.")
         return detail
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to inspect key '{key_name}': {str(e)}")
+        raise_mapped_exception(e, f"Failed to inspect key '{key_name}'")
 
 
 @router.put("/keys/{key_name:path}/ttl")
@@ -130,10 +161,8 @@ async def update_key_ttl_endpoint(key_name: str, payload: TTLUpdateRequest):
         if not success:
             raise HTTPException(status_code=404, detail="Key does not exist or TTL update failed")
         return {"success": True, "key": key_name, "ttl": payload.seconds}
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update TTL: {str(e)}")
+        raise_mapped_exception(e, f"Failed to update TTL for key '{key_name}'")
 
 
 @router.put("/keys/{key_name:path}/field")
@@ -144,7 +173,7 @@ async def set_hash_field_endpoint(key_name: str, payload: HashFieldSetRequest):
         result = await redis_manager.set_hash_field(key_name, payload.field, payload.value)
         return {"success": True, "field": payload.field, "result": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to set field: {str(e)}")
+        raise_mapped_exception(e, f"Failed to set hash field for key '{key_name}'")
 
 
 @router.delete("/keys/{key_name:path}/field/{field_name:path}")
@@ -156,7 +185,7 @@ async def delete_hash_field_endpoint(key_name: str, field_name: str):
         deleted = await redis_manager.delete_hash_field(key_name, field_name)
         return {"success": True, "deleted": deleted}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete field: {str(e)}")
+        raise_mapped_exception(e, f"Failed to delete hash field '{field_name}' from key '{key_name}'")
 
 
 @router.delete("/keys/{key_name:path}")
@@ -189,7 +218,7 @@ async def delete_key(
             return {"success": False, "deleted": 0, "message": "Key did not exist"}
         return {"success": True, "deleted": deleted, "key": key_name}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete key: {str(e)}")
+        raise_mapped_exception(e, f"Failed to delete key '{key_name}'")
 
 
 # --- Phase 3 Endpoints: Slowlog & Memory Analysis ---
@@ -200,7 +229,7 @@ async def get_slowlog_endpoint(limit: int = Query(100, ge=1, le=1000, descriptio
     try:
         return await redis_manager.get_slowlog(limit=limit)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch slowlog: {str(e)}")
+        raise_mapped_exception(e, "Failed to fetch slowlog")
 
 
 @router.post("/slowlog/reset")
@@ -210,7 +239,7 @@ async def reset_slowlog_endpoint():
         await redis_manager.reset_slowlog()
         return {"status": "ok", "message": "Slowlog buffer cleared successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to reset slowlog: {str(e)}")
+        raise_mapped_exception(e, "Failed to reset slowlog")
 
 
 @router.get("/memory/overview", response_model=MemoryOverviewResponse)
@@ -219,7 +248,7 @@ async def get_memory_overview_endpoint():
     try:
         return await redis_manager.get_memory_overview()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch memory overview: {str(e)}")
+        raise_mapped_exception(e, "Failed to fetch memory overview")
 
 
 @router.post("/memory/analyze", response_model=MemoryAnalysisResponse)
@@ -231,6 +260,6 @@ async def analyze_memory_endpoint(request: MemoryAnalysisRequest = Body(...)):
             pattern=request.pattern
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to analyze memory: {str(e)}")
+        raise_mapped_exception(e, "Failed to analyze memory")
 
 

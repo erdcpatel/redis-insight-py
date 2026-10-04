@@ -73,6 +73,35 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(LoggingMiddleware)
 
+# Global Exception Handlers
+import sqlite3
+from fastapi.responses import JSONResponse
+from redis.exceptions import RedisError
+
+@app.exception_handler(RedisError)
+async def redis_error_handler(request: Request, exc: RedisError):
+    logger.error(f"Redis error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Redis error: {str(exc)}"}
+    )
+
+@app.exception_handler(ConnectionError)
+async def connection_error_handler(request: Request, exc: ConnectionError):
+    logger.error(f"Connection error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": f"Connection error: {str(exc)}"}
+    )
+
+@app.exception_handler(sqlite3.Error)
+async def sqlite_error_handler(request: Request, exc: sqlite3.Error):
+    logger.error(f"Database error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Database error: {str(exc)}"}
+    )
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

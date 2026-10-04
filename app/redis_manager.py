@@ -789,6 +789,7 @@ class RedisManager:
                 cluster_nodes_count=cluster_nodes_count,
             )
         except Exception as e:
+            logger.warning(f"Failed to fetch active Redis status: {e}")
             return ActiveConnectionStatus(
                 connected=False,
                 connection_id=active_conn.get("id") if active_conn else None,
@@ -874,7 +875,8 @@ class RedisManager:
         try:
             k_type = await client.type(key_name)
         except Exception as e:
-            raise RuntimeError(f"Error checking key type: {str(e)}")
+            logger.error(f"Error checking key type for '{key_name}': {e}", exc_info=True)
+            raise
 
         if not k_type or str(k_type).lower() == "none":
             return None
