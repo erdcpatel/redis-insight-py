@@ -1,20 +1,14 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-
-import perspective
-from perspective.handlers.starlette import PerspectiveStarletteHandler
 
 from app.db import init_db, get_active_connection
 from app.config_loader import sync_connections_from_config
 from app.redis_manager import redis_manager
 from app.routers import connections, keys
-
-# Perspective server for real-time visualization tables
-perspective_server = perspective.Server()
 
 
 @asynccontextmanager
@@ -85,10 +79,3 @@ DIST_DIR = Path(__file__).resolve().parent.parent / "dist"
 if DIST_DIR.exists():
     app.frontend("/", directory=str(DIST_DIR), fallback="index.html")
 
-
-
-@app.websocket("/websocket")
-async def perspective_websocket_endpoint(websocket: WebSocket):
-    """Perspective client-server replication WebSocket endpoint."""
-    handler = PerspectiveStarletteHandler(perspective_server=perspective_server, websocket=websocket)
-    await handler.run()

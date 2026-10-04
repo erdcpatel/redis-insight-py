@@ -1,6 +1,6 @@
 # Redis Insight Py
 
-High-performance, async Redis management & data visualization platform built with **Python 3 / FastAPI**, **Redis AsyncIO**, and **Perspective WebAssembly Datagrid**.
+High-performance, async Redis management & data visualization platform built with **Python 3 / FastAPI**, **Redis AsyncIO**, and a **Responsive Glassmorphic Data Grid**.
 
 Designed as a modern, lightweight, and responsive alternative to RedisInsight, supporting Standalone Redis instances, Sentinel high-availability setups, and multi-node Redis Clusters with live topology discovery and real-time key inspection.
 
@@ -49,7 +49,7 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 ---
 
 ### 4. High-Performance Key Browsing & Inspector
-- **Perspective WebAssembly Datagrid**: Blazing fast rendering and virtual scrolling for thousands of keys using `@perspective-dev/viewer`.
+- **Responsive Glassmorphic Data Grid**: Blazing fast rendering and virtual scrolling for thousands of keys with custom type badges, live TTL tags, and direct row-level key inspection and deletion.
 - **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.
 - **Comprehensive Key Inspector**:
   - Type-aware viewers for `string`, `hash`, `list`, `set`, `zset`, and `stream`.
@@ -71,10 +71,10 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 +------------------------------------------------------------------+
 |                     Browser (SPA / Vite)                         |
 |  +--------------------+  +------------------+  +---------------+ |
-|  | Connection Sidebar |  | Perspective WASM |  | Key Inspector | |
+|  | Connection Sidebar |  |  HTML Data Grid  |  | Key Inspector | |
 |  +--------------------+  +------------------+  +---------------+ |
 +---------------------------------|--------------------------------+
-                                  | HTTP / WebSocket
+                                  | HTTP / JSON REST
 +---------------------------------v--------------------------------+
 |                 FastAPI Backend (run.py)                         |
 |  +-------------------------------------------------------------+ |
@@ -175,7 +175,7 @@ npm install
 npm run build
 ```
 
-This compiles the assets directly into `dist/` and copies the required Perspective WebAssembly binaries (`perspective-js.wasm` and `perspective-server.worker.js`).
+This compiles the assets directly into `dist/` (~115 KB total bundle size).
 
 To run the Vite dev server with hot reloading:
 ```bash
@@ -206,7 +206,7 @@ npm run dev
 │   └── connections.yaml     # Declarative connection definitions
 ├── dist/                    # Production frontend distribution (pre-built)
 ├── frontend/
-│   ├── package.json         # Frontend packages & Perspective WASM
+│   ├── package.json         # Frontend package configuration (Lucide, Vite)
 │   ├── vite.config.js       # Vite configuration
 │   └── src/
 │       ├── main.js          # Main client application logic

@@ -6,14 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --outDir ../dist --emptyOutDir",
-    "postbuild": "cp node_modules/@perspective-dev/client/dist/wasm/perspective-js.wasm ../dist/ && cp node_modules/@perspective-dev/client/dist/wasm/perspective-js.wasm ../dist/assets/ && cp node_modules/@perspective-dev/client/dist/cdn/perspective-server.worker.js ../dist/ && cp node_modules/@perspective-dev/client/dist/cdn/perspective-server.worker.js ../dist/assets/",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@perspective-dev/client": "^5.5.1",
-    "@perspective-dev/viewer": "^5.5.1",
-    "@perspective-dev/viewer-datagrid": "^5.5.1",
-    "@perspective-dev/viewer-charts": "^5.5.1",
     "lucide": "^0.474.0"
   },
   "devDependencies": {

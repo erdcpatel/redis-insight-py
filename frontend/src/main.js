@@ -1,9 +1,3 @@
-import perspective from "@perspective-dev/client";
-import "@perspective-dev/viewer";
-import "@perspective-dev/viewer-datagrid";
-import "@perspective-dev/viewer/dist/css/themes.css";
-import "@perspective-dev/viewer/dist/css/pro-dark.css";
-
 import {
   createIcons,
   Layers,
@@ -34,9 +28,6 @@ import {
 } from "lucide";
 
 // Global State
-let worker = null;
-let pTable = null;
-let viewer = null;
 let allConnectedClients = [];
 
 let currentCursor = 0;
@@ -45,8 +36,7 @@ let currentType = "all";
 let isScanning = false;
 let totalScanned = 0;
 let dbTotalKeys = 0;
-let fallbackMode = false;
-let fallbackRows = [];
+let keysTableRows = [];
 let loadedKeysSet = new Set();
 
 // Phase 2 state
@@ -181,7 +171,7 @@ function renderAppShell() {
         <div class="sidebar-footer">
           <div style="display: flex; align-items: center; gap: 0.4rem;">
             <i data-lucide="cpu" style="width: 14px; height: 14px; color: var(--accent-primary);"></i>
-            <span>FastAPI + Perspective</span>
+            <span>FastAPI + Redis AsyncIO</span>
           </div>
           <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted);">v0.1.0</span>
         </div>
@@ -248,7 +238,7 @@ function renderAppShell() {
             </div>
           </div>
 
-          <!-- Perspective Datagrid Card -->
+          <!-- Key Browser Data Grid Card -->
           <div class="grid-card" id="gridCard">
             <div id="emptyWorkspaceState" class="empty-workspace-state" style="display: none;">
               <div class="empty-state-icon">
@@ -263,9 +253,7 @@ function renderAppShell() {
                 </button>
               </div>
             </div>
-            <div id="gridViewerContainer" style="width: 100%; height: 100%;">
-              <perspective-viewer id="perspectiveViewer" theme="Pro Dark"></perspective-viewer>
-            </div>
+            <div id="gridViewerContainer" style="width: 100%; height: 100%;"></div>
           </div>
         </div>
       </main>
@@ -548,43 +536,6 @@ function renderAppShell() {
   `;
 }
 
-// Initialize Perspective WebAssembly
-async function initPerspective() {
-  viewer = document.getElementById("perspectiveViewer");
-  try {
-    worker = await perspective.worker();
-
-    const schema = {
-      key: "string",
-      type: "string",
-      ttl_seconds: "integer",
-      status: "string"
-    };
-
-    pTable = await worker.table(schema, { index: "key" });
-    await viewer.load(pTable);
-
-    await viewer.restore({
-      plugin: "Datagrid",
-      columns: ["key", "type", "ttl_seconds", "status"],
-      sort: [["key", "asc"]]
-    });
-
-    // Listen to click events on viewer to open Key Inspector
-    viewer.addEventListener("perspective-click", (e) => {
-      const row = e.detail?.row;
-      if (row && row.key) {
-        openKeyDetail(row.key);
-      }
-    });
-
-    fallbackMode = false;
-  } catch (err) {
-    console.warn("Perspective WebAssembly worker failed, enabling HTML fallback grid:", err);
-    fallbackMode = true;
-  }
-}
-
 // Safe Scan: Reset and Scan from cursor 0
 async function resetAndScan() {
   isScanning = false;
@@ -593,7 +544,7 @@ async function resetAndScan() {
 
   currentCursor = 0;
   totalScanned = 0;
-  fallbackRows = [];
+  keysTableRows = [];
   loadedKeysSet.clear();
 
   const emptyEl = document.getElementById("emptyWorkspaceState");
@@ -601,19 +552,7 @@ async function resetAndScan() {
   if (emptyEl) emptyEl.style.display = "none";
   if (gridContainer) gridContainer.style.display = "block";
 
-  if (pTable) {
-    try {
-      await pTable.clear();
-      viewer?.notifyResize?.();
-    } catch (e) {
-      console.warn("pTable clear:", e);
-    }
-  }
-
-  if (fallbackMode) {
-    renderFallbackTable();
-  }
-
+  renderKeysTable();
   await scanNextBatch(epoch);
 }
 
@@ -656,17 +595,9 @@ async function scanNextBatch(expectedEpoch = null) {
     }));
 
     if (rows.length > 0) {
-      if (pTable && !fallbackMode) {
-        await pTable.update(rows);
-        viewer?.notifyResize?.();
-      } else {
-        fallbackRows.push(...rows);
-        renderFallbackTable();
-      }
-    } else if (fallbackMode) {
-      renderFallbackTable();
+      keysTableRows.push(...rows);
     }
-
+    renderKeysTable();
     totalScanned = loadedKeysSet.size;
   } catch (err) {
     console.error("Scan error:", err);
@@ -678,10 +609,10 @@ async function scanNextBatch(expectedEpoch = null) {
   }
 }
 
-function renderFallbackTable() {
+function renderKeysTable() {
   const container = document.getElementById("gridViewerContainer");
   if (!container) return;
-  if (fallbackRows.length === 0) {
+  if (keysTableRows.length === 0) {
     container.innerHTML = `
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
         No keys found matching pattern "<code>${escapeHtml(currentPattern)}</code>".
@@ -702,7 +633,7 @@ function renderFallbackTable() {
           </tr>
         </thead>
         <tbody>
-          ${fallbackRows.map(r => `
+          ${keysTableRows.map(r => `
             <tr class="key-row" data-key="${encodeURIComponent(r.key)}" style="border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;">
               <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
                 <span class="btn-inspect-key" data-key="${encodeURIComponent(r.key)}">${escapeHtml(r.key)}</span>
@@ -1888,10 +1819,8 @@ async function disconnectCluster(connId) {
     const stillConnected = cachedConnections.some(c => c.is_connected && c.id !== connId);
     if (!stillConnected) {
       // Clear key browsing table and show empty state
-      if (pTable) {
-        try { await pTable.clear(); } catch (e) {}
-      }
-      fallbackRows = [];
+      keysTableRows = [];
+      loadedKeysSet.clear();
       totalScanned = 0;
       currentCursor = 0;
       dbTotalKeys = 0;
@@ -2251,7 +2180,7 @@ async function refreshStatus() {
           ${s.error ? `<div class="stat-item" style="color: var(--text-muted);"><span>${s.error}</span></div>` : ''}
         </div>
       `;
-      if (totalScanned === 0 && fallbackRows.length === 0) {
+      if (totalScanned === 0 && keysTableRows.length === 0) {
         renderEmptyWorkspace();
       }
     }
@@ -2605,16 +2534,11 @@ async function startApp() {
     console.error("Failed to load initial status:", err);
   }
 
-  try {
-    await initPerspective();
-    const active = cachedConnections.find(c => c.is_connected && c.is_selected) || cachedConnections.find(c => c.is_connected);
-    if (active) {
-      await resetAndScan();
-    } else {
-      renderEmptyWorkspace();
-    }
-  } catch (err) {
-    console.error("Failed to init Perspective:", err);
+  const active = cachedConnections.find(c => c.is_connected && c.is_selected) || cachedConnections.find(c => c.is_connected);
+  if (active) {
+    await resetAndScan();
+  } else {
+    renderEmptyWorkspace();
   }
 }
 
