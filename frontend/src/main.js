@@ -4227,7 +4227,7 @@ function setupEventListeners() {
   if (btnOpenExportModal && modalExport) {
     btnOpenExportModal.addEventListener("click", () => {
       document.getElementById("exportPatternDisplay").textContent = currentPattern || "*";
-      document.getElementById("exportTypeDisplay").textContent = (currentTypeFilter && currentTypeFilter !== "all") ? currentTypeFilter.toUpperCase() : "All Types";
+      document.getElementById("exportTypeDisplay").textContent = (currentType && currentType !== "all") ? currentType.toUpperCase() : "All Types";
       document.getElementById("exportLoadedCount").textContent = `${keysTableRows.length} keys`;
       document.getElementById("exportScopeLoadedText").textContent = `${keysTableRows.length} keys`;
       modalExport.classList.add("active");
@@ -4246,7 +4246,7 @@ function setupEventListeners() {
         const scope = scopeRadio ? scopeRadio.value : "loaded";
 
         const pattern = currentPattern || "*";
-        const typeFilter = (currentTypeFilter && currentTypeFilter !== "all") ? currentTypeFilter : "";
+        const typeFilter = (currentType && currentType !== "all") ? currentType : "";
 
         if (scope === "all") {
           let url = `/api/keys/export?pattern=${encodeURIComponent(pattern)}&format=${format}`;
@@ -4325,7 +4325,7 @@ function setupEventListeners() {
   if (btnOpenBulkDeleteModal && modalBulkDelete) {
     btnOpenBulkDeleteModal.addEventListener("click", async () => {
       const pattern = currentPattern || "*";
-      const typeFilter = (currentTypeFilter && currentTypeFilter !== "all") ? currentTypeFilter : null;
+      const typeFilter = (currentType && currentType !== "all") ? currentType : null;
 
       activeDryRunResult = null;
       if (bdCountConfirmInput) bdCountConfirmInput.value = "";
