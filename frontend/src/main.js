@@ -4239,32 +4239,66 @@ function setupEventListeners() {
     if (btnCancelExportModal) btnCancelExportModal.addEventListener("click", closeExport);
 
     if (btnExecuteExport) {
-      btnExecuteExport.addEventListener("click", () => {
+      btnExecuteExport.addEventListener("click", async () => {
         const formatRadio = document.querySelector('input[name="exportFormatRadio"]:checked');
         const scopeRadio = document.querySelector('input[name="exportScopeRadio"]:checked');
-        const format = formatRadio ? formatRadio.value : "csv";
+        const format = (formatRadio ? formatRadio.value : "csv").toLowerCase();
         const scope = scopeRadio ? scopeRadio.value : "loaded";
 
         const pattern = currentPattern || "*";
         const typeFilter = (currentType && currentType !== "all") ? currentType : "";
+        const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const defaultFilename = `redis_keys_${dateStr}.${format}`;
 
         if (scope === "all") {
-          let url = `/api/keys/export?pattern=${encodeURIComponent(pattern)}&format=${format}`;
-          if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
-          window.location.href = url;
-          closeExport();
+          btnExecuteExport.disabled = true;
+          btnExecuteExport.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Exporting...`;
+          setupIcons();
+
+          try {
+            let url = `/api/keys/export?pattern=${encodeURIComponent(pattern)}&format=${format}`;
+            if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({ detail: "Export failed" }));
+              throw new Error(err.detail || `Server error: ${res.status}`);
+            }
+
+            let filename = defaultFilename;
+            const disp = res.headers.get("content-disposition");
+            if (disp && disp.includes("filename=")) {
+              const match = disp.match(/filename="?([^";]+)"?/);
+              if (match && match[1]) filename = match[1];
+            }
+            if (!filename.endsWith(`.${format}`)) {
+              filename = `${filename}.${format}`;
+            }
+
+            const blob = await res.blob();
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            closeExport();
+          } catch (err) {
+            alert(`Export failed: ${err.message}`);
+          } finally {
+            btnExecuteExport.disabled = false;
+            btnExecuteExport.innerHTML = `<i data-lucide="download" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Download`;
+            setupIcons();
+          }
           return;
         }
 
         if (keysTableRows.length === 0) {
-          alert("No keys loaded to export.");
+          alert("No keys loaded in browser to export.");
           return;
         }
 
-        const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        const filename = `redis_keys_${dateStr}.${format}`;
         let blob;
-
         if (format === "csv") {
           const header = "Key,Type,TTL_Seconds\n";
           const rows = keysTableRows.map(r => `"${(r.key || "").replace(/"/g, '""')}",${r.type || ""},${r.ttl_seconds !== undefined ? r.ttl_seconds : -1}`);
@@ -4276,7 +4310,7 @@ function setupEventListeners() {
 
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = filename;
+        link.download = defaultFilename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
