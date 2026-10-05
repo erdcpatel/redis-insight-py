@@ -30,6 +30,12 @@ from app.models import (
 )
 
 
+HASH_DETAIL_PAGE_SIZE = 100
+HASH_SCAN_MAX_STEPS = 10
+DOWNLOAD_MAX_ITEMS = 200_000
+DOWNLOAD_CHUNK_SIZE = 1000
+
+
 def format_bytes(bytes_val: Optional[int]) -> str:
     """Format bytes integer into human readable string."""
     if bytes_val is None or bytes_val <= 0:
@@ -1094,25 +1100,33 @@ class RedisManager:
 
         elif str_type == "hash":
             try:
-                hlen = await client.hlen(key_name)
+                hlen: Optional[int] = int(await client.hlen(key_name))
             except Exception:
-                hlen = 0
-            detail["length"] = hlen
+                hlen = None
+            detail["length"] = hlen or 0
 
-            raw_hash = {}
+            # Never HGETALL unless HLEN proved the hash is small; otherwise a single capped HSCAN.
+            raw_hash: Dict[Any, Any] = {}
+            fields_cursor = 0
             try:
-                if hlen <= 100:
+                if hlen is not None and hlen <= HASH_DETAIL_PAGE_SIZE:
                     raw_hash = await client.hgetall(key_name)
                 else:
-                    _, raw_hash = await client.hscan(key_name, cursor=0, count=100)
+                    fields_cursor, raw_hash = await client.hscan(key_name, cursor=0, count=HASH_DETAIL_PAGE_SIZE)
             except Exception:
                 try:
-                    raw_hash = await client.hgetall(key_name)
+                    fields_cursor, raw_hash = await client.hscan(key_name, cursor=0, count=HASH_DETAIL_PAGE_SIZE)
                 except Exception:
-                    raw_hash = {}
+                    fields_cursor, raw_hash = 0, {}
 
-            fields_list = [{"field": str(f), "value": str(v)} for f, v in raw_hash.items()]
+            try:
+                fields_cursor = int(fields_cursor)
+            except Exception:
+                fields_cursor = 0
+            fields_list = [{"field": str(f), "value": str(v)} for f, v in (raw_hash or {}).items()]
             detail["fields"] = fields_list
+            detail["fields_cursor"] = fields_cursor
+            detail["has_more_fields"] = fields_cursor != 0
 
         elif str_type == "list":
             try:
@@ -1194,6 +1208,145 @@ class RedisManager:
                 detail["value"] = f"Unsupported Redis type: {k_type}"
 
         return detail
+
+    async def scan_hash_fields(
+        self,
+        key_name: str,
+        cursor: int = 0,
+        count: int = 100,
+        match: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Page through a hash with HSCAN. With a MATCH filter a single HSCAN step can return
+        nothing, so take a few bounded steps until roughly `count` fields are collected.
+        """
+        client = await self.get_client()
+        try:
+            total = int(await client.hlen(key_name))
+        except Exception:
+            total = 0
+
+        clean_match = match if match and match.strip() else None
+        collected: Dict[Any, Any] = {}
+        next_cursor = int(cursor)
+        for _ in range(HASH_SCAN_MAX_STEPS):
+            next_cursor, batch = await client.hscan(key_name, cursor=next_cursor, match=clean_match, count=count)
+            next_cursor = int(next_cursor)
+            if batch:
+                collected.update(batch)
+            if next_cursor == 0 or len(collected) >= count:
+                break
+
+        return {
+            "cursor": next_cursor,
+            "fields": [{"field": str(f), "value": str(v)} for f, v in collected.items()],
+            "total": total,
+        }
+
+    async def get_key_full_value(self, key_name: str, max_items: int = DOWNLOAD_MAX_ITEMS) -> Optional[Dict[str, Any]]:
+        """
+        Read a key's full value for download using incremental HSCAN/LRANGE/SSCAN/ZRANGE/XRANGE
+        loops, capped at `max_items` entries. Returns None if the key does not exist.
+        """
+        client = await self.get_client()
+        k_type = await client.type(key_name)
+        str_type = str(k_type).lower() if k_type else "none"
+        if str_type == "none":
+            return None
+
+        chunk = DOWNLOAD_CHUNK_SIZE
+        truncated = False
+        total = 0
+        value: Any = None
+
+        if str_type == "string":
+            value = await client.get(key_name)
+            total = 1
+        elif str_type == "hash":
+            total = int(await client.hlen(key_name))
+            fields: Dict[Any, Any] = {}
+            cursor = 0
+            while True:
+                cursor, batch = await client.hscan(key_name, cursor=cursor, count=chunk)
+                cursor = int(cursor)
+                if batch:
+                    fields.update(batch)
+                if len(fields) >= max_items:
+                    truncated = cursor != 0 or len(fields) > max_items
+                    break
+                if cursor == 0:
+                    break
+            value = [(str(f), str(v)) for f, v in list(fields.items())[:max_items]]
+        elif str_type == "list":
+            total = int(await client.llen(key_name))
+            limit = min(total, max_items)
+            items: List[Any] = []
+            start = 0
+            while start < limit:
+                end = min(start + chunk, limit) - 1
+                batch = await client.lrange(key_name, start, end)
+                if not batch:
+                    break
+                items.extend(batch)
+                start += len(batch)
+            value = [str(x) for x in items[:limit]]
+            truncated = total > max_items
+        elif str_type == "set":
+            total = int(await client.scard(key_name))
+            members: Dict[Any, None] = {}
+            cursor = 0
+            while True:
+                cursor, batch = await client.sscan(key_name, cursor=cursor, count=chunk)
+                cursor = int(cursor)
+                for m in batch or []:
+                    members[m] = None
+                if len(members) >= max_items:
+                    truncated = cursor != 0 or len(members) > max_items
+                    break
+                if cursor == 0:
+                    break
+            value = [str(m) for m in list(members)[:max_items]]
+        elif str_type == "zset":
+            # Rank-ordered ZRANGE chunks: sorted output and no duplicates (unlike ZSCAN).
+            total = int(await client.zcard(key_name))
+            limit = min(total, max_items)
+            pairs: List[Any] = []
+            start = 0
+            while start < limit:
+                end = min(start + chunk, limit) - 1
+                batch = await client.zrange(key_name, start, end, withscores=True)
+                if not batch:
+                    break
+                pairs.extend(batch)
+                start += len(batch)
+            value = [(str(m), s) for m, s in pairs[:limit]]
+            truncated = total > max_items
+        elif str_type == "stream":
+            total = int(await client.xlen(key_name))
+            entries: List[Dict[str, Any]] = []
+            start_id = "-"
+            while len(entries) < max_items:
+                batch = await client.xrange(key_name, min=start_id, max="+", count=min(chunk, max_items - len(entries)))
+                if not batch:
+                    break
+                for entry_id, field_dict in batch:
+                    entries.append({
+                        "id": str(entry_id),
+                        "fields": {str(k): str(v) for k, v in field_dict.items()} if isinstance(field_dict, dict) else field_dict,
+                    })
+                if len(batch) < chunk:
+                    break
+                start_id = f"({batch[-1][0]}"
+            value = entries[:max_items]
+            truncated = total > max_items
+        elif "json" in str_type:
+            raw_json = await client.execute_command("JSON.GET", key_name)
+            value = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+            total = 1
+        else:
+            raise ValueError(f"Download is not supported for Redis type '{k_type}'")
+
+        return {"name": key_name, "type": str_type, "value": value, "total": total, "truncated": truncated}
 
     async def update_key_ttl(self, key_name: str, seconds: int) -> bool:
         """Update or remove TTL on a key."""

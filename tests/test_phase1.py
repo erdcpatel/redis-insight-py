@@ -313,3 +313,46 @@ def test_cluster_node_stats_maps_replicas_to_masters():
         ("10.0.0.2:7001", "master", None, 5),
     ]
     assert all(s.connected_clients == 2 and s.used_memory == 1024 for s in stats)
+
+
+def test_hash_fields_endpoint_paginates_real_redis():
+    """HSCAN pagination through /hash/fields visits every field of a large hash exactly once."""
+    local_conns = [c for c in list_connections() if c["name"] == "Local Redis"]
+    if local_conns:
+        client.post(f"/api/connections/{local_conns[0]['id']}/activate")
+
+    import redis as sync_redis
+    r = sync_redis.Redis(host="localhost", port=6379, decode_responses=True)
+    key = "test:pagination:hash"
+    r.delete(key)
+    r.hset(key, mapping={f"field:{i}": str(i) for i in range(1200)})
+    try:
+        detail = client.get("/api/keys/detail", params={"key": key}).json()
+        assert detail["length"] == 1200
+        assert detail["has_more_fields"] is True
+        assert detail["fields_cursor"] != 0
+
+        seen = set()
+        cursor, pages = 0, 0
+        while True:
+            resp = client.get(f"/api/keys/{key}/hash/fields", params={"cursor": cursor, "count": 300})
+            assert resp.status_code == 200
+            page = resp.json()
+            assert page["total"] == 1200
+            seen.update(f["field"] for f in page["fields"])
+            cursor, pages = page["cursor"], pages + 1
+            if cursor == 0 or pages > 100:
+                break
+        assert cursor == 0
+        assert len(seen) == 1200
+
+        matched = client.get(f"/api/keys/{key}/hash/fields", params={"match": "field:11??", "count": 500}).json()
+        names = {f["field"] for f in matched["fields"]}
+        assert names and all(n.startswith("field:11") and len(n) == 10 for n in names)
+
+        dl = client.get(f"/api/keys/{key}/download")
+        assert dl.status_code == 200
+        assert dl.headers["x-export-format"] == "csv"
+        assert len(dl.text.strip().splitlines()) == 1201
+    finally:
+        r.delete(key)

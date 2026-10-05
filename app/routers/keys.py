@@ -1,6 +1,10 @@
+import csv
 import datetime
+import io
+import json
+import re
 from urllib.parse import unquote
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Query, Body, Response
 from pydantic import BaseModel, Field
 from redis.exceptions import (
@@ -26,7 +30,7 @@ from app.models import (
     BulkDeleteExecuteRequest,
     BulkDeleteExecuteResponse,
 )
-from app.redis_manager import redis_manager
+from app.redis_manager import redis_manager, DOWNLOAD_MAX_ITEMS
 
 router = APIRouter(prefix="/api", tags=["Keys & Status"])
 
@@ -159,6 +163,113 @@ async def get_single_key_detail(key_name: str):
         raise_mapped_exception(e, f"Failed to inspect key '{key_name}'")
 
 
+@router.get("/keys/{key_name:path}/hash/fields")
+async def get_hash_fields(
+    key_name: str,
+    cursor: int = Query(0, ge=0, description="HSCAN cursor (0 to start)"),
+    count: int = Query(100, ge=1, le=500, description="Approximate number of fields per page"),
+    match: Optional[str] = Query(None, description="Glob-style MATCH filter on field names"),
+):
+    """Page through a hash's fields with HSCAN; `cursor` 0 in the response means done."""
+    try:
+        page = await redis_manager.scan_hash_fields(key_name, cursor=cursor, count=count, match=match)
+        unquoted = unquote(key_name)
+        if page["total"] == 0 and unquoted != key_name:
+            page = await redis_manager.scan_hash_fields(unquoted, cursor=cursor, count=count, match=match)
+        return page
+    except Exception as e:
+        raise_mapped_exception(e, f"Failed to scan hash fields for key '{key_name}'")
+
+
+# Allowed download formats per Redis type; the first entry is the default.
+DOWNLOAD_FORMATS: Dict[str, List[str]] = {
+    "string": ["txt"],
+    "hash": ["csv", "json"],
+    "list": ["json", "txt"],
+    "set": ["json", "txt"],
+    "zset": ["csv", "json"],
+    "stream": ["json"],
+    "json": ["json"],
+}
+
+DOWNLOAD_MEDIA_TYPES = {"csv": "text/csv", "json": "application/json", "txt": "text/plain"}
+
+
+def sanitize_filename(name: str, max_len: int = 120) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")
+    return cleaned[:max_len] or "redis_key"
+
+
+def _render_csv(header: List[str], rows: List[Any]) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(header)
+    writer.writerows(rows)
+    return output.getvalue()
+
+
+def render_key_download(full: Dict[str, Any], fmt: str) -> str:
+    k_type = full["type"]
+    value = full["value"]
+    if k_type == "string":
+        return "" if value is None else str(value)
+    if k_type == "hash":
+        if fmt == "csv":
+            return _render_csv(["Field", "Value"], value)
+        return json.dumps(dict(value), indent=2, ensure_ascii=False)
+    if k_type in ("list", "set"):
+        if fmt == "txt":
+            return "\n".join(value) + ("\n" if value else "")
+        return json.dumps(value, indent=2, ensure_ascii=False)
+    if k_type == "zset":
+        if fmt == "csv":
+            return _render_csv(["Member", "Score"], value)
+        return json.dumps([{"member": m, "score": s} for m, s in value], indent=2, ensure_ascii=False)
+    return json.dumps(value, indent=2, ensure_ascii=False)
+
+
+@router.get("/keys/{key_name:path}/download")
+async def download_key_value(
+    key_name: str,
+    format: Optional[str] = Query(None, description="Output format (type-dependent): txt, csv, or json"),
+    max_items: int = Query(DOWNLOAD_MAX_ITEMS, ge=1, le=1_000_000, description="Max entries to read for collection types"),
+):
+    """Download a key's full value as an attachment whose extension always matches its content."""
+    try:
+        full = await redis_manager.get_key_full_value(key_name, max_items=max_items)
+        unquoted = unquote(key_name)
+        if full is None and unquoted != key_name:
+            full = await redis_manager.get_key_full_value(unquoted, max_items=max_items)
+        if full is None:
+            raise HTTPException(status_code=404, detail=f"Key '{key_name}' does not exist or has expired.")
+
+        format_key = "json" if "json" in full["type"] else full["type"]
+        allowed = DOWNLOAD_FORMATS.get(format_key, [])
+        fmt = (format or allowed[0]).lower()
+        if fmt not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported format '{format}' for type '{full['type']}'. Allowed: {', '.join(allowed)}",
+            )
+
+        content = render_key_download({**full, "type": format_key}, fmt)
+        filename = f"{sanitize_filename(full['name'])}.{fmt}"
+        return Response(
+            content=content,
+            media_type=DOWNLOAD_MEDIA_TYPES[fmt],
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Export-Format": fmt,
+                "X-Export-Total": str(full["total"]),
+                "X-Export-Truncated": "true" if full["truncated"] else "false",
+            },
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise_mapped_exception(e, f"Failed to download key '{key_name}'")
+
+
 @router.put("/keys/{key_name:path}/ttl")
 async def update_key_ttl_endpoint(key_name: str, payload: TTLUpdateRequest):
     """Update TTL for a key. Pass seconds=-1 to persist the key."""
@@ -277,10 +388,12 @@ async def export_keys_endpoint(
     format: str = Query("csv", description="Export format: csv or txt")
 ):
     """Export matched key names with type and TTL as CSV or TXT."""
+    fmt = (format or "").strip().lower()
+    if fmt not in ("csv", "txt"):
+        raise HTTPException(status_code=400, detail=f"Unsupported export format '{format}'. Allowed: csv, txt")
     try:
         keys_data = await redis_manager.export_keys(pattern=pattern, type_filter=type)
-        if format.lower() == "csv":
-            import io, csv
+        if fmt == "csv":
             output = io.StringIO()
             writer = csv.writer(output, lineterminator="\n")
             writer.writerow(["Key", "Type", "TTL"])
@@ -297,7 +410,7 @@ async def export_keys_endpoint(
         return Response(
             content=content,
             media_type=media_type,
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers={"Content-Disposition": f'attachment; filename="{filename}"', "X-Export-Format": fmt}
         )
     except Exception as e:
         raise_mapped_exception(e, "Failed to export keys")
