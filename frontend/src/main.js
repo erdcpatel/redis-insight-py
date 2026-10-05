@@ -77,6 +77,10 @@ let currentTopologySearch = "";
 let currentLimit = 2;
 let activeConfigConn = null;
 let currentScanEpoch = 0;
+let scanBatchSize = 50;
+let hashFieldsState = null;
+const SCAN_BATCH_SIZES = [50, 100, 200, 500, 1000];
+const HASH_FIELDS_PAGE_SIZE = 200;
 
 function setupIcons() {
   createIcons({
@@ -275,12 +279,16 @@ function renderAppShell() {
             <div style="display: flex; align-items: center; gap: 0.75rem;">
               <span class="safety-badge">
                 <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
-                Safe SCAN (Chunk 50)
+                <span id="scanChunkLabel">Safe SCAN (Chunk 50)</span>
               </span>
               <span id="scanStatusText">Scanning keys...</span>
             </div>
 
             <div style="display: flex; align-items: center; gap: 0.5rem;" id="scanActionsGroup">
+              <label for="scanBatchSizeSelect" style="font-size: 0.72rem; color: var(--text-muted);">Keys per scan</label>
+              <select id="scanBatchSizeSelect" class="field-search-input" title="Keys requested per SCAN batch (applies to the next Load More)" style="width: auto; font-size: 0.75rem; padding: 0.3rem 0.5rem;">
+                ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n}</option>`).join("")}
+              </select>
               <button type="button" class="btn btn-secondary" id="btnScanNext" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
                 <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
                 Load More
@@ -529,6 +537,10 @@ function renderAppShell() {
             </button>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary" id="btnDownloadKeyValue" title="Download the full value of this key" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+              <i data-lucide="download" style="width: 13px; height: 13px;"></i>
+              Download Value
+            </button>
             <button type="button" class="btn btn-danger" id="btnDeleteKeyFromDetail" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
               <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
               Delete Key
@@ -960,7 +972,7 @@ async function scanNextBatch(expectedEpoch = null) {
   updateScanUI();
 
   try {
-    const url = `/api/keys?pattern=${encodeURIComponent(currentPattern)}&cursor=${encodeURIComponent(String(currentCursor ?? "0"))}&count=50${currentType !== "all" ? `&type=${encodeURIComponent(currentType)}` : ""}`;
+    const url = `/api/keys?pattern=${encodeURIComponent(currentPattern)}&cursor=${encodeURIComponent(String(currentCursor ?? "0"))}&count=${scanBatchSize}${currentType !== "all" ? `&type=${encodeURIComponent(currentType)}` : ""}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error("Failed to scan keys");
     const data = await res.json();
@@ -1083,6 +1095,11 @@ function renderKeysTable() {
       });
     });
   });
+}
+
+function updateScanChunkLabel() {
+  const label = document.getElementById("scanChunkLabel");
+  if (label) label.textContent = `Safe SCAN (Chunk ${scanBatchSize})`;
 }
 
 function updateScanUI() {
@@ -1233,11 +1250,13 @@ function renderKeyDetailValue(data) {
   // 1. HASH VIEW
   if (lowerType === "hash") {
     const fields = data.fields || [];
+    const cursor = data.has_more_fields ? Number(data.fields_cursor || 0) : 0;
+    hashFieldsState = { key: data.name, cursor, fields: [...fields], total: Number(data.length || fields.length), match: null, loading: false };
     bodyEl.innerHTML = `
       <div class="fields-toolbar">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <input type="text" id="hashFieldSearchInput" class="field-search-input" placeholder="Search ${fields.length} fields...">
-          <span style="font-size: 0.75rem; color: var(--text-muted);" id="hashFieldCountText">${fields.length} fields</span>
+          <input type="text" id="hashFieldSearchInput" class="field-search-input" placeholder="Filter fields (Enter: search all)" title="Filters loaded fields instantly; press Enter to search the whole hash on the server (HSCAN MATCH)">
+          <span style="font-size: 0.75rem; color: var(--text-muted);" id="hashFieldCountText">${describeHashFieldCount(fields.length)}</span>
         </div>
         <button type="button" class="btn btn-secondary" id="btnAddHashField" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
           <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
@@ -1259,9 +1278,11 @@ function renderKeyDetailValue(data) {
           </tbody>
         </table>
       </div>
+      <div id="hashFieldsFooter" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);"></div>
     `;
     setupIcons();
-    setupHashEventListeners(data.name, fields);
+    setupHashEventListeners(data.name);
+    updateHashFieldsFooter();
     return;
   }
 
@@ -1361,20 +1382,121 @@ function renderHashFieldRows(fields) {
   `).join("");
 }
 
-function setupHashEventListeners(keyName, allFields) {
-  const searchInput = document.getElementById("hashFieldSearchInput");
-  const countText = document.getElementById("hashFieldCountText");
-  const tbody = document.getElementById("hashFieldsTableBody");
+function describeHashFieldCount(loaded, shown = null) {
+  const st = hashFieldsState;
+  const total = st ? st.total : loaded;
+  const base = st && st.match
+    ? `${loaded.toLocaleString()} matching fields loaded`
+    : loaded < total
+    ? `${loaded.toLocaleString()} of ${total.toLocaleString()} fields loaded`
+    : `${loaded.toLocaleString()} fields`;
+  return shown !== null ? `${shown.toLocaleString()} shown · ${base}` : base;
+}
 
-  // Instant field filtering
+function hashGlobForQuery(q) {
+  return `*${q.replace(/[\\*?\[\]]/g, ch => `\\${ch}`)}*`;
+}
+
+function rerenderHashFields() {
+  const st = hashFieldsState;
+  const tbody = document.getElementById("hashFieldsTableBody");
+  const countText = document.getElementById("hashFieldCountText");
+  const searchInput = document.getElementById("hashFieldSearchInput");
+  if (!st || !tbody) return;
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  const filtered = q ? st.fields.filter(f => f.field.toLowerCase().includes(q) || f.value.toLowerCase().includes(q)) : st.fields;
+  tbody.innerHTML = renderHashFieldRows(filtered);
+  if (countText) countText.textContent = describeHashFieldCount(st.fields.length, q ? filtered.length : null);
+  setupIcons();
+  attachHashDeleteHandlers(st.key);
+  updateHashFieldsFooter();
+}
+
+function updateHashFieldsFooter() {
+  const footer = document.getElementById("hashFieldsFooter");
+  const st = hashFieldsState;
+  if (!footer || !st) return;
+  const hasMore = st.cursor !== 0;
+  const note = st.match
+    ? `Server-side filter: <code>${escapeHtml(st.match)}</code> · <a href="#" id="btnClearHashMatch" style="color: var(--accent-primary);">clear</a>`
+    : hasMore
+    ? "Search applies to loaded fields. Press Enter to search all fields on the server."
+    : "";
+  footer.innerHTML = `
+    <span>${note}</span>
+    ${hasMore ? `
+      <button type="button" class="btn btn-secondary" id="btnLoadMoreHashFields" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;" ${st.loading ? "disabled" : ""}>
+        <i data-lucide="${st.loading ? "refresh-cw" : "arrow-down-circle"}" ${st.loading ? 'class="spin"' : ""} style="width: 13px; height: 13px;"></i>
+        ${st.loading ? "Loading..." : "Load More Fields"}
+      </button>` : ""}
+  `;
+  setupIcons();
+  const btnMore = document.getElementById("btnLoadMoreHashFields");
+  if (btnMore) btnMore.addEventListener("click", () => loadMoreHashFields());
+  const btnClear = document.getElementById("btnClearHashMatch");
+  if (btnClear) {
+    btnClear.addEventListener("click", (e) => {
+      e.preventDefault();
+      const searchInput = document.getElementById("hashFieldSearchInput");
+      if (searchInput) searchInput.value = "";
+      loadMoreHashFields({ reset: true, match: null });
+    });
+  }
+}
+
+// Fetch the next HSCAN page (or restart with a new MATCH filter when reset=true)
+async function loadMoreHashFields({ reset = false, match } = {}) {
+  const st = hashFieldsState;
+  if (!st || st.loading) return;
+  if (!reset && st.cursor === 0) return;
+  const key = st.key;
+  const nextMatch = reset ? match : st.match;
+  st.loading = true;
+  updateHashFieldsFooter();
+
+  try {
+    const params = new URLSearchParams({ cursor: String(reset ? 0 : st.cursor), count: String(HASH_FIELDS_PAGE_SIZE) });
+    if (nextMatch) params.set("match", nextMatch);
+    const res = await fetch(`/api/keys/${encodeURIComponent(key)}/hash/fields?${params}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error: ${res.status}`);
+    }
+    const page = await res.json();
+    if (hashFieldsState !== st || activeDetailKey !== key) return;
+
+    if (reset) st.fields = [];
+    const seen = new Set(st.fields.map(f => f.field));
+    for (const f of page.fields || []) {
+      if (!seen.has(f.field)) {
+        seen.add(f.field);
+        st.fields.push(f);
+      }
+    }
+    st.cursor = Number(page.cursor || 0);
+    st.total = Number(page.total ?? st.total);
+    st.match = nextMatch || null;
+  } catch (err) {
+    alert("Failed to load hash fields: " + err.message);
+  } finally {
+    st.loading = false;
+    if (hashFieldsState === st) rerenderHashFields();
+  }
+}
+
+function setupHashEventListeners(keyName) {
+  const searchInput = document.getElementById("hashFieldSearchInput");
+
+  // Instant filtering over loaded fields; Enter runs a server-side HSCAN MATCH across the whole hash
   if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? allFields.filter(f => f.field.toLowerCase().includes(q) || f.value.toLowerCase().includes(q)) : allFields;
-      tbody.innerHTML = renderHashFieldRows(filtered);
-      countText.textContent = `${filtered.length} of ${allFields.length} fields`;
-      setupIcons();
-      attachHashDeleteHandlers(keyName);
+    searchInput.addEventListener("input", () => rerenderHashFields());
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || !hashFieldsState) return;
+      const q = searchInput.value.trim();
+      const st = hashFieldsState;
+      const fullyLoaded = st.cursor === 0 && !st.match;
+      if (fullyLoaded) return;
+      loadMoreHashFields({ reset: true, match: q ? hashGlobForQuery(q) : null });
     });
   }
 
@@ -1421,6 +1543,73 @@ function attachHashDeleteHandlers(keyName) {
       }
     });
   });
+}
+
+function parseContentDispositionFilename(disposition) {
+  if (!disposition) return null;
+  const extended = disposition.match(/filename\*\s*=\s*([\w-]*)'[^']*'([^;]+)/i);
+  if (extended) {
+    try {
+      return decodeURIComponent(extended[2].trim().replace(/^"|"$/g, ""));
+    } catch (e) {}
+  }
+  const plain = disposition.match(/filename\s*=\s*"([^"]*)"/i) || disposition.match(/filename\s*=\s*([^;]+)/i);
+  return plain && plain[1].trim() ? plain[1].trim() : null;
+}
+
+function saveBlobAsFile(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  // Revoking synchronously can cancel the download in some browsers
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// Save a fetch() Response as a file, guaranteeing the filename extension matches the content format
+async function downloadResponseAsFile(res, fallbackName, format = null) {
+  let filename = parseContentDispositionFilename(res.headers.get("content-disposition")) || fallbackName;
+  const ext = String(res.headers.get("x-export-format") || format || "").toLowerCase();
+  if (ext && !filename.toLowerCase().endsWith(`.${ext}`)) {
+    filename = `${filename}.${ext}`;
+  }
+  const blob = await res.blob();
+  saveBlobAsFile(blob, filename);
+  return filename;
+}
+
+async function downloadKeyValue(keyName, btn) {
+  if (!keyName) return;
+  const originalHtml = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Downloading...`;
+    setupIcons();
+  }
+  try {
+    const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/download`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error: ${res.status}`);
+    }
+    const fallback = keyName.replace(/[^A-Za-z0-9._-]+/g, "_") || "redis_key";
+    await downloadResponseAsFile(res, fallback);
+    if (res.headers.get("x-export-truncated") === "true") {
+      alert(`Download was capped: the key has ${Number(res.headers.get("x-export-total") || 0).toLocaleString()} entries, only the first portion was included.`);
+    }
+  } catch (err) {
+    alert("Download failed: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      setupIcons();
+    }
+  }
 }
 
 function escapeHtml(str) {
@@ -4012,6 +4201,11 @@ function setupEventListeners() {
     if (e.target === detailModal) detailModal.classList.remove("active");
   });
 
+  const btnDownloadKeyValue = document.getElementById("btnDownloadKeyValue");
+  if (btnDownloadKeyValue) {
+    btnDownloadKeyValue.addEventListener("click", () => downloadKeyValue(activeDetailKey, btnDownloadKeyValue));
+  }
+
   // Copy key name in detail modal
   document.getElementById("btnCopyKeyName").addEventListener("click", () => {
     if (activeDetailKey) {
@@ -4206,6 +4400,16 @@ function setupEventListeners() {
   });
 
   // Scan controls
+  const scanBatchSelect = document.getElementById("scanBatchSizeSelect");
+  if (scanBatchSelect) {
+    scanBatchSelect.value = String(scanBatchSize);
+    scanBatchSelect.addEventListener("change", () => {
+      const n = parseInt(scanBatchSelect.value, 10);
+      scanBatchSize = SCAN_BATCH_SIZES.includes(n) ? n : 50;
+      updateScanChunkLabel();
+    });
+  }
+  updateScanChunkLabel();
   const btnScanNext = document.getElementById("btnScanNext");
   if (btnScanNext) {
     btnScanNext.addEventListener("click", () => scanNextBatch());
@@ -4264,24 +4468,7 @@ function setupEventListeners() {
               throw new Error(err.detail || `Server error: ${res.status}`);
             }
 
-            let filename = defaultFilename;
-            const disp = res.headers.get("content-disposition");
-            if (disp && disp.includes("filename=")) {
-              const match = disp.match(/filename="?([^";]+)"?/);
-              if (match && match[1]) filename = match[1];
-            }
-            if (!filename.endsWith(`.${format}`)) {
-              filename = `${filename}.${format}`;
-            }
-
-            const blob = await res.blob();
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
+            await downloadResponseAsFile(res, defaultFilename, format);
             closeExport();
           } catch (err) {
             alert(`Export failed: ${err.message}`);
@@ -4308,13 +4495,7 @@ function setupEventListeners() {
           blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain;charset=utf-8;" });
         }
 
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = defaultFilename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
+        saveBlobAsFile(blob, defaultFilename);
         closeExport();
       });
     }
