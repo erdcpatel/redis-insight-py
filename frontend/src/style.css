@@ -2660,5 +2660,382 @@ body {
   border-color: rgba(74, 222, 128, 0.3) !important;
 }
 
+/* ==========================================================================
+   Namespace / Delimiter Key Folder Tree View & View Mode Toggle
+   ========================================================================== */
+
+/* View Mode Toggle Group (Table vs Tree) */
+.view-mode-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.view-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.26rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.view-mode-tab:hover {
+  color: var(--text-primary);
+}
+
+.view-mode-tab.active {
+  background: var(--bg-surface-elevated);
+  color: var(--accent-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.actions-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 0.2rem;
+  opacity: 0.6;
+}
+
+/* Tree View Container */
+.tree-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Tree View Header Toolbar */
+.tree-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.85rem;
+  background: rgba(15, 23, 42, 0.55);
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tree-toolbar-left,
+.tree-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.tree-delimiter-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.tree-control-label {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.tree-select {
+  background: rgba(0, 0, 0, 0.28) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 0.24rem 0.5rem !important;
+  font-size: 0.74rem !important;
+  cursor: pointer;
+  outline: none;
+}
+
+.tree-select:focus {
+  border-color: var(--accent-primary) !important;
+}
+
+.tree-summary-pill {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 0.18rem 0.6rem;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.tree-filter-box {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.22rem 0.5rem;
+  width: 170px;
+  transition: border-color 0.15s ease;
+}
+
+.tree-filter-box:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary-glow);
+}
+
+.tree-filter-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  width: 100%;
+}
+
+.btn-clear-tree-filter {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.btn-clear-tree-filter:hover {
+  color: var(--text-primary);
+}
+
+.tree-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tree-btn {
+  padding: 0.24rem 0.5rem !important;
+  font-size: 0.72rem !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+/* Tree Body Scrollable View */
+.tree-view-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.35rem 0.4rem;
+  font-family: var(--font-mono);
+}
+
+.tree-folder-group {
+  width: 100%;
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding-right: 0.85rem;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.12s ease;
+  user-select: none;
+}
+
+.tree-node:hover {
+  background-color: rgba(255, 255, 255, 0.035);
+}
+
+.tree-node-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 0.45rem;
+}
+
+/* Folder Specific */
+.tree-folder {
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.tree-folder:hover {
+  background-color: rgba(255, 255, 255, 0.045);
+}
+
+.tree-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.tree-toggle-btn:hover {
+  color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tree-folder-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.tree-folder-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tree-folder-delim {
+  color: var(--accent-primary);
+  opacity: 0.8;
+  font-weight: 700;
+}
+
+.tree-count-badge {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.69rem;
+  margin-left: 0.25rem;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.tree-filter-prefix-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.tree-folder:hover .tree-filter-prefix-btn {
+  opacity: 1;
+  border-color: var(--border-subtle);
+  background: var(--bg-surface-elevated);
+}
+
+.tree-filter-prefix-btn:hover {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+/* Tree Children indentation guide */
+.tree-children {
+  position: relative;
+}
+
+/* Leaf Key Specific */
+.tree-leaf {
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.tree-leaf:hover {
+  background-color: rgba(56, 189, 248, 0.04);
+}
+
+.tree-key-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-primary);
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.tree-key-name {
+  font-size: 0.82rem;
+  color: var(--accent-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
+
+.tree-key-ttl {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+  padding: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.tree-key-status {
+  font-size: 0.72rem;
+  padding: 0 0.5rem;
+  flex-shrink: 0;
+  min-width: 45px;
+  text-align: right;
+}
+
+.tree-key-actions {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Root Keys Section */
+.tree-root-keys-section {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tree-root-keys-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.tree-root-keys-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+
 
 

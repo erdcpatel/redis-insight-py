@@ -32,7 +32,7 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
 ├────────────────────────────────────────────────────────────────────────┤
 │ Status Bar: [Safe SCAN Badge] [Keys Count Progress] │ [Auto: 10s][10s▾] [↻ Refresh] │
 ├────────────────────────────────────────────────────────────────────────┤
-│ Actions Bar: Keys per scan: [50▾] [↓ Load More]     │ [⤓ Export] [🗑 Bulk Delete]    │
+│ Actions Bar: [Table|Tree] | Keys per scan: [50▾] [↓ Load More] │ [⤓ Export] [🗑 Bulk Delete] │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,7 +40,7 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
   - Left: `.safety-badge` + `.scan-status-text`
   - Right: `#autoRefreshGroup` (segmented toggle pill) + `#btnResetScan`
 - **Panel 2 (`.keys-actions-bar`)**:
-  - Left: `#scanBatchSizeSelect` + `#btnScanNext`
+  - Left: `#viewModeToggleGroup` (Table vs Tree segmented pill) + divider + `#scanBatchSizeSelect` + `#btnScanNext`
   - Right: Utility tools like `#btnOpenExportModal` and `#btnOpenBulkDeleteModal`
 
 ### B. Segmented Auto-Refresh Pill Pattern
@@ -49,6 +49,22 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
   - Toggle Button: Shows active pulsing indicator and countdown (`Auto: 10s`, `Auto: 4m 30s`, `Auto: Off`).
   - Interval Select: Narrow select (`width: 58px; max-width: 62px; text-align: center; font-weight: 500;`).
   - Standard intervals: `5s`, `10s`, `15s`, `30s`, `1m`, `2m`, `5m`.
+
+### C. Virtual Folder Tree View Standards
+
+1. **Seamless View Mode Switching**:
+   - The view switcher must be an ergonomic segmented pill (`.view-mode-toggle-group`) placed at the start of `.actions-left`.
+   - Persist choice in `localStorage ("redis_insight_view_mode")`.
+2. **Compact Tree Toolbar**:
+   - Delimiter selector dropdown (`Auto (:, /, .)`, `:`, `/`, `.`, `-`).
+   - Summary badge (`N Namespaces • M Keys`).
+   - In-tree real-time filter box (`#treeFilterInput`) with clear icon.
+   - Expand All and Collapse All buttons.
+3. **Hierarchical Folder Structure**:
+   - Folders display chevron toggle, folder icon, trailing delimiter (`:`), and key count badge.
+   - Hover reveals a 1-click `Filter` button to immediately scope the Redis SCAN pattern to `prefix:*`.
+   - Folder click toggles expansion without re-querying the backend.
+   - Leaf keys display key icon, leaf name, type badge, TTL, status, and action buttons (respecting Read-Only mode). Clicking a key opens the Key Inspector modal.
 
 ---
 

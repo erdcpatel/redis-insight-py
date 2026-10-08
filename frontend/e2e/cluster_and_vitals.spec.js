@@ -213,5 +213,106 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     }
   });
 
+  test('Virtual Folder Tree View groups keys by delimiter, supports collapse/expand, filtering, and inspector opening', async ({ page, request }) => {
+    // 1. Ensure standalone connection is active
+    const connsRes = await request.get('/api/connections');
+    expect(connsRes.ok()).toBeTruthy();
+    const conns = await connsRes.json();
+    const localConn = conns.find(c => (c.host === '127.0.0.1' || c.host === 'localhost') && c.port === 6379 && c.conn_type === 'standalone');
+    if (localConn) {
+      await request.post(`/api/connections/${localConn.id}/activate`);
+    }
+
+    // 2. Open page
+    await page.goto('/');
+
+    // 3. Verify Table view is active by default and View Toggle exists
+    const btnTable = page.locator('#btnViewTable');
+    const btnTree = page.locator('#btnViewTree');
+    await expect(btnTable).toBeVisible();
+    await expect(btnTree).toBeVisible();
+    await expect(btnTable).toHaveClass(/active/);
+
+    // Wait for keys to load
+    await expect(page.locator('.key-row').first()).toBeVisible({ timeout: 10000 });
+
+    // 4. Switch to Tree View
+    await btnTree.click();
+    await expect(btnTree).toHaveClass(/active/);
+    await expect(btnTable).not.toHaveClass(/active/);
+
+    // 5. Verify Tree View UI components are rendered
+    const treeWrapper = page.locator('.tree-view-wrapper');
+    await expect(treeWrapper).toBeVisible();
+    const treeToolbar = page.locator('.tree-toolbar');
+    await expect(treeToolbar).toBeVisible();
+    const treeSummary = page.locator('#treeSummaryPill');
+    await expect(treeSummary).toBeVisible();
+    await expect(treeSummary).toContainText(/Namespace/i);
+
+    // 6. Verify collapsible namespace folders exist
+    const folders = page.locator('.tree-folder');
+    const folderCount = await folders.count();
+    expect(folderCount).toBeGreaterThan(0);
+
+    // Verify key count badge on folder
+    const countBadge = folders.first().locator('.tree-count-badge');
+    await expect(countBadge).toBeVisible();
+    await expect(countBadge).toContainText(/key/i);
+
+    // 7. Verify folder collapse and expand
+    const firstFolderGroup = page.locator('.tree-folder-group').first();
+    const firstChildren = firstFolderGroup.locator(':scope > .tree-children');
+    await expect(firstChildren).toBeVisible();
+
+    // Click folder to collapse
+    await firstFolderGroup.locator('.tree-folder').click();
+    await expect(firstChildren).not.toBeVisible();
+
+    // Click folder again to expand
+    await firstFolderGroup.locator('.tree-folder').click();
+    await expect(firstChildren).toBeVisible();
+
+    // 8. Test Collapse All and Expand All buttons
+    const btnCollapseAll = page.locator('#btnCollapseAllTree');
+    await btnCollapseAll.click();
+    await expect(firstChildren).not.toBeVisible();
+
+    const btnExpandAll = page.locator('#btnExpandAllTree');
+    await btnExpandAll.click();
+    await expect(firstChildren).toBeVisible();
+
+    // 9. Test In-Tree Filter input with dynamically loaded namespace
+    const firstFolderNameEl = folders.first().locator('.tree-folder-name');
+    const folderRawText = await firstFolderNameEl.textContent() || '';
+    const folderFilterTerm = folderRawText.replace(/[:/.-]/g, '').trim();
+    expect(folderFilterTerm.length).toBeGreaterThan(0);
+
+    const filterInput = page.locator('#treeFilterInput');
+    await filterInput.fill(folderFilterTerm);
+    const matchingFolder = page.locator(`.tree-folder-name:has-text("${folderFilterTerm}")`);
+    await expect(matchingFolder.first()).toBeVisible();
+
+    // Clear filter
+    const btnClearFilter = page.locator('#btnClearTreeFilter');
+    await btnClearFilter.click();
+    await expect(filterInput).toHaveValue('');
+
+    // 10. Click a leaf key to open Key Inspector modal
+    const leafKey = page.locator('.tree-leaf').first();
+    await leafKey.click();
+    const keyModal = page.locator('#keyDetailModal');
+    await expect(keyModal).toHaveClass(/active/);
+    const btnCloseDetail = page.locator('#btnCloseDetailModal');
+    await btnCloseDetail.click();
+    await expect(keyModal).not.toHaveClass(/active/);
+
+    // 11. Switch back to Table View
+    await btnTable.click();
+    await expect(btnTable).toHaveClass(/active/);
+    await expect(page.locator('#gridViewerContainer .data-table')).toBeVisible();
+  });
+
 });
+
 

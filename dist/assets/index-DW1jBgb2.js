@@ -3,205 +3,245 @@
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Ut=(e,t,n=[])=>{const o=document.createElementNS("http://www.w3.org/2000/svg",e);return Object.keys(t).forEach(a=>{o.setAttribute(a,String(t[a]))}),n.length&&n.forEach(a=>{const i=Ut(...a);o.appendChild(i)}),o};var fn=([e,t,n])=>Ut(e,t,n);/**
+ */const en=(e,t,n=[])=>{const o=document.createElementNS("http://www.w3.org/2000/svg",e);return Object.keys(t).forEach(a=>{o.setAttribute(a,String(t[a]))}),n.length&&n.forEach(a=>{const i=en(...a);o.appendChild(i)}),o};var Sn=([e,t,n])=>en(e,t,n);/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const hn=e=>Array.from(e.attributes).reduce((t,n)=>(t[n.name]=n.value,t),{}),vn=e=>typeof e=="string"?e:!e||!e.class?"":e.class&&typeof e.class=="string"?e.class.split(" "):e.class&&Array.isArray(e.class)?e.class:"",bn=e=>e.flatMap(vn).map(n=>n.trim()).filter(Boolean).filter((n,o,a)=>a.indexOf(n)===o).join(" "),xn=e=>e.replace(/(\w)(\w*)(_|-|\s*)/g,(t,n,o)=>n.toUpperCase()+o.toLowerCase()),Rt=(e,{nameAttr:t,icons:n,attrs:o})=>{const a=e.getAttribute(t);if(a==null)return;const i=xn(a),r=n[i];if(!r)return console.warn(`${e.outerHTML} icon name was not found in the provided icons object.`);const l=hn(e),[c,y,g]=r,b={...y,"data-lucide":a,...o,...l},w=bn(["lucide",`lucide-${a}`,l,o]);w&&Object.assign(b,{class:w});const h=fn([c,b,g]);return e.parentNode?.replaceChild(h,e)};/**
+ */const $n=e=>Array.from(e.attributes).reduce((t,n)=>(t[n.name]=n.value,t),{}),In=e=>typeof e=="string"?e:!e||!e.class?"":e.class&&typeof e.class=="string"?e.class.split(" "):e.class&&Array.isArray(e.class)?e.class:"",Tn=e=>e.flatMap(In).map(n=>n.trim()).filter(Boolean).filter((n,o,a)=>a.indexOf(n)===o).join(" "),Mn=e=>e.replace(/(\w)(\w*)(_|-|\s*)/g,(t,n,o)=>n.toUpperCase()+o.toLowerCase()),Ut=(e,{nameAttr:t,icons:n,attrs:o})=>{const a=e.getAttribute(t);if(a==null)return;const i=Mn(a),r=n[i];if(!r)return console.warn(`${e.outerHTML} icon name was not found in the provided icons object.`);const s=$n(e),[c,m,g]=r,E={...m,"data-lucide":a,...o,...s},C=Tn(["lucide",`lucide-${a}`,s,o]);C&&Object.assign(E,{class:C});const x=Sn([c,E,g]);return e.parentNode?.replaceChild(x,e)};/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const v={xmlns:"http://www.w3.org/2000/svg",width:24,height:24,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor","stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round"};/**
+ */const w={xmlns:"http://www.w3.org/2000/svg",width:24,height:24,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor","stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round"};/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const wn=["svg",v,[["path",{d:"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"}]]];/**
+ */const Bn=["svg",w,[["path",{d:"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const En=["svg",v,[["path",{d:"m16 3 4 4-4 4"}],["path",{d:"M20 7H4"}],["path",{d:"m8 21-4-4 4-4"}],["path",{d:"M4 17h16"}]]];/**
+ */const _n=["svg",w,[["path",{d:"m16 3 4 4-4 4"}],["path",{d:"M20 7H4"}],["path",{d:"m8 21-4-4 4-4"}],["path",{d:"M4 17h16"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Cn=["svg",v,[["line",{x1:"18",x2:"18",y1:"20",y2:"10"}],["line",{x1:"12",x2:"12",y1:"20",y2:"4"}],["line",{x1:"6",x2:"6",y1:"20",y2:"14"}]]];/**
+ */const An=["svg",w,[["line",{x1:"18",x2:"18",y1:"20",y2:"10"}],["line",{x1:"12",x2:"12",y1:"20",y2:"4"}],["line",{x1:"6",x2:"6",y1:"20",y2:"14"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const kn=["svg",v,[["path",{d:"M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"}],["path",{d:"M21.21 15.89A10 10 0 1 1 8 2.83"}]]];/**
+ */const Rn=["svg",w,[["path",{d:"M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"}],["path",{d:"M21.21 15.89A10 10 0 1 1 8 2.83"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Ln=["svg",v,[["path",{d:"m15 18-6-6 6-6"}]]];/**
+ */const Dn=["svg",w,[["path",{d:"m6 9 6 6 6-6"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Sn=["svg",v,[["path",{d:"m9 18 6-6-6-6"}]]];/**
+ */const Nn=["svg",w,[["path",{d:"m15 18-6-6 6-6"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const $n=["svg",v,[["circle",{cx:"12",cy:"12",r:"10"}],["line",{x1:"12",x2:"12",y1:"8",y2:"12"}],["line",{x1:"12",x2:"12.01",y1:"16",y2:"16"}]]];/**
+ */const zn=["svg",w,[["path",{d:"m9 18 6-6-6-6"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const In=["svg",v,[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"M12 8v8"}],["path",{d:"m8 12 4 4 4-4"}]]];/**
+ */const Pn=["svg",w,[["circle",{cx:"12",cy:"12",r:"10"}],["line",{x1:"12",x2:"12",y1:"8",y2:"12"}],["line",{x1:"12",x2:"12.01",y1:"16",y2:"16"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Tn=["svg",v,[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"m9 12 2 2 4-4"}]]];/**
+ */const Hn=["svg",w,[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"M12 8v8"}],["path",{d:"m8 12 4 4 4-4"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Mn=["svg",v,[["circle",{cx:"12",cy:"12",r:"10"}],["polyline",{points:"12 6 12 12 16 14"}]]];/**
+ */const Fn=["svg",w,[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"m9 12 2 2 4-4"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Bn=["svg",v,[["polyline",{points:"16 18 22 12 16 6"}],["polyline",{points:"8 6 2 12 8 18"}]]];/**
+ */const On=["svg",w,[["circle",{cx:"12",cy:"12",r:"10"}],["polyline",{points:"12 6 12 12 16 14"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const _n=["svg",v,[["rect",{width:"14",height:"14",x:"8",y:"8",rx:"2",ry:"2"}],["path",{d:"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"}]]];/**
+ */const Kn=["svg",w,[["polyline",{points:"16 18 22 12 16 6"}],["polyline",{points:"8 6 2 12 8 18"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const An=["svg",v,[["rect",{width:"16",height:"16",x:"4",y:"4",rx:"2"}],["rect",{width:"6",height:"6",x:"9",y:"9",rx:"1"}],["path",{d:"M15 2v2"}],["path",{d:"M15 20v2"}],["path",{d:"M2 15h2"}],["path",{d:"M2 9h2"}],["path",{d:"M20 15h2"}],["path",{d:"M20 9h2"}],["path",{d:"M9 2v2"}],["path",{d:"M9 20v2"}]]];/**
+ */const jn=["svg",w,[["rect",{width:"14",height:"14",x:"8",y:"8",rx:"2",ry:"2"}],["path",{d:"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Rn=["svg",v,[["ellipse",{cx:"12",cy:"5",rx:"9",ry:"3"}],["path",{d:"M3 5V19A9 3 0 0 0 21 19V5"}],["path",{d:"M3 12A9 3 0 0 0 21 12"}]]];/**
+ */const Un=["svg",w,[["rect",{width:"16",height:"16",x:"4",y:"4",rx:"2"}],["rect",{width:"6",height:"6",x:"9",y:"9",rx:"1"}],["path",{d:"M15 2v2"}],["path",{d:"M15 20v2"}],["path",{d:"M2 15h2"}],["path",{d:"M2 9h2"}],["path",{d:"M20 15h2"}],["path",{d:"M20 9h2"}],["path",{d:"M9 2v2"}],["path",{d:"M9 20v2"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Dn=["svg",v,[["path",{d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}],["polyline",{points:"7 10 12 15 17 10"}],["line",{x1:"12",x2:"12",y1:"15",y2:"3"}]]];/**
+ */const Vn=["svg",w,[["ellipse",{cx:"12",cy:"5",rx:"9",ry:"3"}],["path",{d:"M3 5V19A9 3 0 0 0 21 19V5"}],["path",{d:"M3 12A9 3 0 0 0 21 12"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Nn=["svg",v,[["path",{d:"M15 3h6v6"}],["path",{d:"M10 14 21 3"}],["path",{d:"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"}]]];/**
+ */const qn=["svg",w,[["path",{d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}],["polyline",{points:"7 10 12 15 17 10"}],["line",{x1:"12",x2:"12",y1:"15",y2:"3"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const zn=["svg",v,[["path",{d:"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"}],["path",{d:"M14 2v4a2 2 0 0 0 2 2h4"}],["path",{d:"M10 9H8"}],["path",{d:"M16 13H8"}],["path",{d:"M16 17H8"}]]];/**
+ */const Gn=["svg",w,[["path",{d:"M15 3h6v6"}],["path",{d:"M10 14 21 3"}],["path",{d:"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Pn=["svg",v,[["line",{x1:"6",x2:"6",y1:"3",y2:"15"}],["circle",{cx:"18",cy:"6",r:"3"}],["circle",{cx:"6",cy:"18",r:"3"}],["path",{d:"M18 9a9 9 0 0 1-9 9"}]]];/**
+ */const Jn=["svg",w,[["path",{d:"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"}],["path",{d:"M14 2v4a2 2 0 0 0 2 2h4"}],["path",{d:"M10 9H8"}],["path",{d:"M16 13H8"}],["path",{d:"M16 17H8"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Hn=["svg",v,[["path",{d:"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"}],["path",{d:"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"}],["path",{d:"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"}]]];/**
+ */const Wn=["svg",w,[["polygon",{points:"22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const On=["svg",v,[["rect",{width:"18",height:"11",x:"3",y:"11",rx:"2",ry:"2"}],["path",{d:"M7 11V7a5 5 0 0 1 10 0v4"}]]];/**
+ */const Yn=["svg",w,[["path",{d:"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Fn=["svg",v,[["rect",{x:"16",y:"16",width:"6",height:"6",rx:"1"}],["rect",{x:"2",y:"16",width:"6",height:"6",rx:"1"}],["rect",{x:"9",y:"2",width:"6",height:"6",rx:"1"}],["path",{d:"M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"}],["path",{d:"M12 12V8"}]]];/**
+ */const Zn=["svg",w,[["path",{d:"M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"}],["path",{d:"M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"}],["path",{d:"M3 5a2 2 0 0 0 2 2h3"}],["path",{d:"M3 3v13a2 2 0 0 0 2 2h3"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const jn=["svg",v,[["rect",{width:"18",height:"18",x:"3",y:"3",rx:"2"}],["path",{d:"M9 3v18"}]]];/**
+ */const Qn=["svg",w,[["path",{d:"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Kn=["svg",v,[["polygon",{points:"6 3 20 12 6 21 6 3"}]]];/**
+ */const Xn=["svg",w,[["line",{x1:"6",x2:"6",y1:"3",y2:"15"}],["circle",{cx:"18",cy:"6",r:"3"}],["circle",{cx:"6",cy:"18",r:"3"}],["path",{d:"M18 9a9 9 0 0 1-9 9"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Un=["svg",v,[["path",{d:"M5 12h14"}],["path",{d:"M12 5v14"}]]];/**
+ */const eo=["svg",w,[["path",{d:"m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"}],["path",{d:"m21 2-9.6 9.6"}],["circle",{cx:"7.5",cy:"15.5",r:"5.5"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const qn=["svg",v,[["path",{d:"M12 2v10"}],["path",{d:"M18.4 6.6a9 9 0 1 1-12.77.04"}]]];/**
+ */const to=["svg",w,[["path",{d:"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"}],["path",{d:"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"}],["path",{d:"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Vn=["svg",v,[["path",{d:"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"}],["path",{d:"M21 3v5h-5"}],["path",{d:"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"}],["path",{d:"M8 16H3v5"}]]];/**
+ */const no=["svg",w,[["path",{d:"M3 12h.01"}],["path",{d:"M3 18h.01"}],["path",{d:"M3 6h.01"}],["path",{d:"M8 12h13"}],["path",{d:"M8 18h13"}],["path",{d:"M8 6h13"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Gn=["svg",v,[["circle",{cx:"11",cy:"11",r:"8"}],["path",{d:"m21 21-4.3-4.3"}]]];/**
+ */const oo=["svg",w,[["rect",{width:"18",height:"11",x:"3",y:"11",rx:"2",ry:"2"}],["path",{d:"M7 11V7a5 5 0 0 1 10 0v4"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Jn=["svg",v,[["rect",{width:"20",height:"8",x:"2",y:"2",rx:"2",ry:"2"}],["rect",{width:"20",height:"8",x:"2",y:"14",rx:"2",ry:"2"}],["line",{x1:"6",x2:"6.01",y1:"6",y2:"6"}],["line",{x1:"6",x2:"6.01",y1:"18",y2:"18"}]]];/**
+ */const ao=["svg",w,[["rect",{x:"16",y:"16",width:"6",height:"6",rx:"1"}],["rect",{x:"2",y:"16",width:"6",height:"6",rx:"1"}],["rect",{x:"9",y:"2",width:"6",height:"6",rx:"1"}],["path",{d:"M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"}],["path",{d:"M12 12V8"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Wn=["svg",v,[["path",{d:"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"}],["path",{d:"m9 12 2 2 4-4"}]]];/**
+ */const io=["svg",w,[["rect",{width:"18",height:"18",x:"3",y:"3",rx:"2"}],["path",{d:"M9 3v18"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Yn=["svg",v,[["path",{d:"M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"}],["path",{d:"M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"}]]];/**
+ */const so=["svg",w,[["polygon",{points:"6 3 20 12 6 21 6 3"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Zn=["svg",v,[["path",{d:"M3 6h18"}],["path",{d:"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"}],["path",{d:"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"}],["line",{x1:"10",x2:"10",y1:"11",y2:"17"}],["line",{x1:"14",x2:"14",y1:"11",y2:"17"}]]];/**
+ */const lo=["svg",w,[["path",{d:"M5 12h14"}],["path",{d:"M12 5v14"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Qn=["svg",v,[["polyline",{points:"22 7 13.5 15.5 8.5 10.5 2 17"}],["polyline",{points:"16 7 22 7 22 13"}]]];/**
+ */const ro=["svg",w,[["path",{d:"M12 2v10"}],["path",{d:"M18.4 6.6a9 9 0 1 1-12.77.04"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const Xn=["svg",v,[["path",{d:"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"}],["path",{d:"M12 9v4"}],["path",{d:"M12 17h.01"}]]];/**
+ */const co=["svg",w,[["path",{d:"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"}],["path",{d:"M21 3v5h-5"}],["path",{d:"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"}],["path",{d:"M8 16H3v5"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const eo=["svg",v,[["path",{d:"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"}],["circle",{cx:"9",cy:"7",r:"4"}],["path",{d:"M22 21v-2a4 4 0 0 0-3-3.87"}],["path",{d:"M16 3.13a4 4 0 0 1 0 7.75"}]]];/**
+ */const po=["svg",w,[["circle",{cx:"11",cy:"11",r:"8"}],["path",{d:"m21 21-4.3-4.3"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const to=["svg",v,[["path",{d:"M18 6 6 18"}],["path",{d:"m6 6 12 12"}]]];/**
+ */const mo=["svg",w,[["rect",{width:"20",height:"8",x:"2",y:"2",rx:"2",ry:"2"}],["rect",{width:"20",height:"8",x:"2",y:"14",rx:"2",ry:"2"}],["line",{x1:"6",x2:"6.01",y1:"6",y2:"6"}],["line",{x1:"6",x2:"6.01",y1:"18",y2:"18"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const no=["svg",v,[["path",{d:"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"}]]];/**
+ */const uo=["svg",w,[["path",{d:"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"}],["path",{d:"m9 12 2 2 4-4"}]]];/**
  * @license lucide v0.474.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const oo=({icons:e={},nameAttr:t="data-lucide",attrs:n={}}={})=>{if(!Object.values(e).length)throw new Error(`Please provide an icons object.
+ */const yo=["svg",w,[["path",{d:"M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"}],["path",{d:"M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const go=["svg",w,[["path",{d:"M12 3v18"}],["rect",{width:"18",height:"18",x:"3",y:"3",rx:"2"}],["path",{d:"M3 9h18"}],["path",{d:"M3 15h18"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const fo=["svg",w,[["path",{d:"M3 6h18"}],["path",{d:"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"}],["path",{d:"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"}],["line",{x1:"10",x2:"10",y1:"11",y2:"17"}],["line",{x1:"14",x2:"14",y1:"11",y2:"17"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const ho=["svg",w,[["polyline",{points:"22 7 13.5 15.5 8.5 10.5 2 17"}],["polyline",{points:"16 7 22 7 22 13"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const vo=["svg",w,[["path",{d:"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"}],["path",{d:"M12 9v4"}],["path",{d:"M12 17h.01"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const bo=["svg",w,[["path",{d:"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"}],["circle",{cx:"9",cy:"7",r:"4"}],["path",{d:"M22 21v-2a4 4 0 0 0-3-3.87"}],["path",{d:"M16 3.13a4 4 0 0 1 0 7.75"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const xo=["svg",w,[["path",{d:"M18 6 6 18"}],["path",{d:"m6 6 12 12"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const wo=["svg",w,[["path",{d:"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"}]]];/**
+ * @license lucide v0.474.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const Eo=({icons:e={},nameAttr:t="data-lucide",attrs:n={}}={})=>{if(!Object.values(e).length)throw new Error(`Please provide an icons object.
 If you want to use all the icons you can import it like:
  \`import { createIcons, icons } from 'lucide';
-lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`createIcons()` only works in a browser environment.");const o=document.querySelectorAll(`[${t}]`);if(Array.from(o).forEach(a=>Rt(a,{nameAttr:t,icons:e,attrs:n})),t==="data-lucide"){const a=document.querySelectorAll("[icon-name]");a.length>0&&(console.warn("[Lucide] Some icons were found with the now deprecated icon-name attribute. These will still be replaced for backwards compatibility, but will no longer be supported in v1.0 and you should switch to data-lucide"),Array.from(a).forEach(i=>Rt(i,{nameAttr:"icon-name",icons:e,attrs:n})))}};let re=[],de=[],Se=0,$e="",ce="all",Dt=null,W=null,Ke=!1,Y=0,P="*",z="all",oe=!1,he=0,ie=!1,Ze=0,B=null,H=[],ge=new Set,U=!1,R=parseInt(localStorage.getItem("redis_insight_auto_refresh_sec")||"10",10);(isNaN(R)||R<5)&&(R=10);let O=R,pe=null,G=null,qt=null,Ue=null,I=[],Vt="ALL",ke="",Ve=null,Gt="all",Jt="",Z=2,fe=0,Ie=50,J=null;const Wt=[50,100,200,500,1e3,2e3,5e3,1e4],ao=200;function u(){oo({icons:{Layers:Hn,Plus:Un,RefreshCw:Vn,Search:Gn,Cpu:An,Trash2:Zn,Zap:no,CheckCircle2:Tn,AlertCircle:$n,Database:Rn,ShieldCheck:Wn,Lock:On,ArrowDownCircle:In,X:to,Play:Kn,Copy:_n,Clock:Mn,Edit:Yn,ExternalLink:Nn,Code:Bn,Users:eo,Server:Jn,Network:Fn,GitBranch:Pn,ArrowRightLeft:En,Activity:wn,PieChart:kn,AlertTriangle:Xn,TrendingUp:Qn,BarChart2:Cn,Power:qn,ChevronLeft:Ln,ChevronRight:Sn,PanelLeft:jn,Download:Dn,FileText:zn}})}function io(){const e=document.getElementById("app");e&&(e.innerHTML=`
+lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`createIcons()` only works in a browser environment.");const o=document.querySelectorAll(`[${t}]`);if(Array.from(o).forEach(a=>Ut(a,{nameAttr:t,icons:e,attrs:n})),t==="data-lucide"){const a=document.querySelectorAll("[icon-name]");a.length>0&&(console.warn("[Lucide] Some icons were found with the now deprecated icon-name attribute. These will still be replaced for backwards compatibility, but will no longer be supported in v1.0 and you should switch to data-lucide"),Array.from(a).forEach(i=>Ut(i,{nameAttr:"icon-name",icons:e,attrs:n})))}};let ue=[],ye=[],Re=0,De="",ge="all",ke=localStorage.getItem("redis_insight_view_mode")||"table",ee=localStorage.getItem("redis_insight_tree_delimiter")||"auto",V=new Set,Be=!1,me="",Vt=null,te=null,Qe=!1,Z=0,z="*",O="all",re=!1,Le=0,X=!1,lt=0,B=null,P=[],Ee=new Set,q=!1,H=parseInt(localStorage.getItem("redis_insight_auto_refresh_sec")||"10",10);(isNaN(H)||H<5)&&(H=10);let K=H,fe=null,Y=null,tn=null,Xe=null,M=[],nn="ALL",_e="",tt=null,on="all",an="",ne=2,Ce=0,Ne=50,Q=null;const sn=[50,100,200,500,1e3,2e3,5e3,1e4],Co=200;function f(){Eo({icons:{Layers:to,Plus:lo,RefreshCw:co,Search:po,Cpu:Un,Trash2:fo,Zap:wo,CheckCircle2:Fn,AlertCircle:Pn,Database:Vn,ShieldCheck:uo,Lock:oo,ArrowDownCircle:Hn,X:xo,Play:so,Copy:jn,Clock:On,Edit:yo,ExternalLink:Gn,Code:Kn,Users:bo,Server:mo,Network:ao,GitBranch:Xn,ArrowRightLeft:_n,Activity:Bn,PieChart:Rn,AlertTriangle:vo,TrendingUp:ho,BarChart2:An,Power:ro,ChevronLeft:Nn,ChevronRight:zn,PanelLeft:io,Download:qn,FileText:Jn,Folder:Qn,FolderOpen:Yn,FolderTree:Zn,Table:go,List:no,ChevronDown:Dn,Key:eo,Filter:Wn}})}function ko(){const e=document.getElementById("app");e&&(e.innerHTML=`
     <div class="app-container">
       <!-- Left Sidebar -->
       <aside class="sidebar">
@@ -385,9 +425,20 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
           <!-- Panel 2: Key Browsing Pagination & Action Operations -->
           <div class="keys-actions-bar">
             <div class="actions-left" id="scanActionsGroup">
+              <div class="view-mode-toggle-group" id="viewModeToggleGroup">
+                <button type="button" class="view-mode-tab ${ke==="table"?"active":""}" id="btnViewTable" data-mode="table" title="Flat Table View">
+                  <i data-lucide="table" style="width: 13px; height: 13px;"></i>
+                  <span>Table</span>
+                </button>
+                <button type="button" class="view-mode-tab ${ke==="tree"?"active":""}" id="btnViewTree" data-mode="tree" title="Virtual Tree / Namespace Folder View">
+                  <i data-lucide="folder-tree" style="width: 13px; height: 13px;"></i>
+                  <span>Tree</span>
+                </button>
+              </div>
+              <div class="actions-divider"></div>
               <label for="scanBatchSizeSelect" class="batch-size-label">Keys per scan</label>
               <select id="scanBatchSizeSelect" class="batch-size-select" title="Keys requested per SCAN batch (applies to the next Load More)">
-                ${Wt.map(t=>`<option value="${t}"${t===50?" selected":""}>${t.toLocaleString()}</option>`).join("")}
+                ${sn.map(t=>`<option value="${t}"${t===50?" selected":""}>${t.toLocaleString()}</option>`).join("")}
               </select>
               <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext" style="font-size: 0.75rem; padding: 0.32rem 0.75rem;">
                 <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
@@ -1007,17 +1058,17 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
         </div>
       </div>
     </div>
-  `)}async function D(){oe=!1,fe++;const e=fe;Y=0,ie=!1,he=0,H=[],ge.clear();const t=document.getElementById("emptyWorkspaceState"),n=document.getElementById("gridViewerContainer");t&&(t.style.display="none"),n&&(n.style.display="block"),Xt(),await Qt(e)}function ae(){const e=document.getElementById("btnToggleAutoRefresh"),t=document.getElementById("autoRefreshStatusText"),n=document.getElementById("autoRefreshIntervalSelect");if(!(!e||!t))if(U){e.classList.add("active");const o=O>=60?`${Math.floor(O/60)}m ${O%60}s`:`${O}s`;e.title=`Auto-refresh active (Pattern: "${P||"*"}"). Refreshing in ${o}. Click to pause.`,t.textContent=`Auto: ${o}`,n&&(n.value=String(R))}else{e.classList.remove("active");const o=R>=60?`${Math.floor(R/60)}m`:`${R}s`;e.title=`Click to watch keys matching pattern "${P||"*"}" every ${o}`,t.textContent="Auto: Off",n&&(n.value=String(R))}}function Ce(){O=R,ae()}function Yt(){U=!0,O=R,ae(),pe&&clearInterval(pe),pe=setInterval(async()=>{if(!U)return;const e=document.querySelector(".modal-backdrop.active");document.hidden||e||(O--,O<=0?(O=R,ae(),I.some(n=>n.is_connected)&&!oe&&await D()):ae())},1e3)}function so(){U=!1,pe&&(clearInterval(pe),pe=null),O=R,ae()}function lo(){U?so():Yt()}function Zt(e){if(e==null)return!0;const t=String(e).trim();if(t===""||t==="0")return!0;if(t.startsWith("{"))try{return Object.values(JSON.parse(t)).every(n=>Number(n)===0)}catch{return!1}return!1}function ro(e){const t=String(e??"").trim();if(t.startsWith("{"))try{const n=Object.values(JSON.parse(t));return`${n.filter(a=>Number(a)!==0).length} of ${n.length} nodes still scanning`}catch{return"more keys available"}return"more keys available"}function co(){return!!(B&&B.is_cluster)||String(Y??"").trim().startsWith("{")}async function Qt(e=null){if(oe||ie)return;const t=e!==null?e:fe;oe=!0,zt();try{const n=`/api/keys?pattern=${encodeURIComponent(P)}&cursor=${encodeURIComponent(String(Y??"0"))}&count=${Ie}${z!=="all"?`&type=${encodeURIComponent(z)}`:""}`,o=await fetch(n);if(!o.ok)throw new Error("Failed to scan keys");const a=await o.json();if(t!==fe)return;Y=a.cursor,ie=Zt(Y),Ze=a.total_in_db;const r=(a.keys||[]).filter(l=>ge.has(l.name)?!1:(ge.add(l.name),!0)).map(l=>({key:l.name,type:l.type,ttl_seconds:l.ttl,status:l.ttl===-1?"Persistent":l.ttl===-2?"Expired":`Expires in ${l.ttl}s`}));r.length>0&&H.push(...r),Xt(),he=ge.size}catch(n){console.error("Scan error:",n)}finally{t===fe&&(oe=!1,zt())}}function Xt(){const e=document.getElementById("gridViewerContainer");if(e){if(H.length===0){const t=!ie&&Zt(Y);e.innerHTML=ie?`
+  `)}async function N(){re=!1,Ce++;const e=Ce;Z=0,X=!1,Le=0,P=[],Ee.clear(),Be=!1,V.clear();const t=document.getElementById("emptyWorkspaceState"),n=document.getElementById("gridViewerContainer");t&&(t.style.display="none"),n&&(n.style.display="block"),cn(),await rn(e)}function de(){const e=document.getElementById("btnToggleAutoRefresh"),t=document.getElementById("autoRefreshStatusText"),n=document.getElementById("autoRefreshIntervalSelect");if(!(!e||!t))if(q){e.classList.add("active");const o=K>=60?`${Math.floor(K/60)}m ${K%60}s`:`${K}s`;e.title=`Auto-refresh active (Pattern: "${z||"*"}"). Refreshing in ${o}. Click to pause.`,t.textContent=`Auto: ${o}`,n&&(n.value=String(H))}else{e.classList.remove("active");const o=H>=60?`${Math.floor(H/60)}m`:`${H}s`;e.title=`Click to watch keys matching pattern "${z||"*"}" every ${o}`,t.textContent="Auto: Off",n&&(n.value=String(H))}}function Me(){K=H,de()}function ln(){q=!0,K=H,de(),fe&&clearInterval(fe),fe=setInterval(async()=>{if(!q)return;const e=document.querySelector(".modal-backdrop.active");document.hidden||e||(K--,K<=0?(K=H,de(),M.some(n=>n.is_connected)&&!re&&await N()):de())},1e3)}function Lo(){q=!1,fe&&(clearInterval(fe),fe=null),K=H,de()}function So(){q?Lo():ln()}function rt(e){if(e==null)return!0;const t=String(e).trim();if(t===""||t==="0")return!0;if(t.startsWith("{"))try{return Object.values(JSON.parse(t)).every(n=>Number(n)===0)}catch{return!1}return!1}function $o(e){const t=String(e??"").trim();if(t.startsWith("{"))try{const n=Object.values(JSON.parse(t));return`${n.filter(a=>Number(a)!==0).length} of ${n.length} nodes still scanning`}catch{return"more keys available"}return"more keys available"}function Io(){return!!(B&&B.is_cluster)||String(Z??"").trim().startsWith("{")}async function rn(e=null){if(re||X)return;const t=e!==null?e:Ce;re=!0,Gt();try{const n=`/api/keys?pattern=${encodeURIComponent(z)}&cursor=${encodeURIComponent(String(Z??"0"))}&count=${Ne}${O!=="all"?`&type=${encodeURIComponent(O)}`:""}`,o=await fetch(n);if(!o.ok)throw new Error("Failed to scan keys");const a=await o.json();if(t!==Ce)return;Z=a.cursor,X=rt(Z),lt=a.total_in_db;const r=(a.keys||[]).filter(s=>Ee.has(s.name)?!1:(Ee.add(s.name),!0)).map(s=>({key:s.name,type:s.type,ttl_seconds:s.ttl,status:s.ttl===-1?"Persistent":s.ttl===-2?"Expired":`Expires in ${s.ttl}s`}));r.length>0&&P.push(...r),cn(),Le=Ee.size}catch(n){console.error("Scan error:",n)}finally{t===Ce&&(re=!1,Gt())}}function To(e,t="auto"){return e?t&&t!=="auto"?e.includes(t)?t:null:e.includes(":")?":":e.includes("/")?"/":e.includes(".")?".":e.includes("-")?"-":null:null}function Mo(e,t="auto"){const n={id:"__root__",name:"Root",fullPrefix:"",delimiter:"",depth:-1,folders:new Map,keys:[],totalKeyCount:0};for(const a of e){const i=a.key||"",r=To(i,t);if(!r){n.keys.push({...a,leafName:i});continue}let c=i.split(r);if(c.length>1&&c[c.length-1]===""&&(c=c.slice(0,-1)),c.length<=1){n.keys.push({...a,leafName:i});continue}let m=n,g="";for(let C=0;C<c.length-1;C++){const x=c[C];g+=(C>0?r:"")+x;const p=g+r;m.folders.has(x)||m.folders.set(x,{id:p,name:x,fullPrefix:p,delimiter:r,depth:C,folders:new Map,keys:[],totalKeyCount:0}),m=m.folders.get(x)}const E=c[c.length-1]||"(empty)";m.keys.push({...a,leafName:E})}function o(a){let i=a.keys.length;a.keys.sort((s,c)=>(s.leafName||s.key).localeCompare(c.leafName||c.key));const r=new Map([...a.folders.entries()].sort((s,c)=>s[0].localeCompare(c[0])));a.folders=r;for(const s of a.folders.values())o(s),i+=s.totalKeyCount;a.totalKeyCount=i}return o(n),n}function dn(e,t){if(e.name.toLowerCase().includes(t)||e.fullPrefix.toLowerCase().includes(t))return!0;for(const n of e.keys)if(n.key.toLowerCase().includes(t)||n.leafName&&n.leafName.toLowerCase().includes(t))return!0;for(const n of e.folders.values())if(dn(n,t))return!0;return!1}function Bo(){const e=document.getElementById("gridViewerContainer");if(e){if(P.length===0){const t=!X&&rt(Z);e.innerHTML=X?`
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No keys found matching pattern "<code>${d(P)}</code>".
+        No keys found matching pattern "<code>${d(z)}</code>".
       </div>
     `:t?`
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        Scanning keys matching "<code>${d(P)}</code>"...
+        Scanning keys matching "<code>${d(z)}</code>"...
       </div>
     `:`
       <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No matches yet for "<code>${d(P)}</code>" in the part of the keyspace scanned so far.<br>
+        No matches yet for "<code>${d(z)}</code>" in the part of the keyspace scanned so far.<br>
         The scan is not finished — click <strong>Load More</strong> to keep scanning.
       </div>
     `;return}e.innerHTML=`
@@ -1033,7 +1084,7 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
           </tr>
         </thead>
         <tbody>
-          ${H.map(t=>`
+          ${P.map(t=>`
             <tr class="key-row" data-key="${encodeURIComponent(t.key)}" style="border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;">
               <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
                 <span class="btn-inspect-key" data-key="${encodeURIComponent(t.key)}">${d(t.key)}</span>
@@ -1059,17 +1110,136 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
         </tbody>
       </table>
     </div>
-  `,u(),e.querySelectorAll(".key-row").forEach(t=>{t.addEventListener("click",()=>{const n=decodeURIComponent(t.getAttribute("data-key"));ve(n)})}),e.querySelectorAll(".btn-delete-key-table").forEach(t=>{t.addEventListener("click",n=>{n.stopPropagation();const o=decodeURIComponent(t.getAttribute("data-key"));Xe(o,()=>{D()})})})}}function Nt(){const e=document.getElementById("scanChunkLabel");e&&(e.textContent=`Safe SCAN (Chunk ${Ie.toLocaleString()})`)}function zt(){const e=document.getElementById("scanStatusText"),t=document.getElementById("btnScanNext"),n=ie;e&&(e.innerHTML=`
-      Loaded <strong>${he.toLocaleString()}</strong> keys
-      ${n?'<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>':`<span style="color: var(--text-muted);">(${d(ro(Y))})</span>`}
-      | ${co()?"Cluster Total":"DB Total"}: <strong>${Number(Ze||0).toLocaleString()}</strong>
-    `),t&&(t.disabled=oe||n,t.innerHTML=oe?'<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...':n?'<i data-lucide="check-circle-2" style="width: 13px; height: 13px;"></i> All Keys Loaded':'<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Load More',u())}async function ve(e){G=e;const t=document.getElementById("keyDetailModal"),n=document.getElementById("detailKeyTitle"),o=document.getElementById("detailHeaderMeta"),a=document.getElementById("detailBodyContent"),i=document.getElementById("btnDeleteKeyFromDetail");i&&(i.style.display=B?.read_only?"none":""),n.textContent=e,n.title=e,o.innerHTML='<span style="color: var(--text-muted);">Loading key details...</span>',a.innerHTML='<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Fetching value from Redis...</div>',t.classList.add("active");try{let r=await fetch(`/api/keys/detail?key=${encodeURIComponent(e)}`);if(r.ok||(r=await fetch(`/api/keys/${encodeURIComponent(e)}/detail`)),!r.ok){let c="Key not found or could not be read";try{const y=await r.json();y&&y.detail&&(c=y.detail)}catch{}throw new Error(c)}const l=await r.json();qt=l,po(l),uo(l)}catch(r){o.innerHTML='<span style="color: var(--accent-danger);">Error</span>',a.innerHTML=`
+  `,f(),e.querySelectorAll(".key-row").forEach(t=>{t.addEventListener("click",()=>{const n=decodeURIComponent(t.getAttribute("data-key"));he(n)})}),e.querySelectorAll(".btn-delete-key-table").forEach(t=>{t.addEventListener("click",n=>{n.stopPropagation();const o=decodeURIComponent(t.getAttribute("data-key"));Pe(o,()=>{N()})})})}}function le(){const e=document.getElementById("gridViewerContainer");if(!e)return;if(P.length===0){const p=!X&&rt(Z);e.innerHTML=X?`
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        No keys found matching pattern "<code>${d(z)}</code>".
+      </div>
+    `:p?`
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        Scanning keys matching "<code>${d(z)}</code>"...
+      </div>
+    `:`
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        No matches yet for "<code>${d(z)}</code>" in the part of the keyspace scanned so far.<br>
+        The scan is not finished — click <strong>Load More</strong> to keep scanning.
+      </div>
+    `;return}const t=Mo(P,ee);if(!Be&&V.size===0){for(const p of t.folders.values())V.add(p.id);Be=!0}function n(p){let h=p.folders.size;for(const v of p.folders.values())h+=n(v);return h}const o=n(t),a=!!me.trim(),i=me.trim().toLowerCase();function r(p,h){const v=encodeURIComponent(p.key);return`
+      <div class="tree-node tree-leaf key-row" data-key="${v}" style="padding-left: ${h*20+26}px;">
+        <div class="tree-node-content">
+          <div class="tree-key-icon">
+            <i data-lucide="key" style="width: 13px; height: 13px;"></i>
+          </div>
+          <span class="tree-key-name btn-inspect-key" data-key="${v}" title="${d(p.key)}">
+            ${d(p.leafName||p.key)}
+          </span>
+          <span class="badge-db" style="margin-left: 0.35rem; font-size: 0.68rem; text-transform: uppercase;">${d(p.type)}</span>
+          <span class="tree-key-ttl" title="TTL in seconds">${p.ttl_seconds}s</span>
+          <span class="tree-key-status" style="color: ${p.ttl_seconds===-1?"var(--text-muted)":"var(--accent-warning)"};">${d(p.status)}</span>
+          <div class="tree-key-actions" onclick="event.stopPropagation()">
+            ${B?.read_only?`
+              <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
+                <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
+              </span>
+            `:`
+              <button type="button" class="btn-icon danger btn-delete-key-table" data-key="${v}" title="Delete key">
+                <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+              </button>
+            `}
+          </div>
+        </div>
+      </div>
+    `}function s(p,h){if(a&&!dn(p,i))return"";const v=a?!0:V.has(p.id),R=encodeURIComponent(p.id);let J="";for(const F of p.folders.values())J+=s(F,h+1);for(const F of p.keys)a&&!F.key.toLowerCase().includes(i)&&!(F.leafName&&F.leafName.toLowerCase().includes(i))||(J+=r(F,h+1));return`
+      <div class="tree-folder-group" data-folder-id="${R}">
+        <div class="tree-node tree-folder" data-folder-id="${R}" style="padding-left: ${h*20+8}px;">
+          <div class="tree-node-content">
+            <button type="button" class="tree-toggle-btn" title="${v?"Collapse":"Expand"}">
+              <i data-lucide="${v?"chevron-down":"chevron-right"}" style="width: 14px; height: 14px;"></i>
+            </button>
+            <div class="tree-folder-icon">
+              <i data-lucide="${v?"folder-open":"folder"}" style="width: 15px; height: 15px;"></i>
+            </div>
+            <span class="tree-folder-name" title="${d(p.fullPrefix)}">
+              ${d(p.name)}<span class="tree-folder-delim">${d(p.delimiter)}</span>
+            </span>
+            <span class="tree-count-badge" title="${p.totalKeyCount} keys in this namespace">
+              ${p.totalKeyCount.toLocaleString()} ${p.totalKeyCount===1?"key":"keys"}
+            </span>
+            <button type="button" class="tree-filter-prefix-btn" data-prefix="${d(p.fullPrefix)}" title="Filter keys matching '${d(p.fullPrefix)}*'">
+              <i data-lucide="filter" style="width: 11px; height: 11px;"></i>
+              <span>Filter</span>
+            </button>
+          </div>
+        </div>
+        <div class="tree-children" style="display: ${v?"block":"none"};">
+          ${J}
+        </div>
+      </div>
+    `}let c="";if(t.keys.length>0){const p=a?t.keys.filter(h=>h.key.toLowerCase().includes(i)||h.leafName&&h.leafName.toLowerCase().includes(i)):t.keys;p.length>0&&(c=`
+        <div class="tree-root-keys-section">
+          <div class="tree-root-keys-header" style="padding-left: 10px;">
+            <span class="tree-root-keys-title">ROOT KEYS (NO DELIMITER)</span>
+            <span class="tree-count-badge">${p.length.toLocaleString()} ${p.length===1?"key":"keys"}</span>
+          </div>
+          <div class="tree-root-keys-list">
+            ${p.map(h=>r(h,0)).join("")}
+          </div>
+        </div>
+      `)}e.innerHTML=`
+    <div class="tree-view-wrapper">
+      <div class="tree-toolbar">
+        <div class="tree-toolbar-left">
+          <div class="tree-delimiter-control">
+            <label for="treeDelimiterSelect" class="tree-control-label">Delimiter:</label>
+            <select id="treeDelimiterSelect" class="tree-select" title="Grouping delimiter convention">
+              <option value="auto"${ee==="auto"?" selected":""}>Auto (:, /, .)</option>
+              <option value=":"${ee===":"?" selected":""}>: (Colon)</option>
+              <option value="/"${ee==="/"?" selected":""}>/ (Slash)</option>
+              <option value="."${ee==="."?" selected":""}>. (Dot)</option>
+              <option value="-"${ee==="-"?" selected":""}>- (Dash)</option>
+            </select>
+          </div>
+          <div class="tree-summary-pill" id="treeSummaryPill">
+            ${o.toLocaleString()} ${o===1?"Namespace":"Namespaces"} &bull; ${P.length.toLocaleString()} ${P.length===1?"Key":"Keys"}
+          </div>
+        </div>
+        <div class="tree-toolbar-right">
+          <div class="tree-filter-box">
+            <i data-lucide="search" style="width: 12px; height: 12px; color: var(--text-muted); flex-shrink: 0;"></i>
+            <input type="text" id="treeFilterInput" class="tree-filter-input" placeholder="Filter loaded tree..." value="${d(me)}">
+            ${me?`
+              <button type="button" class="btn-clear-tree-filter" id="btnClearTreeFilter" title="Clear filter">
+                <i data-lucide="x" style="width: 11px; height: 11px;"></i>
+              </button>
+            `:""}
+          </div>
+          <div class="tree-btn-group">
+            <button type="button" class="btn btn-secondary tree-btn" id="btnExpandAllTree" title="Expand all namespace folders">
+              <i data-lucide="folder-open" style="width: 12px; height: 12px;"></i>
+              <span>Expand All</span>
+            </button>
+            <button type="button" class="btn btn-secondary tree-btn" id="btnCollapseAllTree" title="Collapse all namespace folders">
+              <i data-lucide="folder" style="width: 12px; height: 12px;"></i>
+              <span>Collapse All</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="tree-view-body" id="treeViewBody">
+        ${[...t.folders.values()].map(p=>s(p,0)).join("")}
+        ${c}
+      </div>
+    </div>
+  `,f(),e.querySelectorAll(".tree-folder").forEach(p=>{p.addEventListener("click",h=>{if(h.target.closest(".tree-filter-prefix-btn"))return;const v=decodeURIComponent(p.getAttribute("data-folder-id"));V.has(v)?V.delete(v):V.add(v),le()})}),e.querySelectorAll(".tree-filter-prefix-btn").forEach(p=>{p.addEventListener("click",h=>{h.stopPropagation();const v=p.getAttribute("data-prefix"),R=document.getElementById("keySearchInput");R&&v&&(R.value=v+"*",z=v+"*",N())})}),e.querySelectorAll(".tree-leaf").forEach(p=>{p.addEventListener("click",()=>{const h=decodeURIComponent(p.getAttribute("data-key"));he(h)})}),e.querySelectorAll(".btn-delete-key-table").forEach(p=>{p.addEventListener("click",h=>{h.stopPropagation();const v=decodeURIComponent(p.getAttribute("data-key"));Pe(v,()=>{N()})})});const m=document.getElementById("treeDelimiterSelect");m&&m.addEventListener("change",p=>{ee=p.target.value,localStorage.setItem("redis_insight_tree_delimiter",ee),V.clear(),Be=!1,le()});const g=document.getElementById("btnExpandAllTree");g&&g.addEventListener("click",()=>{function p(h){for(const v of h.folders.values())V.add(v.id),p(v)}p(t),le()});const E=document.getElementById("btnCollapseAllTree");E&&E.addEventListener("click",()=>{V.clear(),le()});const C=document.getElementById("treeFilterInput");C&&C.addEventListener("input",p=>{me=p.target.value,le();const h=document.getElementById("treeFilterInput");h&&(h.focus(),h.setSelectionRange(h.value.length,h.value.length))});const x=document.getElementById("btnClearTreeFilter");x&&x.addEventListener("click",()=>{me="",le()})}function nt(){ke==="tree"?le():Bo()}function cn(){nt()}function qt(){const e=document.getElementById("scanChunkLabel");e&&(e.textContent=`Safe SCAN (Chunk ${Ne.toLocaleString()})`)}function Gt(){const e=document.getElementById("scanStatusText"),t=document.getElementById("btnScanNext"),n=X;e&&(e.innerHTML=`
+      Loaded <strong>${Le.toLocaleString()}</strong> keys
+      ${n?'<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>':`<span style="color: var(--text-muted);">(${d($o(Z))})</span>`}
+      | ${Io()?"Cluster Total":"DB Total"}: <strong>${Number(lt||0).toLocaleString()}</strong>
+    `),t&&(t.disabled=re||n,t.innerHTML=re?'<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...':n?'<i data-lucide="check-circle-2" style="width: 13px; height: 13px;"></i> All Keys Loaded':'<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Load More',f())}async function he(e){Y=e;const t=document.getElementById("keyDetailModal"),n=document.getElementById("detailKeyTitle"),o=document.getElementById("detailHeaderMeta"),a=document.getElementById("detailBodyContent"),i=document.getElementById("btnDeleteKeyFromDetail");i&&(i.style.display=B?.read_only?"none":""),n.textContent=e,n.title=e,o.innerHTML='<span style="color: var(--text-muted);">Loading key details...</span>',a.innerHTML='<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Fetching value from Redis...</div>',t.classList.add("active");try{let r=await fetch(`/api/keys/detail?key=${encodeURIComponent(e)}`);if(r.ok||(r=await fetch(`/api/keys/${encodeURIComponent(e)}/detail`)),!r.ok){let c="Key not found or could not be read";try{const m=await r.json();m&&m.detail&&(c=m.detail)}catch{}throw new Error(c)}const s=await r.json();tn=s,_o(s),Ro(s)}catch(r){o.innerHTML='<span style="color: var(--accent-danger);">Error</span>',a.innerHTML=`
       <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
         <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
         <h4>Failed to inspect key</h4>
         <p style="font-size: 0.85rem; margin-top: 0.5rem;">${d(r.message)}</p>
       </div>
-    `,u()}}function po(e){const t=document.getElementById("detailHeaderMeta"),n=e.memory_bytes?e.memory_bytes>1024?`${(e.memory_bytes/1024).toFixed(1)} KB`:`${e.memory_bytes} B`:"N/A",o=e.ttl===-1?"No expiration":e.ttl===-2?"Expired":`${e.ttl}s`;t.innerHTML=`
+    `,f()}}function _o(e){const t=document.getElementById("detailHeaderMeta"),n=e.memory_bytes?e.memory_bytes>1024?`${(e.memory_bytes/1024).toFixed(1)} KB`:`${e.memory_bytes} B`:"N/A",o=e.ttl===-1?"No expiration":e.ttl===-2?"Expired":`${e.ttl}s`;t.innerHTML=`
     <div style="display: flex; align-items: center; gap: 0.4rem;">
       <span style="color: var(--text-muted);">Type:</span>
       <span class="badge-db" style="color: var(--accent-primary); font-weight: 600;">${e.type.toUpperCase()}</span>
@@ -1107,12 +1277,12 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
         </button>
       `}
     </div>
-  `,u();const a=document.getElementById("btnEditTtl");a&&a.addEventListener("click",()=>{mo(e.name,e.ttl)})}async function mo(e,t){if(B?.read_only){alert("TTL modification is disabled in Read-Only mode.");return}const n=prompt(`Enter new TTL in seconds for '${e}':
-(-1 to persist with no expiration, or number of seconds)`,t>0?t:"3600");if(n===null)return;const o=parseInt(n.trim(),10);if(isNaN(o)){alert("Please enter a valid integer.");return}try{if(!(await fetch(`/api/keys/${encodeURIComponent(e)}/ttl`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({seconds:o})})).ok)throw new Error("Failed to update TTL");ve(e)}catch(a){alert("Error updating TTL: "+a.message)}}function uo(e){const t=document.getElementById("detailBodyContent"),n=e.type.toLowerCase();if(n==="hash"){const o=e.fields||[],a=e.has_more_fields?Number(e.fields_cursor||0):0;J={key:e.name,cursor:a,fields:[...o],total:Number(e.length||o.length),match:null,loading:!1},t.innerHTML=`
+  `,f();const a=document.getElementById("btnEditTtl");a&&a.addEventListener("click",()=>{Ao(e.name,e.ttl)})}async function Ao(e,t){if(B?.read_only){alert("TTL modification is disabled in Read-Only mode.");return}const n=prompt(`Enter new TTL in seconds for '${e}':
+(-1 to persist with no expiration, or number of seconds)`,t>0?t:"3600");if(n===null)return;const o=parseInt(n.trim(),10);if(isNaN(o)){alert("Please enter a valid integer.");return}try{if(!(await fetch(`/api/keys/${encodeURIComponent(e)}/ttl`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({seconds:o})})).ok)throw new Error("Failed to update TTL");he(e)}catch(a){alert("Error updating TTL: "+a.message)}}function Ro(e){const t=document.getElementById("detailBodyContent"),n=e.type.toLowerCase();if(n==="hash"){const o=e.fields||[],a=e.has_more_fields?Number(e.fields_cursor||0):0;Q={key:e.name,cursor:a,fields:[...o],total:Number(e.length||o.length),match:null,loading:!1},t.innerHTML=`
       <div class="fields-toolbar">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
           <input type="text" id="hashFieldSearchInput" class="field-search-input" placeholder="Filter fields (Enter: search all)" title="Filters loaded fields instantly; press Enter to search the whole hash on the server (HSCAN MATCH)">
-          <span style="font-size: 0.75rem; color: var(--text-muted);" id="hashFieldCountText">${tn(o.length)}</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted);" id="hashFieldCountText">${mn(o.length)}</span>
         </div>
         ${B?.read_only?"":`
           <button type="button" class="btn btn-secondary" id="btnAddHashField" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
@@ -1132,12 +1302,12 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
             </tr>
           </thead>
           <tbody id="hashFieldsTableBody">
-            ${en(o)}
+            ${pn(o)}
           </tbody>
         </table>
       </div>
       <div id="hashFieldsFooter" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);"></div>
-    `,u(),go(e.name),Qe();return}if(e.is_json||n.includes("json")){const o=e.parsed_json?JSON.stringify(e.parsed_json,null,2):e.value||"";t.innerHTML=`
+    `,f(),No(e.name),dt();return}if(e.is_json||n.includes("json")){const o=e.parsed_json?JSON.stringify(e.parsed_json,null,2):e.value||"";t.innerHTML=`
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
         <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">JSON Document</span>
         <button type="button" class="btn btn-secondary" id="btnCopyJsonValue" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
@@ -1146,7 +1316,7 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
         </button>
       </div>
       <div class="json-view-box" id="jsonViewBox">${d(o)}</div>
-    `,u(),document.getElementById("btnCopyJsonValue").addEventListener("click",()=>{navigator.clipboard.writeText(o),alert("JSON copied to clipboard!")});return}if(n==="string"){t.innerHTML=`
+    `,f(),document.getElementById("btnCopyJsonValue").addEventListener("click",()=>{navigator.clipboard.writeText(o),alert("JSON copied to clipboard!")});return}if(n==="string"){t.innerHTML=`
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
         <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">String Value (${e.length} bytes)</span>
         <button type="button" class="btn btn-secondary" id="btnCopyStringValue" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
@@ -1155,7 +1325,7 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
         </button>
       </div>
       <div class="json-view-box" style="color: #f8fafc;">${d(e.value||"")}</div>
-    `,u(),document.getElementById("btnCopyStringValue").addEventListener("click",()=>{navigator.clipboard.writeText(e.value||""),alert("Value copied to clipboard!")});return}if(Array.isArray(e.value)){const o=n==="zset";t.innerHTML=`
+    `,f(),document.getElementById("btnCopyStringValue").addEventListener("click",()=>{navigator.clipboard.writeText(e.value||""),alert("Value copied to clipboard!")});return}if(Array.isArray(e.value)){const o=n==="zset";t.innerHTML=`
       <div class="fields-table-container">
         <table class="data-table" style="width: 100%;">
           <thead>
@@ -1178,7 +1348,7 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
           </tbody>
         </table>
       </div>
-    `;return}t.innerHTML=`<div class="json-view-box">${d(String(e.value))}</div>`}function en(e){return e.length===0?'<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No fields found in hash</td></tr>':e.map(t=>`
+    `;return}t.innerHTML=`<div class="json-view-box">${d(String(e.value))}</div>`}function pn(e){return e.length===0?'<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No fields found in hash</td></tr>':e.map(t=>`
     <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
       <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
         ${d(t.field)}
@@ -1198,25 +1368,25 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
         `}
       </td>
     </tr>
-  `).join("")}function tn(e,t=null){const n=J,o=n?n.total:e,a=n&&n.match?`${e.toLocaleString()} matching fields loaded`:e<o?`${e.toLocaleString()} of ${o.toLocaleString()} fields loaded`:`${e.toLocaleString()} fields`;return t!==null?`${t.toLocaleString()} shown · ${a}`:a}function yo(e){return`*${e.replace(/[\\*?\[\]]/g,t=>`\\${t}`)}*`}function nn(){const e=J,t=document.getElementById("hashFieldsTableBody"),n=document.getElementById("hashFieldCountText"),o=document.getElementById("hashFieldSearchInput");if(!e||!t)return;const a=o?o.value.trim().toLowerCase():"",i=a?e.fields.filter(r=>r.field.toLowerCase().includes(a)||r.value.toLowerCase().includes(a)):e.fields;t.innerHTML=en(i),n&&(n.textContent=tn(e.fields.length,a?i.length:null)),u(),on(e.key),Qe()}function Qe(){const e=document.getElementById("hashFieldsFooter"),t=J;if(!e||!t)return;const n=t.cursor!==0,o=t.match?`Server-side filter: <code>${d(t.match)}</code> · <a href="#" id="btnClearHashMatch" style="color: var(--accent-primary);">clear</a>`:n?"Search applies to loaded fields. Press Enter to search all fields on the server.":"";e.innerHTML=`
+  `).join("")}function mn(e,t=null){const n=Q,o=n?n.total:e,a=n&&n.match?`${e.toLocaleString()} matching fields loaded`:e<o?`${e.toLocaleString()} of ${o.toLocaleString()} fields loaded`:`${e.toLocaleString()} fields`;return t!==null?`${t.toLocaleString()} shown · ${a}`:a}function Do(e){return`*${e.replace(/[\\*?\[\]]/g,t=>`\\${t}`)}*`}function un(){const e=Q,t=document.getElementById("hashFieldsTableBody"),n=document.getElementById("hashFieldCountText"),o=document.getElementById("hashFieldSearchInput");if(!e||!t)return;const a=o?o.value.trim().toLowerCase():"",i=a?e.fields.filter(r=>r.field.toLowerCase().includes(a)||r.value.toLowerCase().includes(a)):e.fields;t.innerHTML=pn(i),n&&(n.textContent=mn(e.fields.length,a?i.length:null)),f(),yn(e.key),dt()}function dt(){const e=document.getElementById("hashFieldsFooter"),t=Q;if(!e||!t)return;const n=t.cursor!==0,o=t.match?`Server-side filter: <code>${d(t.match)}</code> · <a href="#" id="btnClearHashMatch" style="color: var(--accent-primary);">clear</a>`:n?"Search applies to loaded fields. Press Enter to search all fields on the server.":"";e.innerHTML=`
     <span>${o}</span>
     ${n?`
       <button type="button" class="btn btn-secondary" id="btnLoadMoreHashFields" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;" ${t.loading?"disabled":""}>
         <i data-lucide="${t.loading?"refresh-cw":"arrow-down-circle"}" ${t.loading?'class="spin"':""} style="width: 13px; height: 13px;"></i>
         ${t.loading?"Loading...":"Load More Fields"}
       </button>`:""}
-  `,u();const a=document.getElementById("btnLoadMoreHashFields");a&&a.addEventListener("click",()=>Ge());const i=document.getElementById("btnClearHashMatch");i&&i.addEventListener("click",r=>{r.preventDefault();const l=document.getElementById("hashFieldSearchInput");l&&(l.value=""),Ge({reset:!0,match:null})})}async function Ge({reset:e=!1,match:t}={}){const n=J;if(!n||n.loading||!e&&n.cursor===0)return;const o=n.key,a=e?t:n.match;n.loading=!0,Qe();try{const i=new URLSearchParams({cursor:String(e?0:n.cursor),count:String(ao)});a&&i.set("match",a);const r=await fetch(`/api/keys/${encodeURIComponent(o)}/hash/fields?${i}`);if(!r.ok){const y=await r.json().catch(()=>({}));throw new Error(y.detail||`Server error: ${r.status}`)}const l=await r.json();if(J!==n||G!==o)return;e&&(n.fields=[]);const c=new Set(n.fields.map(y=>y.field));for(const y of l.fields||[])c.has(y.field)||(c.add(y.field),n.fields.push(y));n.cursor=Number(l.cursor||0),n.total=Number(l.total??n.total),n.match=a||null}catch(i){alert("Failed to load hash fields: "+i.message)}finally{n.loading=!1,J===n&&nn()}}function go(e){const t=document.getElementById("hashFieldSearchInput");t&&(t.addEventListener("input",()=>nn()),t.addEventListener("keydown",o=>{if(o.key!=="Enter"||!J)return;const a=t.value.trim(),i=J;i.cursor===0&&!i.match||Ge({reset:!0,match:a?yo(a):null})}));const n=document.getElementById("btnAddHashField");n&&n.addEventListener("click",async()=>{const o=prompt(`Enter field name for hash '${e}':`);if(!o)return;const a=prompt(`Enter value for field '${o}':`);if(a!==null)try{if(!(await fetch(`/api/keys/${encodeURIComponent(e)}/field`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({field:o,value:a})})).ok)throw new Error("Failed to set field");ve(e)}catch(i){alert("Error setting field: "+i.message)}}),on(e)}function on(e){document.querySelectorAll(".btn-delete-hash-field").forEach(t=>{t.addEventListener("click",async()=>{const n=decodeURIComponent(t.getAttribute("data-field"));if(confirm(`Delete field '${n}' from hash '${e}'?`))try{if(!(await fetch(`/api/keys/${encodeURIComponent(e)}/field/${encodeURIComponent(n)}`,{method:"DELETE"})).ok)throw new Error("Failed to delete field");ve(e)}catch(o){alert("Error: "+o.message)}})})}function fo(e){if(!e)return null;const t=e.match(/filename\*\s*=\s*([\w-]*)'[^']*'([^;]+)/i);if(t)try{return decodeURIComponent(t[2].trim().replace(/^"|"$/g,""))}catch{}const n=e.match(/filename\s*=\s*"([^"]*)"/i)||e.match(/filename\s*=\s*([^;]+)/i);return n&&n[1].trim()?n[1].trim():null}function an(e,t){const n=URL.createObjectURL(e),o=document.createElement("a");o.href=n,o.download=t,o.style.display="none",document.body.appendChild(o),o.click(),document.body.removeChild(o),setTimeout(()=>URL.revokeObjectURL(n),3e4)}async function sn(e,t,n=null){let o=fo(e.headers.get("content-disposition"))||t;const a=String(e.headers.get("x-export-format")||n||"").toLowerCase();a&&!o.toLowerCase().endsWith(`.${a}`)&&(o=`${o}.${a}`);const i=await e.blob();return an(i,o),o}async function ho(e,t){if(!e)return;const n=t?t.innerHTML:"";t&&(t.disabled=!0,t.innerHTML='<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Downloading...',u());try{const o=await fetch(`/api/keys/${encodeURIComponent(e)}/download`);if(!o.ok){const i=await o.json().catch(()=>({}));throw new Error(i.detail||`Server error: ${o.status}`)}const a=e.replace(/[^A-Za-z0-9._-]+/g,"_")||"redis_key";await sn(o,a),o.headers.get("x-export-truncated")==="true"&&alert(`Download was capped: the key has ${Number(o.headers.get("x-export-total")||0).toLocaleString()} entries, only the first portion was included.`)}catch(o){alert("Download failed: "+o.message)}finally{t&&(t.disabled=!1,t.innerHTML=n,u())}}function d(e){return String(e).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}function Xe(e,t){if(B?.read_only){alert("Key deletion is disabled in Read-Only mode.");return}Ue=t;const n=document.getElementById("deleteKeyConfirmModal"),o=document.getElementById("deleteKeyTargetName"),a=document.getElementById("inputConfirmDelete"),i=document.getElementById("btnSubmitDeleteKey");o.textContent=e,a.value="",i.disabled=!0,n.classList.add("active"),a.focus(),a.oninput=()=>{const r=a.value.trim().toUpperCase();i.disabled=r!=="CONFIRM"&&a.value.trim()!==e},i.onclick=async()=>{i.disabled=!0,i.textContent="Deleting...";try{const r=await fetch(`/api/keys/${encodeURIComponent(e)}?confirmed=true`,{method:"DELETE"}),l=await r.json();if(!r.ok)throw new Error(l.detail||"Failed to delete key");n.classList.remove("active"),Ue&&Ue()}catch(r){alert("Error deleting key: "+r.message)}finally{i.disabled=!1,i.textContent="Delete Permanently"}}}async function vo(){document.getElementById("clientsListModal").classList.add("active"),await et()}function Pt(){document.getElementById("clientsListModal").classList.remove("active")}async function et(){const e=document.getElementById("clientsTableContainer"),t=document.getElementById("clientsCountBadge"),n=document.getElementById("clientsQuickStats"),o=document.getElementById("clientsSearchInput");e.innerHTML='<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);"><i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i><br>Fetching connected clients...</div>',u();try{const a=await fetch("/api/clients");if(!a.ok)throw new Error("Failed to load connected clients");re=await a.json(),t&&(t.textContent=re.length),n&&(n.textContent=`${re.length} total connections`),o&&(o.value=""),ln(re)}catch(a){e.innerHTML=`
+  `,f();const a=document.getElementById("btnLoadMoreHashFields");a&&a.addEventListener("click",()=>ot());const i=document.getElementById("btnClearHashMatch");i&&i.addEventListener("click",r=>{r.preventDefault();const s=document.getElementById("hashFieldSearchInput");s&&(s.value=""),ot({reset:!0,match:null})})}async function ot({reset:e=!1,match:t}={}){const n=Q;if(!n||n.loading||!e&&n.cursor===0)return;const o=n.key,a=e?t:n.match;n.loading=!0,dt();try{const i=new URLSearchParams({cursor:String(e?0:n.cursor),count:String(Co)});a&&i.set("match",a);const r=await fetch(`/api/keys/${encodeURIComponent(o)}/hash/fields?${i}`);if(!r.ok){const m=await r.json().catch(()=>({}));throw new Error(m.detail||`Server error: ${r.status}`)}const s=await r.json();if(Q!==n||Y!==o)return;e&&(n.fields=[]);const c=new Set(n.fields.map(m=>m.field));for(const m of s.fields||[])c.has(m.field)||(c.add(m.field),n.fields.push(m));n.cursor=Number(s.cursor||0),n.total=Number(s.total??n.total),n.match=a||null}catch(i){alert("Failed to load hash fields: "+i.message)}finally{n.loading=!1,Q===n&&un()}}function No(e){const t=document.getElementById("hashFieldSearchInput");t&&(t.addEventListener("input",()=>un()),t.addEventListener("keydown",o=>{if(o.key!=="Enter"||!Q)return;const a=t.value.trim(),i=Q;i.cursor===0&&!i.match||ot({reset:!0,match:a?Do(a):null})}));const n=document.getElementById("btnAddHashField");n&&n.addEventListener("click",async()=>{const o=prompt(`Enter field name for hash '${e}':`);if(!o)return;const a=prompt(`Enter value for field '${o}':`);if(a!==null)try{if(!(await fetch(`/api/keys/${encodeURIComponent(e)}/field`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({field:o,value:a})})).ok)throw new Error("Failed to set field");he(e)}catch(i){alert("Error setting field: "+i.message)}}),yn(e)}function yn(e){document.querySelectorAll(".btn-delete-hash-field").forEach(t=>{t.addEventListener("click",async()=>{const n=decodeURIComponent(t.getAttribute("data-field"));if(confirm(`Delete field '${n}' from hash '${e}'?`))try{if(!(await fetch(`/api/keys/${encodeURIComponent(e)}/field/${encodeURIComponent(n)}`,{method:"DELETE"})).ok)throw new Error("Failed to delete field");he(e)}catch(o){alert("Error: "+o.message)}})})}function zo(e){if(!e)return null;const t=e.match(/filename\*\s*=\s*([\w-]*)'[^']*'([^;]+)/i);if(t)try{return decodeURIComponent(t[2].trim().replace(/^"|"$/g,""))}catch{}const n=e.match(/filename\s*=\s*"([^"]*)"/i)||e.match(/filename\s*=\s*([^;]+)/i);return n&&n[1].trim()?n[1].trim():null}function gn(e,t){const n=URL.createObjectURL(e),o=document.createElement("a");o.href=n,o.download=t,o.style.display="none",document.body.appendChild(o),o.click(),document.body.removeChild(o),setTimeout(()=>URL.revokeObjectURL(n),3e4)}async function fn(e,t,n=null){let o=zo(e.headers.get("content-disposition"))||t;const a=String(e.headers.get("x-export-format")||n||"").toLowerCase();a&&!o.toLowerCase().endsWith(`.${a}`)&&(o=`${o}.${a}`);const i=await e.blob();return gn(i,o),o}async function Po(e,t){if(!e)return;const n=t?t.innerHTML:"";t&&(t.disabled=!0,t.innerHTML='<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Downloading...',f());try{const o=await fetch(`/api/keys/${encodeURIComponent(e)}/download`);if(!o.ok){const i=await o.json().catch(()=>({}));throw new Error(i.detail||`Server error: ${o.status}`)}const a=e.replace(/[^A-Za-z0-9._-]+/g,"_")||"redis_key";await fn(o,a),o.headers.get("x-export-truncated")==="true"&&alert(`Download was capped: the key has ${Number(o.headers.get("x-export-total")||0).toLocaleString()} entries, only the first portion was included.`)}catch(o){alert("Download failed: "+o.message)}finally{t&&(t.disabled=!1,t.innerHTML=n,f())}}function d(e){return String(e).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}function Pe(e,t){if(B?.read_only){alert("Key deletion is disabled in Read-Only mode.");return}Xe=t;const n=document.getElementById("deleteKeyConfirmModal"),o=document.getElementById("deleteKeyTargetName"),a=document.getElementById("inputConfirmDelete"),i=document.getElementById("btnSubmitDeleteKey");o.textContent=e,a.value="",i.disabled=!0,n.classList.add("active"),a.focus(),a.oninput=()=>{const r=a.value.trim().toUpperCase();i.disabled=r!=="CONFIRM"&&a.value.trim()!==e},i.onclick=async()=>{i.disabled=!0,i.textContent="Deleting...";try{const r=await fetch(`/api/keys/${encodeURIComponent(e)}?confirmed=true`,{method:"DELETE"}),s=await r.json();if(!r.ok)throw new Error(s.detail||"Failed to delete key");n.classList.remove("active"),Xe&&Xe()}catch(r){alert("Error deleting key: "+r.message)}finally{i.disabled=!1,i.textContent="Delete Permanently"}}}async function Ho(){document.getElementById("clientsListModal").classList.add("active"),await ct()}function Jt(){document.getElementById("clientsListModal").classList.remove("active")}async function ct(){const e=document.getElementById("clientsTableContainer"),t=document.getElementById("clientsCountBadge"),n=document.getElementById("clientsQuickStats"),o=document.getElementById("clientsSearchInput");e.innerHTML='<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);"><i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i><br>Fetching connected clients...</div>',f();try{const a=await fetch("/api/clients");if(!a.ok)throw new Error("Failed to load connected clients");ue=await a.json(),t&&(t.textContent=ue.length),n&&(n.textContent=`${ue.length} total connections`),o&&(o.value=""),hn(ue)}catch(a){e.innerHTML=`
       <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
         <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
         <h4>Error loading clients</h4>
         <p style="font-size: 0.85rem; margin-top: 0.25rem;">${a.message}</p>
       </div>
-    `,u()}}function ln(e){const t=document.getElementById("clientsTableContainer");if(!e||e.length===0){t.innerHTML=`
+    `,f()}}function hn(e){const t=document.getElementById("clientsTableContainer");if(!e||e.length===0){t.innerHTML=`
       <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
         <i data-lucide="users" style="width: 32px; height: 32px; margin-bottom: 0.5rem; opacity: 0.4;"></i>
         <p>No matching connected clients found.</p>
       </div>
-    `,u();return}t.innerHTML=`
+    `,f();return}t.innerHTML=`
     <table class="data-table" style="width: 100%;">
       <thead>
         <tr>
@@ -1274,34 +1444,34 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
         `).join("")}
       </tbody>
     </table>
-  `,u(),t.querySelectorAll(".btn-kill-client").forEach(n=>{n.addEventListener("click",()=>{const o=n.getAttribute("data-id"),a=n.getAttribute("data-addr");bo(o,a)})})}async function bo(e,t){if(B?.read_only){alert("Client disconnection is disabled in Read-Only mode.");return}if(confirm(`Are you sure you want to disconnect client #${e} (${t})?`))try{const n=await fetch(`/api/clients/${e}`,{method:"DELETE"}),o=await n.json();if(!n.ok)throw new Error(o.detail||"Failed to disconnect client");await et(),await q()}catch(n){alert("Error disconnecting client: "+n.message)}}async function xo(){const e=document.getElementById("slowlogModal");if(!e)return;e.classList.add("active"),Se=0,$e="",ce="all";const t=document.getElementById("btnClearSlowlogModal");t&&(t.style.display=B?.read_only?"none":""),document.querySelectorAll(".slowlog-filter-btn").forEach(o=>{o.classList.toggle("active",o.getAttribute("data-min-duration")==="0")});const n=document.getElementById("slowlogSearchInput");n&&(n.value=""),await tt()}function Ht(){const e=document.getElementById("slowlogModal");e&&e.classList.remove("active")}async function tt(){const e=document.getElementById("slowlogTableContainer"),t=document.getElementById("slowlogCountBadge"),n=document.getElementById("slowlogThresholdBadge"),o=document.getElementById("slowlogFooterStats");e&&(e.innerHTML=`
+  `,f(),t.querySelectorAll(".btn-kill-client").forEach(n=>{n.addEventListener("click",()=>{const o=n.getAttribute("data-id"),a=n.getAttribute("data-addr");Fo(o,a)})})}async function Fo(e,t){if(B?.read_only){alert("Client disconnection is disabled in Read-Only mode.");return}if(confirm(`Are you sure you want to disconnect client #${e} (${t})?`))try{const n=await fetch(`/api/clients/${e}`,{method:"DELETE"}),o=await n.json();if(!n.ok)throw new Error(o.detail||"Failed to disconnect client");await ct(),await G()}catch(n){alert("Error disconnecting client: "+n.message)}}async function Oo(){const e=document.getElementById("slowlogModal");if(!e)return;e.classList.add("active"),Re=0,De="",ge="all";const t=document.getElementById("btnClearSlowlogModal");t&&(t.style.display=B?.read_only?"none":""),document.querySelectorAll(".slowlog-filter-btn").forEach(o=>{o.classList.toggle("active",o.getAttribute("data-min-duration")==="0")});const n=document.getElementById("slowlogSearchInput");n&&(n.value=""),await pt()}function Wt(){const e=document.getElementById("slowlogModal");e&&e.classList.remove("active")}async function pt(){const e=document.getElementById("slowlogTableContainer"),t=document.getElementById("slowlogCountBadge"),n=document.getElementById("slowlogThresholdBadge"),o=document.getElementById("slowlogFooterStats");e&&(e.innerHTML=`
       <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
         <i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem; color: #38bdf8;"></i><br>
         Fetching slowlog entries across Redis nodes...
       </div>
-    `,u());try{const a=await fetch("/api/slowlog?limit=250");if(!a.ok)throw new Error("Failed to fetch slowlog");const i=await a.json();if(de=i.entries||[],t&&(t.textContent=de.length),n&&i.slower_than_us!==null&&i.slower_than_us!==void 0){const r=(i.slower_than_us/1e3).toFixed(1);n.textContent=`Threshold: > ${r}ms (${i.slower_than_us} µs)`}o&&(o.textContent=`Total buffer: ${i.total_len||de.length} entries | Max buffer: ${i.max_len||"N/A"}`),wo(de),Te()}catch(a){e&&(e.innerHTML=`
+    `,f());try{const a=await fetch("/api/slowlog?limit=250");if(!a.ok)throw new Error("Failed to fetch slowlog");const i=await a.json();if(ye=i.entries||[],t&&(t.textContent=ye.length),n&&i.slower_than_us!==null&&i.slower_than_us!==void 0){const r=(i.slower_than_us/1e3).toFixed(1);n.textContent=`Threshold: > ${r}ms (${i.slower_than_us} µs)`}o&&(o.textContent=`Total buffer: ${i.total_len||ye.length} entries | Max buffer: ${i.max_len||"N/A"}`),Ko(ye),ze()}catch(a){e&&(e.innerHTML=`
         <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
           <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
           <h4>Error Loading Slowlog</h4>
           <p style="font-size: 0.85rem; margin-top: 0.25rem;">${d(a.message)}</p>
         </div>
-      `,u())}}function wo(e){const t=document.getElementById("slowlogNodeFilterContainer");if(!t)return;const n=Array.from(new Set(e.map(a=>a.node).filter(Boolean)));if(n.length<=1){t.innerHTML="";return}t.innerHTML=`
+      `,f())}}function Ko(e){const t=document.getElementById("slowlogNodeFilterContainer");if(!t)return;const n=Array.from(new Set(e.map(a=>a.node).filter(Boolean)));if(n.length<=1){t.innerHTML="";return}t.innerHTML=`
     <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-left: 0.5rem;">Node:</span>
     <select id="slowlogNodeSelect" class="form-select" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; width: auto; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
       <option value="all">All Nodes (${n.length})</option>
-      ${n.map(a=>`<option value="${d(a)}" ${ce===a?"selected":""}>${d(a)}</option>`).join("")}
+      ${n.map(a=>`<option value="${d(a)}" ${ge===a?"selected":""}>${d(a)}</option>`).join("")}
     </select>
-  `;const o=document.getElementById("slowlogNodeSelect");o&&o.addEventListener("change",()=>{ce=o.value,Te()})}function Te(){let e=de;if(Se>0&&(e=e.filter(t=>t.duration_ms>=Se)),ce&&ce!=="all"&&(e=e.filter(t=>t.node===ce)),$e){const t=$e.toLowerCase();e=e.filter(n=>{const o=(n.command||[]).join(" ").toLowerCase(),a=(n.client_ip||"").toLowerCase(),i=(n.node||"").toLowerCase();return o.includes(t)||a.includes(t)||i.includes(t)||String(n.id).includes(t)})}Eo(e)}function Eo(e){const t=document.getElementById("slowlogTableContainer");if(t){if(!e||e.length===0){t.innerHTML=`
+  `;const o=document.getElementById("slowlogNodeSelect");o&&o.addEventListener("change",()=>{ge=o.value,ze()})}function ze(){let e=ye;if(Re>0&&(e=e.filter(t=>t.duration_ms>=Re)),ge&&ge!=="all"&&(e=e.filter(t=>t.node===ge)),De){const t=De.toLowerCase();e=e.filter(n=>{const o=(n.command||[]).join(" ").toLowerCase(),a=(n.client_ip||"").toLowerCase(),i=(n.node||"").toLowerCase();return o.includes(t)||a.includes(t)||i.includes(t)||String(n.id).includes(t)})}jo(e)}function jo(e){const t=document.getElementById("slowlogTableContainer");if(t){if(!e||e.length===0){t.innerHTML=`
       <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-muted);">
         <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
           <i data-lucide="check-circle-2" style="width: 28px; height: 28px; color: #4ade80;"></i>
         </div>
         <h4 style="color: var(--text-primary); margin-bottom: 0.35rem;">No Slow Queries Recorded</h4>
         <p style="font-size: 0.85rem; max-width: 440px; margin: 0 auto; line-height: 1.5;">
-          ${de.length===0?"Redis latency is healthy! All commands executed within the threshold.":"No slowlog entries matched the active filters."}
+          ${ye.length===0?"Redis latency is healthy! All commands executed within the threshold.":"No slowlog entries matched the active filters."}
         </p>
       </div>
-    `,u();return}t.innerHTML=`
+    `,f();return}t.innerHTML=`
     <table class="keys-table" style="width: 100%;">
       <thead>
         <tr>
@@ -1348,19 +1518,19 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
           `}).join("")}
       </tbody>
     </table>
-  `,u(),document.querySelectorAll(".btn-copy-slowlog-cmd").forEach(n=>{n.addEventListener("click",o=>{o.stopPropagation();const a=n.getAttribute("data-cmd");a&&navigator.clipboard.writeText(a).then(()=>{n.classList.add("copied"),n.innerHTML='<i data-lucide="check" style="width: 12px; height: 12px;"></i>',u(),setTimeout(()=>{n.classList.remove("copied"),n.innerHTML='<i data-lucide="copy" style="width: 12px; height: 12px;"></i>',u()},1500)})})})}}async function Co(){if(B?.read_only){alert("Slowlog reset is disabled in Read-Only mode.");return}if(confirm(`Are you sure you want to reset the Redis Slowlog buffer?
+  `,f(),document.querySelectorAll(".btn-copy-slowlog-cmd").forEach(n=>{n.addEventListener("click",o=>{o.stopPropagation();const a=n.getAttribute("data-cmd");a&&navigator.clipboard.writeText(a).then(()=>{n.classList.add("copied"),n.innerHTML='<i data-lucide="check" style="width: 12px; height: 12px;"></i>',f(),setTimeout(()=>{n.classList.remove("copied"),n.innerHTML='<i data-lucide="copy" style="width: 12px; height: 12px;"></i>',f()},1500)})})})}}async function Uo(){if(B?.read_only){alert("Slowlog reset is disabled in Read-Only mode.");return}if(confirm(`Are you sure you want to reset the Redis Slowlog buffer?
 
-This will clear recorded slow commands across all connected Redis instances.`))try{if(!(await fetch("/api/slowlog/reset",{method:"POST"})).ok)throw new Error("Failed to reset slowlog");await tt()}catch(e){alert("Error resetting slowlog: "+e.message)}}async function rn(){const e=document.getElementById("memoryModal");e&&(e.classList.add("active"),await dn(),W?ot(W):nt())}function Je(){const e=document.getElementById("memoryModal");e&&e.classList.remove("active")}async function dn(){const e=document.getElementById("memoryOverviewContainer");if(e){e.innerHTML=`
+This will clear recorded slow commands across all connected Redis instances.`))try{if(!(await fetch("/api/slowlog/reset",{method:"POST"})).ok)throw new Error("Failed to reset slowlog");await pt()}catch(e){alert("Error resetting slowlog: "+e.message)}}async function vn(){const e=document.getElementById("memoryModal");e&&(e.classList.add("active"),await bn(),te?ut(te):mt())}function at(){const e=document.getElementById("memoryModal");e&&e.classList.remove("active")}async function bn(){const e=document.getElementById("memoryOverviewContainer");if(e){e.innerHTML=`
     <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
       <i data-lucide="refresh-cw" class="spin" style="width: 20px; height: 20px; margin-bottom: 0.5rem; color: #a78bfa;"></i><br>
       Refreshing live memory metrics...
     </div>
-  `,u();try{const t=await fetch("/api/memory/overview");if(!t.ok)throw new Error("Failed to fetch memory overview");Dt=await t.json(),ko(Dt)}catch(t){e.innerHTML=`
+  `,f();try{const t=await fetch("/api/memory/overview");if(!t.ok)throw new Error("Failed to fetch memory overview");Vt=await t.json(),Vo(Vt)}catch(t){e.innerHTML=`
       <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
         <i data-lucide="alert-circle" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i>
         <p style="font-size: 0.85rem;">Error loading memory overview: ${d(t.message)}</p>
       </div>
-    `,u()}}}function ko(e){const t=document.getElementById("memoryOverviewContainer");if(!t||!e)return;let n="mem-status-healthy",o="Optimal (1.0 - 1.5)";e.fragmentation_status==="critical"?(n="mem-status-critical",o="Critical (> 2.0)"):e.fragmentation_status==="warning"&&(n="mem-status-warning",o=e.fragmentation_ratio<.9?"Swapping (< 0.9)":"Warning (> 1.5)"),t.innerHTML=`
+    `,f()}}}function Vo(e){const t=document.getElementById("memoryOverviewContainer");if(!t||!e)return;let n="mem-status-healthy",o="Optimal (1.0 - 1.5)";e.fragmentation_status==="critical"?(n="mem-status-critical",o="Critical (> 2.0)"):e.fragmentation_status==="warning"&&(n="mem-status-warning",o=e.fragmentation_ratio<.9?"Swapping (< 0.9)":"Warning (> 1.5)"),t.innerHTML=`
     <div class="mem-grid">
       <!-- Used Memory -->
       <div class="mem-stat-card" style="--card-border-glow: rgba(56, 189, 248, 0.6);">
@@ -1413,7 +1583,7 @@ This will clear recorded slow commands across all connected Redis instances.`))t
         </div>
       </div>
     </div>
-  `,u()}function nt(){const e=document.getElementById("memoryProfilingContainer");if(!e)return;e.innerHTML=`
+  `,f()}function mt(){const e=document.getElementById("memoryProfilingContainer");if(!e)return;e.innerHTML=`
     <!-- Educational Explainer -->
     <div class="mem-info-banner">
       <i data-lucide="info" style="width: 20px; height: 20px; color: #38bdf8; flex-shrink: 0; margin-top: 2px;"></i>
@@ -1459,7 +1629,7 @@ This will clear recorded slow commands across all connected Redis instances.`))t
         </button>
       </div>
     </div>
-  `,u();const t=document.getElementById("btnStartProfilingAction");t&&t.addEventListener("click",()=>{const n=parseInt(document.getElementById("memSampleSizeSelect").value,10)||500,o=document.getElementById("memSamplePatternInput").value||"*";Lo(n,o)})}async function Lo(e=500,t="*"){const n=document.getElementById("memoryProfilingContainer");if(n){Ke=!0,n.innerHTML=`
+  `,f();const t=document.getElementById("btnStartProfilingAction");t&&t.addEventListener("click",()=>{const n=parseInt(document.getElementById("memSampleSizeSelect").value,10)||500,o=document.getElementById("memSamplePatternInput").value||"*";qo(n,o)})}async function qo(e=500,t="*"){const n=document.getElementById("memoryProfilingContainer");if(n){Qe=!0,n.innerHTML=`
     <div style="padding: 3.5rem 1.5rem; text-align: center;">
       <i data-lucide="refresh-cw" class="spin" style="width: 36px; height: 36px; color: #a78bfa; margin-bottom: 1rem;"></i>
       <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 0.4rem;">Analyzing Redis Keyspace...</h3>
@@ -1467,14 +1637,14 @@ This will clear recorded slow commands across all connected Redis instances.`))t
         Scanning sample of up to <strong>${e.toLocaleString()}</strong> keys (pattern <code>${d(t)}</code>) and measuring memory allocations...
       </p>
     </div>
-  `,u();try{const o=await fetch("/api/memory/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sample_size:e,pattern:t})});if(!o.ok)throw new Error("Failed to complete memory profiling");W=await o.json(),Ke=!1,ot(W)}catch(o){Ke=!1,n.innerHTML=`
+  `,f();try{const o=await fetch("/api/memory/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sample_size:e,pattern:t})});if(!o.ok)throw new Error("Failed to complete memory profiling");te=await o.json(),Qe=!1,ut(te)}catch(o){Qe=!1,n.innerHTML=`
       <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
         <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
         <h4>Memory Profiling Failed</h4>
         <p style="font-size: 0.85rem; margin-top: 0.25rem;">${d(o.message)}</p>
         <button type="button" class="btn btn-secondary" id="btnRetryProfiling" style="margin-top: 1rem;">Try Again</button>
       </div>
-    `,u();const a=document.getElementById("btnRetryProfiling");a&&a.addEventListener("click",nt)}}}function ot(e){const t=document.getElementById("memoryProfilingContainer");if(!t||!e)return;const n={string:"#38bdf8",hash:"#ec4899",list:"#a855f7",set:"#eab308",zset:"#22c55e",stream:"#06b6d4",json:"#f97316",other:"#94a3b8"};t.innerHTML=`
+    `,f();const a=document.getElementById("btnRetryProfiling");a&&a.addEventListener("click",mt)}}}function ut(e){const t=document.getElementById("memoryProfilingContainer");if(!t||!e)return;const n={string:"#38bdf8",hash:"#ec4899",list:"#a855f7",set:"#eab308",zset:"#22c55e",stream:"#06b6d4",json:"#f97316",other:"#94a3b8"};t.innerHTML=`
     <!-- Summary Header Bar -->
     <div style="background: rgba(15,23,42,0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
       <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.825rem;">
@@ -1569,10 +1739,10 @@ This will clear recorded slow commands across all connected Redis instances.`))t
       </div>
 
       <div id="bigkeysTableContainer">
-        ${Ot(e.top_bigkeys)}
+        ${Yt(e.top_bigkeys)}
       </div>
     </div>
-  `,u();const o=document.getElementById("btnReRunProfiling");o&&o.addEventListener("click",nt);const a=document.getElementById("bigkeysSearchInput");a&&a.addEventListener("input",()=>{const i=a.value.trim().toLowerCase(),r=i?e.top_bigkeys.filter(c=>c.key.toLowerCase().includes(i)||c.type.toLowerCase().includes(i)):e.top_bigkeys,l=document.getElementById("bigkeysTableContainer");l&&(l.innerHTML=Ot(r),u(),Ft())}),Ft()}function Ot(e){if(!e||e.length===0)return'<div style="padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">No keys found</div>';const t=e[0]?e[0].memory_bytes:1;return`
+  `,f();const o=document.getElementById("btnReRunProfiling");o&&o.addEventListener("click",mt);const a=document.getElementById("bigkeysSearchInput");a&&a.addEventListener("input",()=>{const i=a.value.trim().toLowerCase(),r=i?e.top_bigkeys.filter(c=>c.key.toLowerCase().includes(i)||c.type.toLowerCase().includes(i)):e.top_bigkeys,s=document.getElementById("bigkeysTableContainer");s&&(s.innerHTML=Yt(r),f(),Zt())}),Zt()}function Yt(e){if(!e||e.length===0)return'<div style="padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">No keys found</div>';const t=e[0]?e[0].memory_bytes:1;return`
     <table class="keys-table" style="width: 100%;">
       <thead>
         <tr>
@@ -1586,7 +1756,7 @@ This will clear recorded slow commands across all connected Redis instances.`))t
         </tr>
       </thead>
       <tbody>
-        ${e.map((n,o)=>{let a="rank-normal";o===0?a="rank-gold":o===1?a="rank-silver":o===2&&(a="rank-bronze");const i=t>0?Math.max(5,Math.round(n.memory_bytes/t*100)):10;let r="No TTL (Persistent)",l="var(--text-muted)";return n.ttl>0&&(r=`${n.ttl.toLocaleString()}s`,l="var(--accent-warning)"),`
+        ${e.map((n,o)=>{let a="rank-normal";o===0?a="rank-gold":o===1?a="rank-silver":o===2&&(a="rank-bronze");const i=t>0?Math.max(5,Math.round(n.memory_bytes/t*100)):10;let r="No TTL (Persistent)",s="var(--text-muted)";return n.ttl>0&&(r=`${n.ttl.toLocaleString()}s`,s="var(--accent-warning)"),`
             <tr>
               <td>
                 <span class="rank-badge ${a}">#${o+1}</span>
@@ -1617,7 +1787,7 @@ This will clear recorded slow commands across all connected Redis instances.`))t
               <td style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">
                 ${n.length.toLocaleString()}
               </td>
-              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: ${l};">
+              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: ${s};">
                 ${r}
               </td>
               <td style="text-align: right;">
@@ -1637,7 +1807,7 @@ This will clear recorded slow commands across all connected Redis instances.`))t
           `}).join("")}
       </tbody>
     </table>
-  `}function Ft(){document.querySelectorAll(".bigkey-inspect-btn").forEach(e=>{e.addEventListener("click",()=>{const t=e.getAttribute("data-key");t&&(Je(),ve(t))})}),document.querySelectorAll(".btn-copy-bigkey").forEach(e=>{e.addEventListener("click",t=>{t.stopPropagation();const n=e.getAttribute("data-key");n&&navigator.clipboard.writeText(n).then(()=>{e.classList.add("copied"),e.innerHTML='<i data-lucide="check" style="width: 11px; height: 11px;"></i>',u(),setTimeout(()=>{e.classList.remove("copied"),e.innerHTML='<i data-lucide="copy" style="width: 11px; height: 11px;"></i>',u()},1500)})})}),document.querySelectorAll(".bigkey-delete-btn").forEach(e=>{e.addEventListener("click",()=>{const t=e.getAttribute("data-key");t&&Xe(t,async()=>{W&&(W.top_bigkeys=W.top_bigkeys.filter(n=>n.key!==t),ot(W)),await q()})})})}async function Q(){const e=document.getElementById("connectionsList");try{const[t,n]=await Promise.all([fetch("/api/connections"),fetch("/api/connections/limit")]);I=await t.json()||[],n.ok&&(Z=(await n.json()).limit||2),Le()}catch{e&&(e.innerHTML='<div style="padding: 1rem; color: var(--accent-danger);">Failed to load connections</div>')}}function cn(e,t){const n=document.getElementById("connectedCountDisplay"),o=document.getElementById("connLimitDisplay"),a=document.getElementById("connLimitSelect"),i=document.getElementById("limitProgressDots"),r=document.getElementById("limitCountPill");if(n&&(n.textContent=e),o&&(o.textContent=t),a&&String(a.value)!==String(t)&&(a.value=String(t)),r&&(e>=t&&t>0?(r.classList.add("at-limit"),r.title="Connection limit reached"):(r.classList.remove("at-limit"),r.title=`${e} of ${t} connections in use`)),i){let l="";for(let c=0;c<t;c++){const y=c<e;l+=`<span class="limit-slot-dot ${y?"filled":"empty"}" title="Slot ${c+1}: ${y?"Connected":"Available"}"></span>`}i.innerHTML=l}}function Le(){const e=document.getElementById("connectionsList");if(!e)return;const t=document.getElementById("totalConnCountBadge");t&&(t.textContent=I.length),document.querySelectorAll("#envFilterPills .env-pill-btn").forEach(l=>{const c=l.getAttribute("data-env");let y=0;c==="ALL"?y=I.length:y=I.filter(g=>(g.env||"LOCAL").toUpperCase()===c).length,l.textContent=`${c} (${y})`});const o=(ke||"").trim().toLowerCase(),a=Vt,i=I.filter(l=>{if(a!=="ALL"&&(l.env||"LOCAL").toUpperCase()!==a)return!1;if(o){const c=(l.name||"").toLowerCase().includes(o),y=(l.host||"").toLowerCase().includes(o),g=(l.env||"").toLowerCase().includes(o),b=(l.conn_type||"").toLowerCase().includes(o);if(!c&&!y&&!g&&!b)return!1}return!0});i.sort((l,c)=>{const y=l.is_connected?1:0,g=c.is_connected?1:0;if(g!==y)return g-y;const b=l.is_selected?1:0,w=c.is_selected?1:0;return w!==b?w-b:(l.name||"").localeCompare(c.name||"")});const r=I.filter(l=>l.is_connected).length;if(cn(r,Z),i.length===0){e.innerHTML=`
+  `}function Zt(){document.querySelectorAll(".bigkey-inspect-btn").forEach(e=>{e.addEventListener("click",()=>{const t=e.getAttribute("data-key");t&&(at(),he(t))})}),document.querySelectorAll(".btn-copy-bigkey").forEach(e=>{e.addEventListener("click",t=>{t.stopPropagation();const n=e.getAttribute("data-key");n&&navigator.clipboard.writeText(n).then(()=>{e.classList.add("copied"),e.innerHTML='<i data-lucide="check" style="width: 11px; height: 11px;"></i>',f(),setTimeout(()=>{e.classList.remove("copied"),e.innerHTML='<i data-lucide="copy" style="width: 11px; height: 11px;"></i>',f()},1500)})})}),document.querySelectorAll(".bigkey-delete-btn").forEach(e=>{e.addEventListener("click",()=>{const t=e.getAttribute("data-key");t&&Pe(t,async()=>{te&&(te.top_bigkeys=te.top_bigkeys.filter(n=>n.key!==t),ut(te)),await G()})})})}async function oe(){const e=document.getElementById("connectionsList");try{const[t,n]=await Promise.all([fetch("/api/connections"),fetch("/api/connections/limit")]);M=await t.json()||[],n.ok&&(ne=(await n.json()).limit||2),Ae()}catch{e&&(e.innerHTML='<div style="padding: 1rem; color: var(--accent-danger);">Failed to load connections</div>')}}function xn(e,t){const n=document.getElementById("connectedCountDisplay"),o=document.getElementById("connLimitDisplay"),a=document.getElementById("connLimitSelect"),i=document.getElementById("limitProgressDots"),r=document.getElementById("limitCountPill");if(n&&(n.textContent=e),o&&(o.textContent=t),a&&String(a.value)!==String(t)&&(a.value=String(t)),r&&(e>=t&&t>0?(r.classList.add("at-limit"),r.title="Connection limit reached"):(r.classList.remove("at-limit"),r.title=`${e} of ${t} connections in use`)),i){let s="";for(let c=0;c<t;c++){const m=c<e;s+=`<span class="limit-slot-dot ${m?"filled":"empty"}" title="Slot ${c+1}: ${m?"Connected":"Available"}"></span>`}i.innerHTML=s}}function Ae(){const e=document.getElementById("connectionsList");if(!e)return;const t=document.getElementById("totalConnCountBadge");t&&(t.textContent=M.length),document.querySelectorAll("#envFilterPills .env-pill-btn").forEach(s=>{const c=s.getAttribute("data-env");let m=0;c==="ALL"?m=M.length:m=M.filter(g=>(g.env||"LOCAL").toUpperCase()===c).length,s.textContent=`${c} (${m})`});const o=(_e||"").trim().toLowerCase(),a=nn,i=M.filter(s=>{if(a!=="ALL"&&(s.env||"LOCAL").toUpperCase()!==a)return!1;if(o){const c=(s.name||"").toLowerCase().includes(o),m=(s.host||"").toLowerCase().includes(o),g=(s.env||"").toLowerCase().includes(o),E=(s.conn_type||"").toLowerCase().includes(o);if(!c&&!m&&!g&&!E)return!1}return!0});i.sort((s,c)=>{const m=s.is_connected?1:0,g=c.is_connected?1:0;if(g!==m)return g-m;const E=s.is_selected?1:0,C=c.is_selected?1:0;return C!==E?C-E:(s.name||"").localeCompare(c.name||"")});const r=M.filter(s=>s.is_connected).length;if(xn(r,ne),i.length===0){e.innerHTML=`
       <div class="empty-filter-state">
         <i data-lucide="search" style="width: 26px; height: 26px; color: var(--text-muted); margin-bottom: 0.5rem; opacity: 0.7;"></i>
         <div style="font-weight: 500; color: var(--text-secondary);">No matching connections</div>
@@ -1645,17 +1815,17 @@ This will clear recorded slow commands across all connected Redis instances.`))t
           ${o?`No results found for "${d(o)}"`:`No connections configured in ${d(a)}`}
         </span>
       </div>
-    `,u();return}e.innerHTML=i.map(l=>{const c=(l.env||"LOCAL").toUpperCase(),y=`badge-env-${c.toLowerCase()}`,g=l.conn_type==="cluster",b=l.conn_type==="sentinel",w=l.source==="config",h=!!l.is_connected,N=!!l.is_selected;return`
-      <div class="conn-card ${h?"is-connected":""} ${N?"selected active":""}" data-id="${l.id}" title="Click to review config & connection options">
+    `,f();return}e.innerHTML=i.map(s=>{const c=(s.env||"LOCAL").toUpperCase(),m=`badge-env-${c.toLowerCase()}`,g=s.conn_type==="cluster",E=s.conn_type==="sentinel",C=s.source==="config",x=!!s.is_connected,p=!!s.is_selected;return`
+      <div class="conn-card ${x?"is-connected":""} ${p?"selected active":""}" data-id="${s.id}" title="Click to review config & connection options">
         
         <!-- Header: Lead Indicator + Name + Status Pill -->
         <div class="conn-card-header">
           <div class="conn-lead-indicator">
-            ${N?`
+            ${p?`
               <span class="conn-status-indicator active" title="Active Cluster (Browsing Keys)">
                 <i data-lucide="check-circle-2" style="width: 15px; height: 15px;"></i>
               </span>
-            `:h?`
+            `:x?`
               <span class="conn-status-indicator connected" title="Connected Cluster">
                 <i data-lucide="check-circle-2" style="width: 15px; height: 15px;"></i>
               </span>
@@ -1665,13 +1835,13 @@ This will clear recorded slow commands across all connected Redis instances.`))t
           </div>
 
           <div class="conn-title-wrap">
-            <span class="conn-name" title="${d(l.name)}">${d(l.name)}</span>
+            <span class="conn-name" title="${d(s.name)}">${d(s.name)}</span>
           </div>
 
           <div class="conn-status-badge-wrap">
-            ${N?`
+            ${p?`
               <span class="badge-selected-cluster"><span class="beacon-dot"></span>ACTIVE</span>
-            `:h?`
+            `:x?`
               <span class="badge-connected-cluster">CONNECTED</span>
             `:""}
           </div>
@@ -1679,48 +1849,48 @@ This will clear recorded slow commands across all connected Redis instances.`))t
 
         <!-- Sub-row: Endpoint on left, Badges on right -->
         <div class="conn-sub-row">
-          <div class="conn-endpoint" title="${d(l.host)}:${l.port}">
-            <i data-lucide="${g?"network":b?"git-branch":"server"}" style="width: 12px; height: 12px; opacity: 0.65; flex-shrink: 0;"></i>
-            <span class="endpoint-text">${d(l.host)}:${l.port}</span>
+          <div class="conn-endpoint" title="${d(s.host)}:${s.port}">
+            <i data-lucide="${g?"network":E?"git-branch":"server"}" style="width: 12px; height: 12px; opacity: 0.65; flex-shrink: 0;"></i>
+            <span class="endpoint-text">${d(s.host)}:${s.port}</span>
           </div>
 
           <div class="conn-tags">
-            <span class="badge-env ${y}">${c}</span>
-            ${l.read_only?'<span class="badge-readonly" title="Read-Only Mode: Mutating operations locked">🔒 RO</span>':""}
+            <span class="badge-env ${m}">${c}</span>
+            ${s.read_only?'<span class="badge-readonly" title="Read-Only Mode: Mutating operations locked">🔒 RO</span>':""}
             ${g?'<span class="badge-conn-type badge-type-cluster">CLUSTER</span>':""}
-            ${b?'<span class="badge-conn-type badge-type-sentinel">SENTINEL</span>':""}
-            ${!g&&!b?`<span class="badge-db">DB${l.db}</span>`:""}
-            ${l.use_tls?'<i data-lucide="shield-check" class="conn-security-icon tls" title="TLS / SSL Encrypted"></i>':""}
-            ${l.has_password?'<i data-lucide="lock" class="conn-security-icon auth" title="Password Protected"></i>':""}
-            ${w?'<span class="badge-source-cfg" title="Managed in config/connections.yaml">CFG</span>':""}
+            ${E?'<span class="badge-conn-type badge-type-sentinel">SENTINEL</span>':""}
+            ${!g&&!E?`<span class="badge-db">DB${s.db}</span>`:""}
+            ${s.use_tls?'<i data-lucide="shield-check" class="conn-security-icon tls" title="TLS / SSL Encrypted"></i>':""}
+            ${s.has_password?'<i data-lucide="lock" class="conn-security-icon auth" title="Password Protected"></i>':""}
+            ${C?'<span class="badge-source-cfg" title="Managed in config/connections.yaml">CFG</span>':""}
           </div>
         </div>
 
         <!-- Floating Quick Action Toolbar on Hover -->
         <div class="conn-hover-toolbar" onclick="event.stopPropagation()">
-          ${h?`
-            ${N?"":`
-              <button type="button" class="btn-hover-action btn-card-select" data-id="${l.id}" title="Switch to this cluster">
+          ${x?`
+            ${p?"":`
+              <button type="button" class="btn-hover-action btn-card-select" data-id="${s.id}" title="Switch to this cluster">
                 <i data-lucide="arrow-right-left" style="width: 11px; height: 11px;"></i>
                 <span>Switch</span>
               </button>
             `}
-            <button type="button" class="btn-hover-action btn-hover-danger btn-card-disconnect" data-id="${l.id}" title="Disconnect cluster">
+            <button type="button" class="btn-hover-action btn-hover-danger btn-card-disconnect" data-id="${s.id}" title="Disconnect cluster">
               <i data-lucide="x" style="width: 12px; height: 12px;"></i>
               <span>Disconnect</span>
             </button>
-            ${g||h?`
-              <button type="button" class="btn-hover-action btn-view-topology-card" data-id="${l.id}" title="View topology & nodes">
+            ${g||x?`
+              <button type="button" class="btn-hover-action btn-view-topology-card" data-id="${s.id}" title="View topology & nodes">
                 <i data-lucide="layers" style="width: 11px; height: 11px;"></i>
               </button>
             `:""}
           `:`
-            <button type="button" class="btn-hover-action btn-hover-connect btn-card-open-config" data-id="${l.id}" title="Review config & Connect">
+            <button type="button" class="btn-hover-action btn-hover-connect btn-card-open-config" data-id="${s.id}" title="Review config & Connect">
               <i data-lucide="play" style="width: 11px; height: 11px;"></i>
               <span>Connect</span>
             </button>
-            ${w?"":`
-              <button type="button" class="btn-hover-action btn-hover-danger btn-delete-conn" data-id="${l.id}" data-name="${d(l.name)}" title="Delete connection">
+            ${C?"":`
+              <button type="button" class="btn-hover-action btn-hover-danger btn-delete-conn" data-id="${s.id}" data-name="${d(s.name)}" title="Delete connection">
                 <i data-lucide="trash-2" style="width: 11px; height: 11px;"></i>
               </button>
             `}
@@ -1728,14 +1898,14 @@ This will clear recorded slow commands across all connected Redis instances.`))t
         </div>
 
       </div>
-    `}).join(""),u(),e.querySelectorAll(".conn-card").forEach(l=>{l.addEventListener("click",c=>{if(c.target.closest(".btn-delete-conn")||c.target.closest(".btn-view-topology-card")||c.target.closest(".btn-card-disconnect")||c.target.closest(".btn-card-select")||c.target.closest(".btn-card-open-config"))return;const y=l.getAttribute("data-id"),g=I.find(b=>b.id===y);g&&We(g)})}),e.querySelectorAll(".btn-card-disconnect").forEach(l=>{l.addEventListener("click",async c=>{c.stopPropagation();const y=l.getAttribute("data-id");await at(y)})}),e.querySelectorAll(".btn-card-select").forEach(l=>{l.addEventListener("click",async c=>{c.stopPropagation();const y=l.getAttribute("data-id");await mn(y)})}),e.querySelectorAll(".btn-card-open-config").forEach(l=>{l.addEventListener("click",c=>{c.stopPropagation();const y=l.getAttribute("data-id"),g=I.find(b=>b.id===y);g&&We(g)})}),e.querySelectorAll(".btn-view-topology-card").forEach(l=>{l.addEventListener("click",async c=>{c.stopPropagation();const y=l.getAttribute("data-id");await Me(y)})}),e.querySelectorAll(".btn-delete-conn").forEach(l=>{l.addEventListener("click",async c=>{c.stopPropagation();const y=l.getAttribute("data-id"),g=l.getAttribute("data-name");confirm(`Are you sure you want to delete '${g}'?`)&&await Io(y)})})}function So(e){if(!e)return[];if(Array.isArray(e))return e.map(t=>typeof t=="object"&&t!==null?`${t.host||"127.0.0.1"}:${t.port||6379}`:String(t));if(typeof e=="string")try{const t=JSON.parse(e);if(Array.isArray(t))return t.map(n=>typeof n=="object"&&n!==null?`${n.host||"127.0.0.1"}:${n.port||6379}`:String(n))}catch{return e.split(",").map(n=>n.trim()).filter(Boolean)}return[]}function We(e){const t=document.getElementById("clusterConfigModal"),n=document.getElementById("cfgModalTitle"),o=document.getElementById("cfgModalSubtitle"),a=document.getElementById("cfgModalBody"),i=document.getElementById("cfgModalFooter");n.textContent=e.name||"Cluster Configuration",o.textContent="Review configuration before connecting";const r=!!e.is_connected,l=!!e.is_selected,c=e.conn_type==="cluster",y=So(e.cluster_nodes),g=I.filter(X=>X.is_connected).length,b=!r&&g>=Z;a.innerHTML=`
+    `}).join(""),f(),e.querySelectorAll(".conn-card").forEach(s=>{s.addEventListener("click",c=>{if(c.target.closest(".btn-delete-conn")||c.target.closest(".btn-view-topology-card")||c.target.closest(".btn-card-disconnect")||c.target.closest(".btn-card-select")||c.target.closest(".btn-card-open-config"))return;const m=s.getAttribute("data-id"),g=M.find(E=>E.id===m);g&&it(g)})}),e.querySelectorAll(".btn-card-disconnect").forEach(s=>{s.addEventListener("click",async c=>{c.stopPropagation();const m=s.getAttribute("data-id");await yt(m)})}),e.querySelectorAll(".btn-card-select").forEach(s=>{s.addEventListener("click",async c=>{c.stopPropagation();const m=s.getAttribute("data-id");await En(m)})}),e.querySelectorAll(".btn-card-open-config").forEach(s=>{s.addEventListener("click",c=>{c.stopPropagation();const m=s.getAttribute("data-id"),g=M.find(E=>E.id===m);g&&it(g)})}),e.querySelectorAll(".btn-view-topology-card").forEach(s=>{s.addEventListener("click",async c=>{c.stopPropagation();const m=s.getAttribute("data-id");await He(m)})}),e.querySelectorAll(".btn-delete-conn").forEach(s=>{s.addEventListener("click",async c=>{c.stopPropagation();const m=s.getAttribute("data-id"),g=s.getAttribute("data-name");confirm(`Are you sure you want to delete '${g}'?`)&&await Wo(m)})})}function Go(e){if(!e)return[];if(Array.isArray(e))return e.map(t=>typeof t=="object"&&t!==null?`${t.host||"127.0.0.1"}:${t.port||6379}`:String(t));if(typeof e=="string")try{const t=JSON.parse(e);if(Array.isArray(t))return t.map(n=>typeof n=="object"&&n!==null?`${n.host||"127.0.0.1"}:${n.port||6379}`:String(n))}catch{return e.split(",").map(n=>n.trim()).filter(Boolean)}return[]}function it(e){const t=document.getElementById("clusterConfigModal"),n=document.getElementById("cfgModalTitle"),o=document.getElementById("cfgModalSubtitle"),a=document.getElementById("cfgModalBody"),i=document.getElementById("cfgModalFooter");n.textContent=e.name||"Cluster Configuration",o.textContent="Review configuration before connecting";const r=!!e.is_connected,s=!!e.is_selected,c=e.conn_type==="cluster",m=Go(e.cluster_nodes),g=M.filter(F=>F.is_connected).length,E=!r&&g>=ne;a.innerHTML=`
     <div class="config-status-banner ${r?"connected":"disconnected"}">
       <div style="display: flex; align-items: center; gap: 0.5rem;">
         <i data-lucide="${r?"check-circle-2":"alert-circle"}" style="width: 18px; height: 18px;"></i>
         <span>${r?"Connected & Live":"Not Connected"}</span>
       </div>
       <div>
-        ${l?'<span class="badge-selected-cluster">ACTIVE / VIEWING KEYS</span>':r?'<span class="badge-connected-cluster">CONNECTED</span>':'<span style="font-size: 0.75rem; color: var(--text-muted);">Ready to connect</span>'}
+        ${s?'<span class="badge-selected-cluster">ACTIVE / VIEWING KEYS</span>':r?'<span class="badge-connected-cluster">CONNECTED</span>':'<span style="font-size: 0.75rem; color: var(--text-muted);">Ready to connect</span>'}
       </div>
     </div>
 
@@ -1758,16 +1928,16 @@ This will clear recorded slow commands across all connected Redis instances.`))t
         <span class="config-label">Host / Seed Node</span>
         <span class="config-value" style="color: var(--accent-primary);">${d(e.host)}:${e.port}</span>
       </div>
-      ${c&&(y.length>0||e.cluster_nodes)?`
+      ${c&&(m.length>0||e.cluster_nodes)?`
         <div class="config-grid-row config-grid-seeds-row">
           <span class="config-label" style="padding-top: 2px;">
-            Seed Endpoints ${y.length>0?`(${y.length})`:""}
+            Seed Endpoints ${m.length>0?`(${m.length})`:""}
           </span>
           <div class="config-seeds-container">
-            ${y.length>0?y.map(X=>`
-                  <span class="seed-node-pill" title="${d(X)}">
+            ${m.length>0?m.map(F=>`
+                  <span class="seed-node-pill" title="${d(F)}">
                     <i data-lucide="server" style="width: 10px; height: 10px; opacity: 0.7;"></i>
-                    ${d(X)}
+                    ${d(F)}
                   </span>
                 `).join(""):`<span class="seed-node-pill">${d(e.cluster_nodes)}</span>`}
           </div>
@@ -1801,13 +1971,13 @@ This will clear recorded slow commands across all connected Redis instances.`))t
 
     <div class="config-limit-info">
       <i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--accent-primary); flex-shrink: 0;"></i>
-      <span>Connected Limit: <strong>${g} of ${Z}</strong> clusters currently connected simultaneously.</span>
+      <span>Connected Limit: <strong>${g} of ${ne}</strong> clusters currently connected simultaneously.</span>
     </div>
 
-    ${b?`
+    ${E?`
       <div class="config-warning-box">
         <i data-lucide="alert-circle" style="width: 16px; height: 16px; flex-shrink: 0;"></i>
-        <span>Connection limit reached (${Z} maximum). Please disconnect a connected cluster first or increase the limit.</span>
+        <span>Connection limit reached (${ne} maximum). Please disconnect a connected cluster first or increase the limit.</span>
       </div>
     `:""}
 
@@ -1829,7 +1999,7 @@ This will clear recorded slow commands across all connected Redis instances.`))t
       </div>
       <div style="display: flex; gap: 0.5rem;">
         <button type="button" class="btn btn-secondary" id="btnCloseConfigModal">Close</button>
-        ${l?`
+        ${s?`
           <button type="button" class="btn btn-secondary" id="btnSelectFromConfig">
             <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
             Refresh Keys
@@ -1854,38 +2024,38 @@ This will clear recorded slow commands across all connected Redis instances.`))t
       </div>
       <div style="display: flex; gap: 0.5rem;">
         <button type="button" class="btn btn-secondary" id="btnCloseConfigModal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="btnConnectFromConfig" ${b?"disabled":""}>
+        <button type="button" class="btn btn-primary" id="btnConnectFromConfig" ${E?"disabled":""}>
           <i data-lucide="play" style="width: 13px; height: 13px;"></i>
           Connect
         </button>
       </div>
-    `,u(),t.classList.add("active");const w=document.getElementById("btnCloseConfigModal");w&&(w.onclick=()=>t.classList.remove("active"));const h=document.getElementById("btnEditFromConfig");h&&(h.onclick=()=>{t.classList.remove("active"),openEditConnectionModal(e)});const N=document.getElementById("btnConnectFromConfig");N&&(N.onclick=async()=>{await pn(e.id),t.classList.remove("active")});const T=document.getElementById("btnDisconnectFromConfig");T&&(T.onclick=async()=>{await at(e.id),t.classList.remove("active")});const E=document.getElementById("btnSelectFromConfig");E&&(E.onclick=async()=>{await mn(e.id),t.classList.remove("active")});const F=document.getElementById("btnTopologyFromConfig");F&&(F.onclick=async()=>{t.classList.remove("active"),await Me(e.id)});const me=document.getElementById("btnTestFromConfig");me&&(me.onclick=async()=>{await $o(e)})}async function $o(e){const t=document.getElementById("cfgTestResultBox"),n=document.getElementById("btnTestFromConfig");n&&(n.disabled=!0,n.innerHTML="Testing..."),t&&(t.className="test-result-box",t.innerHTML="");try{const a=await(await fetch(`/api/connections/${e.id}/test`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();a.success?(t.className="test-result-box success",t.innerHTML=`
+    `,f(),t.classList.add("active");const C=document.getElementById("btnCloseConfigModal");C&&(C.onclick=()=>t.classList.remove("active"));const x=document.getElementById("btnEditFromConfig");x&&(x.onclick=()=>{t.classList.remove("active"),openEditConnectionModal(e)});const p=document.getElementById("btnConnectFromConfig");p&&(p.onclick=async()=>{await wn(e.id),t.classList.remove("active")});const h=document.getElementById("btnDisconnectFromConfig");h&&(h.onclick=async()=>{await yt(e.id),t.classList.remove("active")});const v=document.getElementById("btnSelectFromConfig");v&&(v.onclick=async()=>{await En(e.id),t.classList.remove("active")});const R=document.getElementById("btnTopologyFromConfig");R&&(R.onclick=async()=>{t.classList.remove("active"),await He(e.id)});const J=document.getElementById("btnTestFromConfig");J&&(J.onclick=async()=>{await Jo(e)})}async function Jo(e){const t=document.getElementById("cfgTestResultBox"),n=document.getElementById("btnTestFromConfig");n&&(n.disabled=!0,n.innerHTML="Testing..."),t&&(t.className="test-result-box",t.innerHTML="");try{const a=await(await fetch(`/api/connections/${e.id}/test`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();a.success?(t.className="test-result-box success",t.innerHTML=`
         <i data-lucide="check-circle-2"></i>
         <span>Connected! Latency: <strong>${a.latency_ms} ms</strong> (Redis v${a.redis_version})</span>
       `):(t.className="test-result-box error",t.innerHTML=`
         <i data-lucide="alert-circle"></i>
         <span>Failed: ${d(a.error||"Connection refused")}</span>
-      `)}catch(o){t&&(t.className="test-result-box error",t.innerHTML=`<i data-lucide="alert-circle"></i><span>Error: ${d(o.message)}</span>`)}finally{n&&(n.disabled=!1,n.innerHTML='<i data-lucide="zap" style="width: 13px; height: 13px;"></i> Test Connection'),u()}}async function pn(e){if(I.find(n=>n.id===e),I.filter(n=>n.is_connected&&n.id!==e).length>=Z){alert(`Connection limit reached: Maximum ${Z} connected cluster(s) allowed at a time.
-Please disconnect an existing cluster first or increase the limit in the sidebar.`);return}try{const n=await fetch(`/api/connections/${e}/connect`,{method:"POST"}),o=await n.json();if(!n.ok)throw new Error(o.detail||"Failed to connect to cluster");await Q(),await q(),await D()}catch(n){alert("Connection error: "+n.message)}}async function at(e){try{const t=await fetch(`/api/connections/${e}/disconnect`,{method:"POST"}),n=await t.json();if(!t.ok)throw new Error(n.detail||"Failed to disconnect cluster");await Q(),await q(),I.some(a=>a.is_connected&&a.id!==e)?await D():(H=[],ge.clear(),he=0,Y=0,ie=!1,Ze=0,it())}catch(t){alert("Disconnect error: "+t.message)}}async function mn(e){try{const t=await fetch(`/api/connections/${e}/select`,{method:"POST"}),n=await t.json();if(!t.ok)throw new Error(n.detail||"Failed to switch cluster");const o=document.getElementById("keyDetailModal");o&&o.classList.remove("active"),G=null,qt=null,await Q(),await q(),await D()}catch(t){alert("Switch error: "+t.message)}}function it(){const e=document.getElementById("scanStatusText");e&&(e.textContent="No cluster connected");const t=document.getElementById("emptyWorkspaceState"),n=document.getElementById("gridViewerContainer");t&&(t.style.display="flex"),n&&(n.style.display="none");const o=document.getElementById("btnConnectFirstAvailable");o&&(o.innerHTML=`<i data-lucide="server" style="width: 14px; height: 14px;"></i> View Available Clusters (${I.length})`,I.length>0&&(o.onclick=()=>We(I[0]))),u()}async function Io(e){try{if(!(await fetch(`/api/connections/${e}`,{method:"DELETE"})).ok)throw new Error("Failed to delete");await Q(),await q(),await D()}catch(t){alert("Delete error: "+t.message)}}async function To(){const e=document.getElementById("keyspaceNodesModal");e&&(e.classList.add("active"),yn(B),await un())}function qe(){const e=document.getElementById("keyspaceNodesModal");e&&e.classList.remove("active")}async function un(){try{const e=await fetch("/api/status");if(!e.ok)throw new Error("Failed to load node stats");B=await e.json(),yn(B)}catch(e){const t=document.getElementById("keyspaceNodesContainer");t&&(t.innerHTML=`<div style="padding: 2rem; text-align: center; color: var(--accent-danger);">${d(e.message)}</div>`)}}function yn(e){const t=document.getElementById("keyspaceNodesContainer"),n=document.getElementById("keyspaceTotalBadge");if(!t||!e)return;const o=e.node_stats||[],a=o.filter(g=>g.role==="master"),i=a.reduce((g,b)=>g+(b.keys||0),0);if(n&&(n.textContent=`${i.toLocaleString()} keys`),a.length===0){t.innerHTML='<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Per-node breakdown is only available for cluster connections.</div>';return}const r=g=>g==null?"—":Number(g).toLocaleString(),l=(g,b="left")=>`<th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: ${b};">${g}</th>`,c=(g,b="")=>`<td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; ${b}">${g}</td>`,y=a.map(g=>{const b=i>0&&g.keys!==null?(g.keys/i*100).toFixed(1):"0.0",w=o.filter(T=>T.role==="replica"&&T.master===g.node),h=`
+      `)}catch(o){t&&(t.className="test-result-box error",t.innerHTML=`<i data-lucide="alert-circle"></i><span>Error: ${d(o.message)}</span>`)}finally{n&&(n.disabled=!1,n.innerHTML='<i data-lucide="zap" style="width: 13px; height: 13px;"></i> Test Connection'),f()}}async function wn(e){if(M.find(n=>n.id===e),M.filter(n=>n.is_connected&&n.id!==e).length>=ne){alert(`Connection limit reached: Maximum ${ne} connected cluster(s) allowed at a time.
+Please disconnect an existing cluster first or increase the limit in the sidebar.`);return}try{const n=await fetch(`/api/connections/${e}/connect`,{method:"POST"}),o=await n.json();if(!n.ok)throw new Error(o.detail||"Failed to connect to cluster");await oe(),await G(),await N()}catch(n){alert("Connection error: "+n.message)}}async function yt(e){try{const t=await fetch(`/api/connections/${e}/disconnect`,{method:"POST"}),n=await t.json();if(!t.ok)throw new Error(n.detail||"Failed to disconnect cluster");await oe(),await G(),M.some(a=>a.is_connected&&a.id!==e)?await N():(P=[],Ee.clear(),Le=0,Z=0,X=!1,lt=0,gt())}catch(t){alert("Disconnect error: "+t.message)}}async function En(e){try{const t=await fetch(`/api/connections/${e}/select`,{method:"POST"}),n=await t.json();if(!t.ok)throw new Error(n.detail||"Failed to switch cluster");const o=document.getElementById("keyDetailModal");o&&o.classList.remove("active"),Y=null,tn=null,await oe(),await G(),await N()}catch(t){alert("Switch error: "+t.message)}}function gt(){const e=document.getElementById("scanStatusText");e&&(e.textContent="No cluster connected");const t=document.getElementById("emptyWorkspaceState"),n=document.getElementById("gridViewerContainer");t&&(t.style.display="flex"),n&&(n.style.display="none");const o=document.getElementById("btnConnectFirstAvailable");o&&(o.innerHTML=`<i data-lucide="server" style="width: 14px; height: 14px;"></i> View Available Clusters (${M.length})`,M.length>0&&(o.onclick=()=>it(M[0]))),f()}async function Wo(e){try{if(!(await fetch(`/api/connections/${e}`,{method:"DELETE"})).ok)throw new Error("Failed to delete");await oe(),await G(),await N()}catch(t){alert("Delete error: "+t.message)}}async function Yo(){const e=document.getElementById("keyspaceNodesModal");e&&(e.classList.add("active"),kn(B),await Cn())}function et(){const e=document.getElementById("keyspaceNodesModal");e&&e.classList.remove("active")}async function Cn(){try{const e=await fetch("/api/status");if(!e.ok)throw new Error("Failed to load node stats");B=await e.json(),kn(B)}catch(e){const t=document.getElementById("keyspaceNodesContainer");t&&(t.innerHTML=`<div style="padding: 2rem; text-align: center; color: var(--accent-danger);">${d(e.message)}</div>`)}}function kn(e){const t=document.getElementById("keyspaceNodesContainer"),n=document.getElementById("keyspaceTotalBadge");if(!t||!e)return;const o=e.node_stats||[],a=o.filter(g=>g.role==="master"),i=a.reduce((g,E)=>g+(E.keys||0),0);if(n&&(n.textContent=`${i.toLocaleString()} keys`),a.length===0){t.innerHTML='<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Per-node breakdown is only available for cluster connections.</div>';return}const r=g=>g==null?"—":Number(g).toLocaleString(),s=(g,E="left")=>`<th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: ${E};">${g}</th>`,c=(g,E="")=>`<td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; ${E}">${g}</td>`,m=a.map(g=>{const E=i>0&&g.keys!==null?(g.keys/i*100).toFixed(1):"0.0",C=o.filter(h=>h.role==="replica"&&h.master===g.node),x=`
       <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
         ${c(`<span class="role-badge-master">MASTER</span> <span style="color: var(--text-primary); font-weight: 600; margin-left: 6px;">${d(g.node)}</span>`)}
         ${c(g.error?`<span style="color: var(--accent-danger);" title="${d(g.error)}">unreachable</span>`:r(g.keys),"text-align: right; color: var(--text-primary); font-weight: 600;")}
-        ${c(`${b}%`,"text-align: right; color: var(--text-secondary);")}
+        ${c(`${E}%`,"text-align: right; color: var(--text-secondary);")}
         ${c(d(g.used_memory_human||"—"),"text-align: right; color: #c084fc;")}
         ${c(r(g.connected_clients),"text-align: right; color: #38bdf8;")}
-      </tr>`,N=w.map(T=>{const E=T.keys!==null&&g.keys!==null?T.keys-g.keys:null,F=E===null?"":E===0?'<span style="color: var(--accent-success); margin-left: 6px;">in sync</span>':`<span style="color: var(--accent-warning); margin-left: 6px;" title="Replica key count differs from its master (replication lag or expiring keys)">${E>0?"+":""}${E.toLocaleString()}</span>`;return`
+      </tr>`,p=C.map(h=>{const v=h.keys!==null&&g.keys!==null?h.keys-g.keys:null,R=v===null?"":v===0?'<span style="color: var(--accent-success); margin-left: 6px;">in sync</span>':`<span style="color: var(--accent-warning); margin-left: 6px;" title="Replica key count differs from its master (replication lag or expiring keys)">${v>0?"+":""}${v.toLocaleString()}</span>`;return`
       <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); background: rgba(0,0,0,0.12);">
-        ${c(`<span style="color: var(--text-muted); margin-left: 0.75rem;">↳</span> <span class="role-badge-replica">REPLICA</span> <span style="color: var(--text-secondary); margin-left: 6px;">${d(T.node)}</span>`)}
-        ${c(T.error?`<span style="color: var(--accent-danger);" title="${d(T.error)}">unreachable</span>`:`${r(T.keys)}${F}`,"text-align: right; color: var(--text-secondary);")}
+        ${c(`<span style="color: var(--text-muted); margin-left: 0.75rem;">↳</span> <span class="role-badge-replica">REPLICA</span> <span style="color: var(--text-secondary); margin-left: 6px;">${d(h.node)}</span>`)}
+        ${c(h.error?`<span style="color: var(--accent-danger);" title="${d(h.error)}">unreachable</span>`:`${r(h.keys)}${R}`,"text-align: right; color: var(--text-secondary);")}
         ${c("","")}
-        ${c(d(T.used_memory_human||"—"),"text-align: right; color: var(--text-muted);")}
-        ${c(r(T.connected_clients),"text-align: right; color: var(--text-muted);")}
-      </tr>`}).join("");return h+N}).join("");t.innerHTML=`
+        ${c(d(h.used_memory_human||"—"),"text-align: right; color: var(--text-muted);")}
+        ${c(r(h.connected_clients),"text-align: right; color: var(--text-muted);")}
+      </tr>`}).join("");return x+p}).join("");t.innerHTML=`
     <table class="data-table" style="width: 100%; border-collapse: collapse;">
       <thead>
-        <tr>${l("NODE")}${l("KEYS","right")}${l("SHARE","right")}${l("MEMORY","right")}${l("CLIENTS","right")}</tr>
+        <tr>${s("NODE")}${s("KEYS","right")}${s("SHARE","right")}${s("MEMORY","right")}${s("CLIENTS","right")}</tr>
       </thead>
-      <tbody>${y}</tbody>
+      <tbody>${m}</tbody>
       <tfoot>
         <tr>
           ${c("Cluster total (masters)","color: var(--text-muted); font-family: inherit;")}
@@ -1896,18 +2066,18 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
         </tr>
       </tfoot>
     </table>
-  `,u()}async function Me(e=null){const t=document.getElementById("clusterTopologyModal");if(t){if(t.classList.add("active"),e){const n=document.querySelector(`.conn-card[data-id="${e}"]`);n&&!n.classList.contains("active")&&await pn(e)}await gn()}}function jt(){const e=document.getElementById("clusterTopologyModal");e&&e.classList.remove("active")}async function gn(){document.getElementById("topologyStatsGrid");const e=document.getElementById("topologyTableContainer"),t=document.getElementById("topologyNodesCountBadge"),n=document.getElementById("topologyEnvBadge"),o=I.find(a=>a.is_active);if(o&&n){const a=(o.env||"LOCAL").toUpperCase();n.textContent=a,n.className=`badge-env badge-env-${a.toLowerCase()}`}e&&(e.innerHTML=`
+  `,f()}async function He(e=null){const t=document.getElementById("clusterTopologyModal");if(t){if(t.classList.add("active"),e){const n=document.querySelector(`.conn-card[data-id="${e}"]`);n&&!n.classList.contains("active")&&await wn(e)}await Ln()}}function Qt(){const e=document.getElementById("clusterTopologyModal");e&&e.classList.remove("active")}async function Ln(){document.getElementById("topologyStatsGrid");const e=document.getElementById("topologyTableContainer"),t=document.getElementById("topologyNodesCountBadge"),n=document.getElementById("topologyEnvBadge"),o=M.find(a=>a.is_active);if(o&&n){const a=(o.env||"LOCAL").toUpperCase();n.textContent=a,n.className=`badge-env badge-env-${a.toLowerCase()}`}e&&(e.innerHTML=`
       <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
         <i data-lucide="refresh-cw" class="spin" style="width: 20px; height: 20px; margin-bottom: 0.5rem;"></i>
         <br>Fetching cluster nodes & slot mappings...
       </div>
-    `,u());try{const a=await fetch("/api/topology");if(!a.ok)throw new Error("Failed to load cluster topology");const i=await a.json();Ve=i,t&&(t.textContent=`${i.total_nodes} Node${i.total_nodes!==1?"s":""}`),Mo(i),Ye()}catch(a){e&&(e.innerHTML=`
+    `,f());try{const a=await fetch("/api/topology");if(!a.ok)throw new Error("Failed to load cluster topology");const i=await a.json();tt=i,t&&(t.textContent=`${i.total_nodes} Node${i.total_nodes!==1?"s":""}`),Zo(i),st()}catch(a){e&&(e.innerHTML=`
         <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
           <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
           <h4>Unable to retrieve topology</h4>
           <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-secondary);">${a.message}</p>
         </div>
-      `,u())}}function Mo(e){const t=document.getElementById("topologyStatsGrid");if(!t)return;const n=e.is_cluster,o=(e.cluster_state||"").toLowerCase()==="ok"||!n;t.innerHTML=`
+      `,f())}}function Zo(e){const t=document.getElementById("topologyStatsGrid");if(!t)return;const n=e.is_cluster,o=(e.cluster_state||"").toLowerCase()==="ok"||!n;t.innerHTML=`
     <div class="topology-stat-card">
       <span class="topology-stat-label">Cluster State</span>
       <span class="topology-stat-value" style="color: ${o?"var(--accent-success)":"var(--accent-danger)"}; display: flex; align-items: center; gap: 0.4rem;">
@@ -1938,7 +2108,7 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
         ${e.slots_assigned} / 16384
       </span>
     </div>
-  `}function Ye(){const e=document.getElementById("topologyTableContainer");if(!e||!Ve)return;const t=Ve.nodes||[],n=(Jt||"").trim().toLowerCase(),o=Gt,a=t.filter(i=>{if(o!=="all"&&i.role.toLowerCase()!==o)return!1;if(n){const r=(i.addr||"").toLowerCase().includes(n),l=(i.id||"").toLowerCase().includes(n),c=(i.ip||"").toLowerCase().includes(n),y=(i.slots||"").toLowerCase().includes(n);if(!r&&!l&&!c&&!y)return!1}return!0});if(a.length===0){e.innerHTML='<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">No nodes match current filter.</div>';return}e.innerHTML=`
+  `}function st(){const e=document.getElementById("topologyTableContainer");if(!e||!tt)return;const t=tt.nodes||[],n=(an||"").trim().toLowerCase(),o=on,a=t.filter(i=>{if(o!=="all"&&i.role.toLowerCase()!==o)return!1;if(n){const r=(i.addr||"").toLowerCase().includes(n),s=(i.id||"").toLowerCase().includes(n),c=(i.ip||"").toLowerCase().includes(n),m=(i.slots||"").toLowerCase().includes(n);if(!r&&!s&&!c&&!m)return!1}return!0});if(a.length===0){e.innerHTML='<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">No nodes match current filter.</div>';return}e.innerHTML=`
     <table class="data-table" style="width: 100%; border-collapse: collapse;">
       <thead>
         <tr>
@@ -1953,7 +2123,7 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
         </tr>
       </thead>
       <tbody>
-        ${a.map(i=>{const r=i.role==="master",l=(i.link_state||"connected").toLowerCase()==="connected",c=i.id?i.id.length>12?`${i.id.substring(0,10)}...`:i.id:"N/A",y=i.slots?`${i.slots} <span style="color: var(--text-muted); font-size: 0.72rem;">(${i.slot_count||0} slots)</span>`:r?"None":"<span style='color: var(--text-muted);'>Replication slave</span>";return`
+        ${a.map(i=>{const r=i.role==="master",s=(i.link_state||"connected").toLowerCase()==="connected",c=i.id?i.id.length>12?`${i.id.substring(0,10)}...`:i.id:"N/A",m=i.slots?`${i.slots} <span style="color: var(--text-muted); font-size: 0.72rem;">(${i.slot_count||0} slots)</span>`:r?"None":"<span style='color: var(--text-muted);'>Replication slave</span>";return`
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
               <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">
                 <span title="${d(i.id||"")}">${d(c)}</span>
@@ -1968,11 +2138,11 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
                 ${i.keys===null||i.keys===void 0?"—":Number(i.keys).toLocaleString()}
               </td>
               <td style="padding: 0.65rem 0.85rem; font-size: 0.8rem;">
-                <span class="link-dot ${l?"connected":"disconnected"}"></span>
-                <span style="color: ${l?"var(--accent-success)":"var(--accent-danger)"};">${i.link_state||"connected"}</span>
+                <span class="link-dot ${s?"connected":"disconnected"}"></span>
+                <span style="color: ${s?"var(--accent-success)":"var(--accent-danger)"};">${i.link_state||"connected"}</span>
               </td>
               <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.78rem;">
-                ${y}
+                ${m}
               </td>
               <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
                 ${i.master_id?`<span title="${d(i.master_id)}">↳ ${d(i.master_id.substring(0,8))}...</span>`:"—"}
@@ -1984,11 +2154,11 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
           `}).join("")}
       </tbody>
     </table>
-  `,u()}function Bo(){const e=document.getElementById("btnOpenBulkDeleteModal");e&&(B?.read_only?(e.disabled=!0,e.style.opacity="0.4",e.style.cursor="not-allowed",e.title="🔒 Bulk Delete is disabled in Read-Only mode"):(e.disabled=!1,e.style.opacity="1",e.style.cursor="pointer",e.title="Bulk delete matched keys (Dry-run & confirmation required)"))}async function q(){const e=document.getElementById("topConnContainer"),t=document.getElementById("topVitalsContainer");try{const o=await(await fetch("/api/status")).json();if(o.connected){const a=I.find(h=>h.is_selected)||I.find(h=>h.id===o.connection_id)||I.find(h=>h.is_connected),i=a&&a.conn_type==="cluster"||o.cluster_nodes&&o.cluster_nodes.length>0||o.is_cluster,r=o.cluster_nodes_count||(o.node_stats&&o.node_stats.length>0?o.node_stats.length:1),l=(o.node_stats||[]).filter(h=>h.role==="master");if(B=o,Bo(),e){const h=(o.env||a?.env||"LOCAL").toUpperCase();e.innerHTML=`
+  `,f()}function Qo(){const e=document.getElementById("btnOpenBulkDeleteModal");e&&(B?.read_only?(e.disabled=!0,e.style.opacity="0.4",e.style.cursor="not-allowed",e.title="🔒 Bulk Delete is disabled in Read-Only mode"):(e.disabled=!1,e.style.opacity="1",e.style.cursor="pointer",e.title="Bulk delete matched keys (Dry-run & confirmation required)"))}async function G(){const e=document.getElementById("topConnContainer"),t=document.getElementById("topVitalsContainer");try{const o=await(await fetch("/api/status")).json();if(o.connected){const a=M.find(x=>x.is_selected)||M.find(x=>x.id===o.connection_id)||M.find(x=>x.is_connected),i=a&&a.conn_type==="cluster"||o.cluster_nodes&&o.cluster_nodes.length>0||o.is_cluster,r=o.cluster_nodes_count||(o.node_stats&&o.node_stats.length>0?o.node_stats.length:1),s=(o.node_stats||[]).filter(x=>x.role==="master");if(B=o,Qo(),e){const x=(o.env||a?.env||"LOCAL").toUpperCase();e.innerHTML=`
           <div class="top-conn-badge">
             <span class="status-indicator connected"></span>
             <span class="top-conn-name" title="${d(o.connection_name||"Connected")}">${d(o.connection_name||"Connected")}</span>
-            <span class="badge-env badge-env-${h.toLowerCase()}" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; margin-right: 0.25rem;">${h}</span>
+            <span class="badge-env badge-env-${x.toLowerCase()}" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; margin-right: 0.25rem;">${x}</span>
             ${o.read_only?'<span class="badge-readonly" title="Read-Only Mode: All write, update, and delete actions are locked" style="margin-right: 0.25rem;"><i data-lucide="lock"></i> READ ONLY</span>':""}
             <span class="top-conn-endpoint">${o.host}:${o.port}</span>
             <span class="top-conn-tag">${i?"CLUSTER":`DB${o.db}`}</span>
@@ -2014,7 +2184,7 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
 
             <span class="vital-divider"></span>
 
-            <div class="vital-item${l.length?" clickable":""}" id="btnOpenKeyspaceTop" title="${l.length?`Total keys across ${l.length} master nodes. Click for per-node breakdown`:"Total keys in active keyspace"}">
+            <div class="vital-item${s.length?" clickable":""}" id="btnOpenKeyspaceTop" title="${s.length?`Total keys across ${s.length} master nodes. Click for per-node breakdown`:"Total keys in active keyspace"}">
               <span class="vital-label">Keys:</span>
               <span class="vital-val">${(o.dbsize||0).toLocaleString()}</span>
             </div>
@@ -2039,7 +2209,7 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
               <span class="vital-label">v${o.redis_version}</span>
             </div>
           </div>
-        `),u();const c=document.getElementById("btnTopDisconnect");c&&c.addEventListener("click",()=>{o.connection_id&&at(o.connection_id)});const y=document.getElementById("btnOpenClientsModal");y&&y.addEventListener("click",vo);const g=document.getElementById("btnOpenTopologyTop");g&&g.addEventListener("click",()=>Me());const b=document.getElementById("btnOpenKeyspaceTop");b&&l.length&&b.addEventListener("click",To);const w=document.getElementById("btnOpenMemoryTop");w&&w.addEventListener("click",rn)}else e&&(e.innerHTML=`
+        `),f();const c=document.getElementById("btnTopDisconnect");c&&c.addEventListener("click",()=>{o.connection_id&&yt(o.connection_id)});const m=document.getElementById("btnOpenClientsModal");m&&m.addEventListener("click",Ho);const g=document.getElementById("btnOpenTopologyTop");g&&g.addEventListener("click",()=>He());const E=document.getElementById("btnOpenKeyspaceTop");E&&s.length&&E.addEventListener("click",Yo);const C=document.getElementById("btnOpenMemoryTop");C&&C.addEventListener("click",vn)}else e&&(e.innerHTML=`
           <div class="top-conn-badge disconnected">
             <span class="status-indicator disconnected"></span>
             <span class="top-conn-name">Disconnected</span>
@@ -2049,50 +2219,50 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
           <div class="top-vitals-idle">
             <span>Select or connect an instance to browse keys & diagnostics</span>
           </div>
-        `),u(),he===0&&H.length===0&&it()}catch{e&&(e.innerHTML=`
+        `),f(),Le===0&&P.length===0&&gt()}catch{e&&(e.innerHTML=`
         <div class="top-conn-badge disconnected">
           <span class="status-indicator disconnected"></span>
           <span class="top-conn-name">Network Error</span>
         </div>
-      `),t&&(t.innerHTML=""),u()}}function _o(){const e=document.getElementById("connLimitSelect");e&&e.addEventListener("change",async()=>{const s=parseInt(e.value,10)||2;try{const m=await fetch("/api/connections/limit",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({limit:s})});if(m.ok){const p=await m.json();Z=p.limit,cn(p.connected_count,p.limit)}}catch(m){console.error("Failed to update limit:",m)}});const t=document.getElementById("clusterConfigModal");t&&t.addEventListener("click",s=>{s.target===t&&t.classList.remove("active")});const n=document.getElementById("connSearchInput"),o=document.getElementById("btnClearConnSearch");n&&n.addEventListener("input",()=>{ke=n.value,o&&(o.style.display=ke?"flex":"none"),Le()}),o&&o.addEventListener("click",()=>{n&&(n.value="",n.focus()),ke="",o.style.display="none",Le()});const a=document.querySelectorAll("#envFilterPills .env-pill-btn");a.forEach(s=>{s.addEventListener("click",()=>{a.forEach(m=>m.classList.remove("active")),s.classList.add("active"),Vt=s.getAttribute("data-env")||"ALL",Le()})});const i=document.getElementById("btnReloadConfig");i&&i.addEventListener("click",async()=>{i.disabled=!0;try{const m=await(await fetch("/api/connections/reload-config",{method:"POST"})).json(),p=m.loaded??m.total_in_file??0;alert(`Config reloaded successfully! Synced ${p} connection(s) from config.`),await Q()}catch(s){alert("Failed to reload config: "+s.message)}finally{i.disabled=!1}}),window.addEventListener("focus",()=>{Q().catch(()=>{})});let r=[];function l(){const s=document.getElementById("clusterNodesList"),m=document.getElementById("clusterNodeCountBadge");if(s){if(m&&(m.textContent=`${r.length} configured`),r.length===0){s.innerHTML=`
+      `),t&&(t.innerHTML=""),f()}}function Xo(){const e=document.getElementById("connLimitSelect");e&&e.addEventListener("change",async()=>{const l=parseInt(e.value,10)||2;try{const y=await fetch("/api/connections/limit",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({limit:l})});if(y.ok){const u=await y.json();ne=u.limit,xn(u.connected_count,u.limit)}}catch(y){console.error("Failed to update limit:",y)}});const t=document.getElementById("clusterConfigModal");t&&t.addEventListener("click",l=>{l.target===t&&t.classList.remove("active")});const n=document.getElementById("connSearchInput"),o=document.getElementById("btnClearConnSearch");n&&n.addEventListener("input",()=>{_e=n.value,o&&(o.style.display=_e?"flex":"none"),Ae()}),o&&o.addEventListener("click",()=>{n&&(n.value="",n.focus()),_e="",o.style.display="none",Ae()});const a=document.querySelectorAll("#envFilterPills .env-pill-btn");a.forEach(l=>{l.addEventListener("click",()=>{a.forEach(y=>y.classList.remove("active")),l.classList.add("active"),nn=l.getAttribute("data-env")||"ALL",Ae()})});const i=document.getElementById("btnReloadConfig");i&&i.addEventListener("click",async()=>{i.disabled=!0;try{const y=await(await fetch("/api/connections/reload-config",{method:"POST"})).json(),u=y.loaded??y.total_in_file??0;alert(`Config reloaded successfully! Synced ${u} connection(s) from config.`),await oe()}catch(l){alert("Failed to reload config: "+l.message)}finally{i.disabled=!1}}),window.addEventListener("focus",()=>{oe().catch(()=>{})});let r=[];function s(){const l=document.getElementById("clusterNodesList"),y=document.getElementById("clusterNodeCountBadge");if(l){if(y&&(y.textContent=`${r.length} configured`),r.length===0){l.innerHTML=`
         <div style="font-size: 0.73rem; color: var(--text-muted); font-style: italic; padding: 0.25rem 0;">
           No nodes configured yet. Enter a seed node above and click Auto-Discover, or add nodes manually below.
         </div>
-      `;return}s.innerHTML=r.map((p,x)=>{const f=p.role==="master",$=p.role==="replica",C=p.role==="seed",M=f?"master":$?"replica":"",k=f?"master":$?"replica":C?"seed":"manual",_=f?"Master":$?"Replica":C?"Seed":"Node";return`
-        <span class="cluster-node-chip ${M}">
+      `;return}l.innerHTML=r.map((u,k)=>{const b=u.role==="master",T=u.role==="replica",L=u.role==="seed",_=b?"master":T?"replica":"",S=b?"master":T?"replica":L?"seed":"manual",A=b?"Master":T?"Replica":L?"Seed":"Node";return`
+        <span class="cluster-node-chip ${_}">
           <i data-lucide="server" style="width: 11px; height: 11px; opacity: 0.75;"></i>
-          <span>${d(p.host)}:${p.port}</span>
-          <span class="cluster-node-role-badge ${k}">${_}</span>
-          <button type="button" class="cluster-node-chip-remove" data-idx="${x}" title="Remove node">
+          <span>${d(u.host)}:${u.port}</span>
+          <span class="cluster-node-role-badge ${S}">${A}</span>
+          <button type="button" class="cluster-node-chip-remove" data-idx="${k}" title="Remove node">
             <i data-lucide="x" style="width: 11px; height: 11px;"></i>
           </button>
         </span>
-      `}).join(""),s.querySelectorAll(".cluster-node-chip-remove").forEach(p=>{p.addEventListener("click",x=>{x.stopPropagation();const f=parseInt(p.getAttribute("data-idx"),10);!isNaN(f)&&f>=0&&f<r.length&&(r.splice(f,1),l())})}),u()}}const c=document.getElementById("connTypeSelect"),y=document.getElementById("clusterNodesGroup"),g=document.getElementById("connHostLabel"),b=document.getElementById("connPortLabel"),w=document.getElementById("connHost"),h=document.getElementById("connPort"),N=document.getElementById("connDbGroup");c&&y&&c.addEventListener("change",()=>{const s=c.value==="cluster";y.style.display=s?"block":"none",N&&(N.style.display=s?"none":"block"),s?(g&&(g.textContent="Primary Seed Host *"),b&&(b.textContent="Seed Port *"),w&&(w.value==="localhost"||!w.value)&&(w.value="127.0.0.1"),h&&(h.value==="6379"||!h.value)&&(h.value="7000"),r.length===0&&w&&w.value&&h&&h.value&&r.push({host:w.value.trim(),port:parseInt(h.value,10)||7e3,role:"seed"}),l()):(g&&(g.textContent="Host *"),b&&(b.textContent="Port *"),h&&h.value==="7000"&&(h.value="6379"))});const T=document.getElementById("btnAutoDiscoverCluster"),E=document.getElementById("clusterDiscoveryStatus");T&&T.addEventListener("click",async()=>{const s=w?w.value.trim():"127.0.0.1",m=h&&parseInt(h.value,10)||7e3,p=document.getElementById("connUsername").value.trim()||null,x=document.getElementById("connPassword").value||null,f=document.getElementById("connTls").checked;if(!s){E&&(E.className="cluster-discovery-status error",E.style.display="flex",E.innerHTML='<i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i><span>Please enter a Seed Host.</span>',u());return}T.disabled=!0,T.innerHTML='<i class="lucide-spin" data-lucide="loader-2" style="width: 13px; height: 13px;"></i> Discovering...',u(),E&&(E.className="cluster-discovery-status",E.style.display="none");try{const C=await(await fetch("/api/connections/discover-cluster",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:s,port:m,username:p,password:x,use_tls:f})})).json();C.success&&C.nodes&&C.nodes.length>0?(r=C.nodes.map(M=>({host:M.host,port:M.port,role:M.role,is_myself:M.is_myself,slots:M.slots})),l(),E&&(E.className="cluster-discovery-status success",E.style.display="flex",E.innerHTML=`
+      `}).join(""),l.querySelectorAll(".cluster-node-chip-remove").forEach(u=>{u.addEventListener("click",k=>{k.stopPropagation();const b=parseInt(u.getAttribute("data-idx"),10);!isNaN(b)&&b>=0&&b<r.length&&(r.splice(b,1),s())})}),f()}}const c=document.getElementById("connTypeSelect"),m=document.getElementById("clusterNodesGroup"),g=document.getElementById("connHostLabel"),E=document.getElementById("connPortLabel"),C=document.getElementById("connHost"),x=document.getElementById("connPort"),p=document.getElementById("connDbGroup");c&&m&&c.addEventListener("change",()=>{const l=c.value==="cluster";m.style.display=l?"block":"none",p&&(p.style.display=l?"none":"block"),l?(g&&(g.textContent="Primary Seed Host *"),E&&(E.textContent="Seed Port *"),C&&(C.value==="localhost"||!C.value)&&(C.value="127.0.0.1"),x&&(x.value==="6379"||!x.value)&&(x.value="7000"),r.length===0&&C&&C.value&&x&&x.value&&r.push({host:C.value.trim(),port:parseInt(x.value,10)||7e3,role:"seed"}),s()):(g&&(g.textContent="Host *"),E&&(E.textContent="Port *"),x&&x.value==="7000"&&(x.value="6379"))});const h=document.getElementById("btnAutoDiscoverCluster"),v=document.getElementById("clusterDiscoveryStatus");h&&h.addEventListener("click",async()=>{const l=C?C.value.trim():"127.0.0.1",y=x&&parseInt(x.value,10)||7e3,u=document.getElementById("connUsername").value.trim()||null,k=document.getElementById("connPassword").value||null,b=document.getElementById("connTls").checked;if(!l){v&&(v.className="cluster-discovery-status error",v.style.display="flex",v.innerHTML='<i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i><span>Please enter a Seed Host.</span>',f());return}h.disabled=!0,h.innerHTML='<i class="lucide-spin" data-lucide="loader-2" style="width: 13px; height: 13px;"></i> Discovering...',f(),v&&(v.className="cluster-discovery-status",v.style.display="none");try{const L=await(await fetch("/api/connections/discover-cluster",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:l,port:y,username:u,password:k,use_tls:b})})).json();L.success&&L.nodes&&L.nodes.length>0?(r=L.nodes.map(_=>({host:_.host,port:_.port,role:_.role,is_myself:_.is_myself,slots:_.slots})),s(),v&&(v.className="cluster-discovery-status success",v.style.display="flex",v.innerHTML=`
               <i data-lucide="check-circle-2" style="width: 14px; height: 14px;"></i>
-              <span>Discovered <strong>${C.total_nodes} nodes</strong> (${C.masters_count} masters, ${C.replicas_count} replicas) • Cluster state: <strong>${C.cluster_state.toUpperCase()}</strong></span>
-            `)):E&&(E.className="cluster-discovery-status error",E.style.display="flex",E.innerHTML=`
+              <span>Discovered <strong>${L.total_nodes} nodes</strong> (${L.masters_count} masters, ${L.replicas_count} replicas) • Cluster state: <strong>${L.cluster_state.toUpperCase()}</strong></span>
+            `)):v&&(v.className="cluster-discovery-status error",v.style.display="flex",v.innerHTML=`
               <i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i>
-              <span>${d(C.error||"Cluster discovery failed. Ensure seed node is part of a cluster.")}</span>
-            `)}catch($){E&&(E.className="cluster-discovery-status error",E.style.display="flex",E.innerHTML=`
+              <span>${d(L.error||"Cluster discovery failed. Ensure seed node is part of a cluster.")}</span>
+            `)}catch(T){v&&(v.className="cluster-discovery-status error",v.style.display="flex",v.innerHTML=`
             <i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i>
-            <span>Network error: ${d($.message)}</span>
-          `)}finally{T.disabled=!1,T.innerHTML='<i data-lucide="sparkles" style="width: 13px; height: 13px;"></i> Auto-Discover Nodes',u()}});const F=document.getElementById("inputCustomClusterNode"),me=document.getElementById("btnAddCustomClusterNode");function X(){if(!F)return;const s=F.value.trim();if(!s)return;let m="127.0.0.1",p=7e3;if(s.includes(":")){const f=s.split(":");m=f[0].trim()||"127.0.0.1",p=parseInt(f[1].trim(),10)||7e3}else isNaN(parseInt(s,10))?m=s:(p=parseInt(s,10),m=w?w.value.trim():"127.0.0.1");r.some(f=>f.host===m&&f.port===p)||(r.push({host:m,port:p,role:"manual"}),l()),F.value=""}me&&me.addEventListener("click",X),F&&F.addEventListener("keydown",s=>{s.key==="Enter"&&(s.preventDefault(),X())});const Be=document.getElementById("clusterTopologyModal"),st=document.getElementById("btnCloseTopologyModal");st&&st.addEventListener("click",jt);const lt=document.getElementById("btnRefreshTopologyModal");lt&&lt.addEventListener("click",gn),Be&&Be.addEventListener("click",s=>{s.target===Be&&jt()});const _e=document.getElementById("topologySearchInput");_e&&_e.addEventListener("input",()=>{Jt=_e.value,Ye()}),document.querySelectorAll("#topologyRoleFilter .type-tab").forEach(s=>{s.addEventListener("click",()=>{document.querySelectorAll("#topologyRoleFilter .type-tab").forEach(m=>m.classList.remove("active")),s.classList.add("active"),Gt=s.getAttribute("data-role")||"all",Ye()})});const rt=document.getElementById("keyspaceNodesModal");document.getElementById("btnCloseKeyspaceModal").addEventListener("click",qe),document.getElementById("btnRefreshKeyspaceModal").addEventListener("click",un),document.getElementById("btnKeyspaceOpenTopology").addEventListener("click",()=>{qe(),Me()}),rt.addEventListener("click",s=>{s.target===rt&&qe()});const dt=document.getElementById("clientsListModal");document.getElementById("btnCloseClientsModal").addEventListener("click",Pt),document.getElementById("btnRefreshClientsModal").addEventListener("click",et),dt.addEventListener("click",s=>{s.target===dt&&Pt()});const Ae=document.getElementById("clientsSearchInput");Ae&&Ae.addEventListener("input",()=>{const s=Ae.value.trim().toLowerCase(),m=s?re.filter(p=>p.addr&&p.addr.toLowerCase().includes(s)||p.ip&&p.ip.toLowerCase().includes(s)||p.name&&p.name.toLowerCase().includes(s)||p.cmd&&p.cmd.toLowerCase().includes(s)||p.user&&p.user.toLowerCase().includes(s)||p.id&&String(p.id).includes(s)):re;ln(m)});const ct=document.getElementById("btnOpenSlowlog");ct&&ct.addEventListener("click",xo);const pt=document.getElementById("btnOpenMemoryModal");pt&&pt.addEventListener("click",rn);const Re=document.getElementById("slowlogModal"),mt=document.getElementById("btnCloseSlowlogModal");mt&&mt.addEventListener("click",Ht);const ut=document.getElementById("btnRefreshSlowlogModal");ut&&ut.addEventListener("click",tt);const yt=document.getElementById("btnClearSlowlogModal");yt&&yt.addEventListener("click",Co),Re&&Re.addEventListener("click",s=>{s.target===Re&&Ht()});const De=document.getElementById("slowlogSearchInput");De&&De.addEventListener("input",()=>{$e=De.value.trim(),Te()}),document.querySelectorAll(".slowlog-filter-btn").forEach(s=>{s.addEventListener("click",()=>{document.querySelectorAll(".slowlog-filter-btn").forEach(m=>m.classList.remove("active")),s.classList.add("active"),Se=parseFloat(s.getAttribute("data-min-duration")||"0"),Te()})});const Ne=document.getElementById("memoryModal"),gt=document.getElementById("btnCloseMemoryModal");gt&&gt.addEventListener("click",Je);const ft=document.getElementById("btnRefreshMemoryModal");ft&&ft.addEventListener("click",dn),Ne&&Ne.addEventListener("click",s=>{s.target===Ne&&Je()});let ee=null;window.openEditConnectionModal=function(s){ee=s.id;const m=document.getElementById("connectionModal"),p=document.getElementById("connectionModalTitle"),x=document.getElementById("btnSaveConnModal"),f=document.getElementById("connPassword");p&&(p.innerHTML='<i data-lucide="edit" style="color: var(--accent-primary);"></i> Edit Redis Connection'),x&&(x.textContent="Update Connection"),document.getElementById("connName").value=s.name||"",document.getElementById("connEnv").value=(s.env||"DEV").toUpperCase();const $=document.getElementById("connTypeSelect");$.value=s.conn_type||"standalone",document.getElementById("connHost").value=s.host||"localhost",document.getElementById("connPort").value=s.port||6379,document.getElementById("connDb").value=s.db||0,document.getElementById("connUsername").value=s.username||"",document.getElementById("connTls").checked=!!s.use_tls,document.getElementById("connReadOnly").checked=!!s.read_only,f.value="",s.has_password?f.placeholder="•••••••• (Leave blank to keep saved password)":f.placeholder="Enter password (or leave empty)";const C=document.getElementById("clusterNodesGroup"),M=document.getElementById("connHostLabel"),k=document.getElementById("connDbRow");if(r=[],s.conn_type==="cluster"){if(C.style.display="block",M.textContent="Seed Node Host *",k.style.display="none",s.cluster_nodes)try{const S=typeof s.cluster_nodes=="string"?JSON.parse(s.cluster_nodes):s.cluster_nodes;Array.isArray(S)&&(r=S.map(L=>{if(typeof L=="string"&&L.includes(":")){const A=L.split(":");return{host:A[0].trim(),port:parseInt(A[1],10)||6379}}return{host:L.host||"127.0.0.1",port:parseInt(L.port,10)||6379}}))}catch{}}else C.style.display="none",M.textContent="Host *",k.style.display="flex";l();const _=document.getElementById("testResultBox");_&&(_.className="test-result-box",_.innerHTML=""),u(),m.classList.add("active")};const ht=document.getElementById("connEnv");ht&&ht.addEventListener("change",s=>{if(s.target.value==="PROD"){const m=document.getElementById("connReadOnly");m&&(m.checked=!0)}});const te=document.getElementById("connectionModal");document.getElementById("btnAddConn").addEventListener("click",()=>{ee=null,document.getElementById("connectionForm").reset();const s=document.getElementById("connectionModalTitle"),m=document.getElementById("btnSaveConnModal"),p=document.getElementById("connPassword");s&&(s.innerHTML='<i data-lucide="database" style="color: var(--accent-primary);"></i> Add Redis Connection'),m&&(m.textContent="Save Connection"),p&&(p.placeholder="Leave empty if none");const x=document.getElementById("connEnv").value;document.getElementById("connReadOnly").checked=x==="PROD",document.getElementById("clusterNodesGroup").style.display="none",document.getElementById("connHostLabel").textContent="Host *",document.getElementById("connDbRow").style.display="flex",r=[],l();const f=document.getElementById("testResultBox");f&&(f.className="test-result-box",f.innerHTML=""),u(),te.classList.add("active")}),document.getElementById("btnCloseModal").addEventListener("click",()=>{te.classList.remove("active")}),document.getElementById("btnCancelModal").addEventListener("click",()=>{te.classList.remove("active")}),te.addEventListener("click",s=>{s.target===te&&te.classList.remove("active")});const ue=document.getElementById("keyDetailModal");document.getElementById("btnCloseDetailModal").addEventListener("click",()=>{ue.classList.remove("active")}),ue.addEventListener("click",s=>{s.target===ue&&ue.classList.remove("active")});const ze=document.getElementById("btnDownloadKeyValue");ze&&ze.addEventListener("click",()=>ho(G,ze)),document.getElementById("btnCopyKeyName").addEventListener("click",()=>{G&&(navigator.clipboard.writeText(G),alert(`Copied '${G}' to clipboard!`))}),document.getElementById("btnDeleteKeyFromDetail").addEventListener("click",()=>{G&&Xe(G,()=>{ue.classList.remove("active"),D()})});const vt=document.getElementById("deleteKeyConfirmModal");document.getElementById("btnCloseDeleteConfirmModal").addEventListener("click",()=>{vt.classList.remove("active")}),document.getElementById("btnCancelDeleteConfirm").addEventListener("click",()=>{vt.classList.remove("active")}),document.getElementById("btnTestConnModal").addEventListener("click",async()=>{const s=document.getElementById("connTypeSelect").value,m=document.getElementById("connHost").value.trim()||"localhost",p=parseInt(document.getElementById("connPort").value,10)||6379,x=parseInt(document.getElementById("connDb").value,10)||0,f=document.getElementById("connUsername").value.trim()||null,$=document.getElementById("connPassword").value,C=document.getElementById("connTls").checked;let M=null;s==="cluster"&&r.length>0&&(M=JSON.stringify(r.map(S=>({host:S.host,port:S.port}))));const k=document.getElementById("testResultBox"),_=document.getElementById("btnTestConnModal");_.disabled=!0,_.innerHTML="Testing...",k.className="test-result-box",k.innerHTML="";try{let S;ee&&!$?S=await fetch(`/api/connections/${ee}/test`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:m,port:p,db:x,username:f,use_tls:C,conn_type:s,cluster_nodes:M})}):S=await fetch("/api/connections/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:m,port:p,db:x,username:f,password:$||null,use_tls:C,conn_type:s,cluster_nodes:M})});const L=await S.json();if(L.success){k.className="test-result-box success";const A=L.is_cluster?` • Cluster Mode (${L.cluster_nodes_count||r.length} nodes reachable)`:"";k.innerHTML=`
+            <span>Network error: ${d(T.message)}</span>
+          `)}finally{h.disabled=!1,h.innerHTML='<i data-lucide="sparkles" style="width: 13px; height: 13px;"></i> Auto-Discover Nodes',f()}});const R=document.getElementById("inputCustomClusterNode"),J=document.getElementById("btnAddCustomClusterNode");function F(){if(!R)return;const l=R.value.trim();if(!l)return;let y="127.0.0.1",u=7e3;if(l.includes(":")){const b=l.split(":");y=b[0].trim()||"127.0.0.1",u=parseInt(b[1].trim(),10)||7e3}else isNaN(parseInt(l,10))?y=l:(u=parseInt(l,10),y=C?C.value.trim():"127.0.0.1");r.some(b=>b.host===y&&b.port===u)||(r.push({host:y,port:u,role:"manual"}),s()),R.value=""}J&&J.addEventListener("click",F),R&&R.addEventListener("keydown",l=>{l.key==="Enter"&&(l.preventDefault(),F())});const Fe=document.getElementById("clusterTopologyModal"),ft=document.getElementById("btnCloseTopologyModal");ft&&ft.addEventListener("click",Qt);const ht=document.getElementById("btnRefreshTopologyModal");ht&&ht.addEventListener("click",Ln),Fe&&Fe.addEventListener("click",l=>{l.target===Fe&&Qt()});const Oe=document.getElementById("topologySearchInput");Oe&&Oe.addEventListener("input",()=>{an=Oe.value,st()}),document.querySelectorAll("#topologyRoleFilter .type-tab").forEach(l=>{l.addEventListener("click",()=>{document.querySelectorAll("#topologyRoleFilter .type-tab").forEach(y=>y.classList.remove("active")),l.classList.add("active"),on=l.getAttribute("data-role")||"all",st()})});const vt=document.getElementById("keyspaceNodesModal");document.getElementById("btnCloseKeyspaceModal").addEventListener("click",et),document.getElementById("btnRefreshKeyspaceModal").addEventListener("click",Cn),document.getElementById("btnKeyspaceOpenTopology").addEventListener("click",()=>{et(),He()}),vt.addEventListener("click",l=>{l.target===vt&&et()});const bt=document.getElementById("clientsListModal");document.getElementById("btnCloseClientsModal").addEventListener("click",Jt),document.getElementById("btnRefreshClientsModal").addEventListener("click",ct),bt.addEventListener("click",l=>{l.target===bt&&Jt()});const Ke=document.getElementById("clientsSearchInput");Ke&&Ke.addEventListener("input",()=>{const l=Ke.value.trim().toLowerCase(),y=l?ue.filter(u=>u.addr&&u.addr.toLowerCase().includes(l)||u.ip&&u.ip.toLowerCase().includes(l)||u.name&&u.name.toLowerCase().includes(l)||u.cmd&&u.cmd.toLowerCase().includes(l)||u.user&&u.user.toLowerCase().includes(l)||u.id&&String(u.id).includes(l)):ue;hn(y)});const xt=document.getElementById("btnOpenSlowlog");xt&&xt.addEventListener("click",Oo);const wt=document.getElementById("btnOpenMemoryModal");wt&&wt.addEventListener("click",vn);const je=document.getElementById("slowlogModal"),Et=document.getElementById("btnCloseSlowlogModal");Et&&Et.addEventListener("click",Wt);const Ct=document.getElementById("btnRefreshSlowlogModal");Ct&&Ct.addEventListener("click",pt);const kt=document.getElementById("btnClearSlowlogModal");kt&&kt.addEventListener("click",Uo),je&&je.addEventListener("click",l=>{l.target===je&&Wt()});const Ue=document.getElementById("slowlogSearchInput");Ue&&Ue.addEventListener("input",()=>{De=Ue.value.trim(),ze()}),document.querySelectorAll(".slowlog-filter-btn").forEach(l=>{l.addEventListener("click",()=>{document.querySelectorAll(".slowlog-filter-btn").forEach(y=>y.classList.remove("active")),l.classList.add("active"),Re=parseFloat(l.getAttribute("data-min-duration")||"0"),ze()})});const Ve=document.getElementById("memoryModal"),Lt=document.getElementById("btnCloseMemoryModal");Lt&&Lt.addEventListener("click",at);const St=document.getElementById("btnRefreshMemoryModal");St&&St.addEventListener("click",bn),Ve&&Ve.addEventListener("click",l=>{l.target===Ve&&at()});let ae=null;window.openEditConnectionModal=function(l){ae=l.id;const y=document.getElementById("connectionModal"),u=document.getElementById("connectionModalTitle"),k=document.getElementById("btnSaveConnModal"),b=document.getElementById("connPassword");u&&(u.innerHTML='<i data-lucide="edit" style="color: var(--accent-primary);"></i> Edit Redis Connection'),k&&(k.textContent="Update Connection"),document.getElementById("connName").value=l.name||"",document.getElementById("connEnv").value=(l.env||"DEV").toUpperCase();const T=document.getElementById("connTypeSelect");T.value=l.conn_type||"standalone",document.getElementById("connHost").value=l.host||"localhost",document.getElementById("connPort").value=l.port||6379,document.getElementById("connDb").value=l.db||0,document.getElementById("connUsername").value=l.username||"",document.getElementById("connTls").checked=!!l.use_tls,document.getElementById("connReadOnly").checked=!!l.read_only,b.value="",l.has_password?b.placeholder="•••••••• (Leave blank to keep saved password)":b.placeholder="Enter password (or leave empty)";const L=document.getElementById("clusterNodesGroup"),_=document.getElementById("connHostLabel"),S=document.getElementById("connDbRow");if(r=[],l.conn_type==="cluster"){if(L.style.display="block",_.textContent="Seed Node Host *",S.style.display="none",l.cluster_nodes)try{const I=typeof l.cluster_nodes=="string"?JSON.parse(l.cluster_nodes):l.cluster_nodes;Array.isArray(I)&&(r=I.map($=>{if(typeof $=="string"&&$.includes(":")){const D=$.split(":");return{host:D[0].trim(),port:parseInt(D[1],10)||6379}}return{host:$.host||"127.0.0.1",port:parseInt($.port,10)||6379}}))}catch{}}else L.style.display="none",_.textContent="Host *",S.style.display="flex";s();const A=document.getElementById("testResultBox");A&&(A.className="test-result-box",A.innerHTML=""),f(),y.classList.add("active")};const $t=document.getElementById("connEnv");$t&&$t.addEventListener("change",l=>{if(l.target.value==="PROD"){const y=document.getElementById("connReadOnly");y&&(y.checked=!0)}});const ie=document.getElementById("connectionModal");document.getElementById("btnAddConn").addEventListener("click",()=>{ae=null,document.getElementById("connectionForm").reset();const l=document.getElementById("connectionModalTitle"),y=document.getElementById("btnSaveConnModal"),u=document.getElementById("connPassword");l&&(l.innerHTML='<i data-lucide="database" style="color: var(--accent-primary);"></i> Add Redis Connection'),y&&(y.textContent="Save Connection"),u&&(u.placeholder="Leave empty if none");const k=document.getElementById("connEnv").value;document.getElementById("connReadOnly").checked=k==="PROD",document.getElementById("clusterNodesGroup").style.display="none",document.getElementById("connHostLabel").textContent="Host *",document.getElementById("connDbRow").style.display="flex",r=[],s();const b=document.getElementById("testResultBox");b&&(b.className="test-result-box",b.innerHTML=""),f(),ie.classList.add("active")}),document.getElementById("btnCloseModal").addEventListener("click",()=>{ie.classList.remove("active")}),document.getElementById("btnCancelModal").addEventListener("click",()=>{ie.classList.remove("active")}),ie.addEventListener("click",l=>{l.target===ie&&ie.classList.remove("active")});const ve=document.getElementById("keyDetailModal");document.getElementById("btnCloseDetailModal").addEventListener("click",()=>{ve.classList.remove("active")}),ve.addEventListener("click",l=>{l.target===ve&&ve.classList.remove("active")});const qe=document.getElementById("btnDownloadKeyValue");qe&&qe.addEventListener("click",()=>Po(Y,qe)),document.getElementById("btnCopyKeyName").addEventListener("click",()=>{Y&&(navigator.clipboard.writeText(Y),alert(`Copied '${Y}' to clipboard!`))}),document.getElementById("btnDeleteKeyFromDetail").addEventListener("click",()=>{Y&&Pe(Y,()=>{ve.classList.remove("active"),N()})});const It=document.getElementById("deleteKeyConfirmModal");document.getElementById("btnCloseDeleteConfirmModal").addEventListener("click",()=>{It.classList.remove("active")}),document.getElementById("btnCancelDeleteConfirm").addEventListener("click",()=>{It.classList.remove("active")}),document.getElementById("btnTestConnModal").addEventListener("click",async()=>{const l=document.getElementById("connTypeSelect").value,y=document.getElementById("connHost").value.trim()||"localhost",u=parseInt(document.getElementById("connPort").value,10)||6379,k=parseInt(document.getElementById("connDb").value,10)||0,b=document.getElementById("connUsername").value.trim()||null,T=document.getElementById("connPassword").value,L=document.getElementById("connTls").checked;let _=null;l==="cluster"&&r.length>0&&(_=JSON.stringify(r.map(I=>({host:I.host,port:I.port}))));const S=document.getElementById("testResultBox"),A=document.getElementById("btnTestConnModal");A.disabled=!0,A.innerHTML="Testing...",S.className="test-result-box",S.innerHTML="";try{let I;ae&&!T?I=await fetch(`/api/connections/${ae}/test`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:y,port:u,db:k,username:b,use_tls:L,conn_type:l,cluster_nodes:_})}):I=await fetch("/api/connections/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:y,port:u,db:k,username:b,password:T||null,use_tls:L,conn_type:l,cluster_nodes:_})});const $=await I.json();if($.success){S.className="test-result-box success";const D=$.is_cluster?` • Cluster Mode (${$.cluster_nodes_count||r.length} nodes reachable)`:"";S.innerHTML=`
           <i data-lucide="check-circle-2"></i>
-          <span>Connected! Latency: <strong>${L.latency_ms} ms</strong>${A} (Redis v${L.redis_version})</span>
-        `}else k.className="test-result-box error",k.innerHTML=`
+          <span>Connected! Latency: <strong>${$.latency_ms} ms</strong>${D} (Redis v${$.redis_version})</span>
+        `}else S.className="test-result-box error",S.innerHTML=`
           <i data-lucide="alert-circle"></i>
-          <span>Failed: ${d(L.error||"Connection refused")}</span>
-        `}catch(S){k.className="test-result-box error",k.innerHTML=`
+          <span>Failed: ${d($.error||"Connection refused")}</span>
+        `}catch(I){S.className="test-result-box error",S.innerHTML=`
         <i data-lucide="alert-circle"></i>
-        <span>Error: ${d(S.message)}</span>
-      `}finally{_.disabled=!1,_.innerHTML='<i data-lucide="zap"></i> Test Connection',u()}}),document.getElementById("connectionForm").addEventListener("submit",async s=>{s.preventDefault();const m=document.getElementById("connName").value.trim(),p=document.getElementById("connEnv").value,x=document.getElementById("connTypeSelect").value;let f=document.getElementById("connHost").value.trim()||"localhost",$=parseInt(document.getElementById("connPort").value,10)||6379;const C=parseInt(document.getElementById("connDb").value,10)||0,M=document.getElementById("connUsername").value.trim()||null,k=document.getElementById("connPassword").value,_=document.getElementById("connTls").checked,S=document.getElementById("connAutoActivate").checked,L=document.getElementById("connReadOnly")?.checked||!1;let A=null;x==="cluster"&&(r.length>0?(A=JSON.stringify(r.map(V=>({host:V.host,port:V.port}))),f=r[0].host,$=r[0].port):A=JSON.stringify([{host:f,port:$}]));try{if(ee){const V={name:m,env:p,conn_type:x,host:f,port:$,cluster_nodes:A,db:C,username:M,use_tls:_,read_only:L};k&&(V.password=k);const ye=await fetch(`/api/connections/${ee}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(V)});if(!ye.ok){const je=await ye.json().catch(()=>({}));throw new Error(je.detail||"Failed to update connection")}}else{const V={name:m,env:p,conn_type:x,host:f,port:$,cluster_nodes:A,db:C,username:M,password:k||null,use_tls:_,read_only:L},ye=await fetch(`/api/connections?auto_activate=${S}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(V)});if(!ye.ok){const je=await ye.json().catch(()=>({}));throw new Error(je.detail||"Failed to save connection")}}te.classList.remove("active"),ee=null,document.getElementById("connectionForm").reset(),r=[],l(),await Q(),await q(),await D()}catch(V){alert("Error saving: "+V.message)}}),document.getElementById("btnRefreshStats").addEventListener("click",q);const be=document.getElementById("keySearchInput");let Pe=null;be.addEventListener("input",()=>{clearTimeout(Pe),Pe=setTimeout(()=>{P=be.value.trim()||"*",D(),U&&Ce()},400)}),be.addEventListener("keydown",s=>{s.key==="Enter"&&(clearTimeout(Pe),P=be.value.trim()||"*",D(),U&&Ce())}),document.querySelectorAll(".type-tab").forEach(s=>{s.addEventListener("click",()=>{document.querySelectorAll(".type-tab").forEach(m=>m.classList.remove("active")),s.classList.add("active"),z=s.getAttribute("data-type"),D(),U&&Ce()})});const xe=document.getElementById("scanBatchSizeSelect");xe&&(xe.value=String(Ie),xe.addEventListener("change",()=>{const s=parseInt(xe.value,10);Ie=Wt.includes(s)?s:50,Nt()})),Nt();const bt=document.getElementById("btnScanNext");bt&&bt.addEventListener("click",()=>Qt());const xt=document.getElementById("btnResetScan");xt&&xt.addEventListener("click",()=>{D(),U&&Ce()});const wt=document.getElementById("btnToggleAutoRefresh"),we=document.getElementById("autoRefreshIntervalSelect");we&&(we.value=String(R),we.addEventListener("change",()=>{const s=Math.max(5,parseInt(we.value,10)||10);R=s,O=s,localStorage.setItem("redis_insight_auto_refresh_sec",String(s)),U?Yt():ae()})),wt&&wt.addEventListener("click",()=>{lo()}),ae();const He=document.getElementById("exportKeysModal"),Et=document.getElementById("btnOpenExportModal"),Ct=document.getElementById("btnCloseExportModal"),kt=document.getElementById("btnCancelExportModal"),se=document.getElementById("btnExecuteExport");if(Et&&He){Et.addEventListener("click",()=>{document.getElementById("exportPatternDisplay").textContent=P||"*",document.getElementById("exportTypeDisplay").textContent=z&&z!=="all"?z.toUpperCase():"All Types",document.getElementById("exportLoadedCount").textContent=`${H.length} keys`,document.getElementById("exportScopeLoadedText").textContent=`${H.length} keys`,He.classList.add("active"),u()});const s=()=>He.classList.remove("active");Ct&&Ct.addEventListener("click",s),kt&&kt.addEventListener("click",s),se&&se.addEventListener("click",async()=>{const m=document.querySelector('input[name="exportFormatRadio"]:checked'),p=document.querySelector('input[name="exportScopeRadio"]:checked'),x=(m?m.value:"csv").toLowerCase(),f=p?p.value:"loaded",$=P||"*",C=z&&z!=="all"?z:"",k=`redis_keys_${new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)}.${x}`;if(f==="all"){se.disabled=!0,se.innerHTML='<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Exporting...',u();try{let S=`/api/keys/export?pattern=${encodeURIComponent($)}&format=${x}`;C&&(S+=`&type=${encodeURIComponent(C)}`);const L=await fetch(S);if(!L.ok){const A=await L.json().catch(()=>({detail:"Export failed"}));throw new Error(A.detail||`Server error: ${L.status}`)}await sn(L,k,x),s()}catch(S){alert(`Export failed: ${S.message}`)}finally{se.disabled=!1,se.innerHTML='<i data-lucide="download" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Download',u()}return}if(H.length===0){alert("No keys loaded in browser to export.");return}let _;if(x==="csv"){const S=`Key,Type,TTL_Seconds
-`,L=H.map(A=>`"${(A.key||"").replace(/"/g,'""')}",${A.type||""},${A.ttl_seconds!==void 0?A.ttl_seconds:-1}`);_=new Blob([S+L.join(`
-`)],{type:"text/csv;charset=utf-8;"})}else{const S=H.map(L=>L.key);_=new Blob([S.join(`
+        <span>Error: ${d(I.message)}</span>
+      `}finally{A.disabled=!1,A.innerHTML='<i data-lucide="zap"></i> Test Connection',f()}}),document.getElementById("connectionForm").addEventListener("submit",async l=>{l.preventDefault();const y=document.getElementById("connName").value.trim(),u=document.getElementById("connEnv").value,k=document.getElementById("connTypeSelect").value;let b=document.getElementById("connHost").value.trim()||"localhost",T=parseInt(document.getElementById("connPort").value,10)||6379;const L=parseInt(document.getElementById("connDb").value,10)||0,_=document.getElementById("connUsername").value.trim()||null,S=document.getElementById("connPassword").value,A=document.getElementById("connTls").checked,I=document.getElementById("connAutoActivate").checked,$=document.getElementById("connReadOnly")?.checked||!1;let D=null;k==="cluster"&&(r.length>0?(D=JSON.stringify(r.map(W=>({host:W.host,port:W.port}))),b=r[0].host,T=r[0].port):D=JSON.stringify([{host:b,port:T}]));try{if(ae){const W={name:y,env:u,conn_type:k,host:b,port:T,cluster_nodes:D,db:L,username:_,use_tls:A,read_only:$};S&&(W.password=S);const we=await fetch(`/api/connections/${ae}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(W)});if(!we.ok){const Ze=await we.json().catch(()=>({}));throw new Error(Ze.detail||"Failed to update connection")}}else{const W={name:y,env:u,conn_type:k,host:b,port:T,cluster_nodes:D,db:L,username:_,password:S||null,use_tls:A,read_only:$},we=await fetch(`/api/connections?auto_activate=${I}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(W)});if(!we.ok){const Ze=await we.json().catch(()=>({}));throw new Error(Ze.detail||"Failed to save connection")}}ie.classList.remove("active"),ae=null,document.getElementById("connectionForm").reset(),r=[],s(),await oe(),await G(),await N()}catch(W){alert("Error saving: "+W.message)}}),document.getElementById("btnRefreshStats").addEventListener("click",G);const Se=document.getElementById("keySearchInput");let Ge=null;Se.addEventListener("input",()=>{clearTimeout(Ge),Ge=setTimeout(()=>{z=Se.value.trim()||"*",N(),q&&Me()},400)}),Se.addEventListener("keydown",l=>{l.key==="Enter"&&(clearTimeout(Ge),z=Se.value.trim()||"*",N(),q&&Me())}),document.querySelectorAll(".type-tab").forEach(l=>{l.addEventListener("click",()=>{document.querySelectorAll(".type-tab").forEach(y=>y.classList.remove("active")),l.classList.add("active"),O=l.getAttribute("data-type"),N(),q&&Me()})});const be=document.getElementById("btnViewTable"),xe=document.getElementById("btnViewTree");be&&be.addEventListener("click",()=>{ke="table",localStorage.setItem("redis_insight_view_mode","table"),be.classList.add("active"),xe&&xe.classList.remove("active"),nt()}),xe&&xe.addEventListener("click",()=>{ke="tree",localStorage.setItem("redis_insight_view_mode","tree"),xe.classList.add("active"),be&&be.classList.remove("active"),nt()});const $e=document.getElementById("scanBatchSizeSelect");$e&&($e.value=String(Ne),$e.addEventListener("change",()=>{const l=parseInt($e.value,10);Ne=sn.includes(l)?l:50,qt()})),qt();const Tt=document.getElementById("btnScanNext");Tt&&Tt.addEventListener("click",()=>rn());const Mt=document.getElementById("btnResetScan");Mt&&Mt.addEventListener("click",()=>{N(),q&&Me()});const Bt=document.getElementById("btnToggleAutoRefresh"),Ie=document.getElementById("autoRefreshIntervalSelect");Ie&&(Ie.value=String(H),Ie.addEventListener("change",()=>{const l=Math.max(5,parseInt(Ie.value,10)||10);H=l,K=l,localStorage.setItem("redis_insight_auto_refresh_sec",String(l)),q?ln():de()})),Bt&&Bt.addEventListener("click",()=>{So()}),de();const Je=document.getElementById("exportKeysModal"),_t=document.getElementById("btnOpenExportModal"),At=document.getElementById("btnCloseExportModal"),Rt=document.getElementById("btnCancelExportModal"),ce=document.getElementById("btnExecuteExport");if(_t&&Je){_t.addEventListener("click",()=>{document.getElementById("exportPatternDisplay").textContent=z||"*",document.getElementById("exportTypeDisplay").textContent=O&&O!=="all"?O.toUpperCase():"All Types",document.getElementById("exportLoadedCount").textContent=`${P.length} keys`,document.getElementById("exportScopeLoadedText").textContent=`${P.length} keys`,Je.classList.add("active"),f()});const l=()=>Je.classList.remove("active");At&&At.addEventListener("click",l),Rt&&Rt.addEventListener("click",l),ce&&ce.addEventListener("click",async()=>{const y=document.querySelector('input[name="exportFormatRadio"]:checked'),u=document.querySelector('input[name="exportScopeRadio"]:checked'),k=(y?y.value:"csv").toLowerCase(),b=u?u.value:"loaded",T=z||"*",L=O&&O!=="all"?O:"",S=`redis_keys_${new Date().toISOString().replace(/[:.]/g,"-").slice(0,19)}.${k}`;if(b==="all"){ce.disabled=!0,ce.innerHTML='<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Exporting...',f();try{let I=`/api/keys/export?pattern=${encodeURIComponent(T)}&format=${k}`;L&&(I+=`&type=${encodeURIComponent(L)}`);const $=await fetch(I);if(!$.ok){const D=await $.json().catch(()=>({detail:"Export failed"}));throw new Error(D.detail||`Server error: ${$.status}`)}await fn($,S,k),l()}catch(I){alert(`Export failed: ${I.message}`)}finally{ce.disabled=!1,ce.innerHTML='<i data-lucide="download" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Download',f()}return}if(P.length===0){alert("No keys loaded in browser to export.");return}let A;if(k==="csv"){const I=`Key,Type,TTL_Seconds
+`,$=P.map(D=>`"${(D.key||"").replace(/"/g,'""')}",${D.type||""},${D.ttl_seconds!==void 0?D.ttl_seconds:-1}`);A=new Blob([I+$.join(`
+`)],{type:"text/csv;charset=utf-8;"})}else{const I=P.map($=>$.key);A=new Blob([I.join(`
 `)+`
-`],{type:"text/plain;charset=utf-8;"})}an(_,k),s()})}const Oe=document.getElementById("bulkDeleteModal"),Lt=document.getElementById("btnOpenBulkDeleteModal"),St=document.getElementById("btnCloseBulkDeleteModal"),$t=document.getElementById("btnCancelBulkDelete"),j=document.getElementById("btnConfirmBulkDelete"),le=document.getElementById("bdCountConfirmInput"),ne=document.getElementById("bdProdConfirmInput"),It=document.getElementById("bdProdConfirmGroup"),Tt=document.getElementById("bulkDeleteProdBanner"),Fe=document.getElementById("bulkDeleteDryRunStatus"),Mt=document.getElementById("bulkDeleteDetails");let K=null;function Bt(){if(!K||!j)return;const s=String(K.matched_count),p=(le?.value||"").trim()===s&&K.matched_count>0;let x=!0;K.is_prod&&(x=(ne?.value||"").trim().toUpperCase()==="PROD"),j.disabled=!(p&&x)}if(le&&le.addEventListener("input",Bt),ne&&ne.addEventListener("input",Bt),Lt&&Oe){Lt.addEventListener("click",async()=>{if(B?.read_only){alert("Bulk Delete is disabled in Read-Only mode.");return}const m=P||"*",p=z&&z!=="all"?z:null;K=null,le&&(le.value=""),ne&&(ne.value=""),j&&(j.disabled=!0),Fe.style.display="block",Mt.style.display="none",Oe.classList.add("active"),u();try{const x=await fetch("/api/keys/bulk-delete/dry-run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pattern:m,type_filter:p})});if(!x.ok){const k=await x.json().catch(()=>({detail:"Dry run failed"}));throw new Error(k.detail||"Dry run failed")}const f=await x.json();K=f,document.getElementById("bdPatternDisplay").textContent=f.pattern,document.getElementById("bdTypeDisplay").textContent=f.type_filter?f.type_filter.toUpperCase():"All Types",document.getElementById("bdCountDisplay").textContent=f.matched_count.toLocaleString(),document.getElementById("bdRequiredCountText").textContent=String(f.matched_count),f.is_prod?(Tt.style.display="block",It.style.display="block"):(Tt.style.display="none",It.style.display="none");const $=document.getElementById("bdPerNodeBreakdown"),C=Object.entries(f.per_node_counts||{});C.length>1?($.innerHTML="<strong>Per-node breakdown:</strong> "+C.map(([k,_])=>`${d(k)}: ${_.toLocaleString()}`).join(" &bull; "),$.style.display="block"):$.style.display="none";const M=document.getElementById("bdSampleKeysList");f.sample_keys&&f.sample_keys.length>0?(M.innerHTML=f.sample_keys.map(k=>`<div>${d(k)}</div>`).join(""),document.getElementById("bdSampleKeysSection").style.display="block"):document.getElementById("bdSampleKeysSection").style.display="none",Fe.style.display="none",Mt.style.display="flex",u()}catch(x){Fe.innerHTML=`
+`],{type:"text/plain;charset=utf-8;"})}gn(A,S),l()})}const We=document.getElementById("bulkDeleteModal"),Dt=document.getElementById("btnOpenBulkDeleteModal"),Nt=document.getElementById("btnCloseBulkDeleteModal"),zt=document.getElementById("btnCancelBulkDelete"),j=document.getElementById("btnConfirmBulkDelete"),pe=document.getElementById("bdCountConfirmInput"),se=document.getElementById("bdProdConfirmInput"),Pt=document.getElementById("bdProdConfirmGroup"),Ht=document.getElementById("bulkDeleteProdBanner"),Ye=document.getElementById("bulkDeleteDryRunStatus"),Ft=document.getElementById("bulkDeleteDetails");let U=null;function Ot(){if(!U||!j)return;const l=String(U.matched_count),u=(pe?.value||"").trim()===l&&U.matched_count>0;let k=!0;U.is_prod&&(k=(se?.value||"").trim().toUpperCase()==="PROD"),j.disabled=!(u&&k)}if(pe&&pe.addEventListener("input",Ot),se&&se.addEventListener("input",Ot),Dt&&We){Dt.addEventListener("click",async()=>{if(B?.read_only){alert("Bulk Delete is disabled in Read-Only mode.");return}const y=z||"*",u=O&&O!=="all"?O:null;U=null,pe&&(pe.value=""),se&&(se.value=""),j&&(j.disabled=!0),Ye.style.display="block",Ft.style.display="none",We.classList.add("active"),f();try{const k=await fetch("/api/keys/bulk-delete/dry-run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pattern:y,type_filter:u})});if(!k.ok){const S=await k.json().catch(()=>({detail:"Dry run failed"}));throw new Error(S.detail||"Dry run failed")}const b=await k.json();U=b,document.getElementById("bdPatternDisplay").textContent=b.pattern,document.getElementById("bdTypeDisplay").textContent=b.type_filter?b.type_filter.toUpperCase():"All Types",document.getElementById("bdCountDisplay").textContent=b.matched_count.toLocaleString(),document.getElementById("bdRequiredCountText").textContent=String(b.matched_count),b.is_prod?(Ht.style.display="block",Pt.style.display="block"):(Ht.style.display="none",Pt.style.display="none");const T=document.getElementById("bdPerNodeBreakdown"),L=Object.entries(b.per_node_counts||{});L.length>1?(T.innerHTML="<strong>Per-node breakdown:</strong> "+L.map(([S,A])=>`${d(S)}: ${A.toLocaleString()}`).join(" &bull; "),T.style.display="block"):T.style.display="none";const _=document.getElementById("bdSampleKeysList");b.sample_keys&&b.sample_keys.length>0?(_.innerHTML=b.sample_keys.map(S=>`<div>${d(S)}</div>`).join(""),document.getElementById("bdSampleKeysSection").style.display="block"):document.getElementById("bdSampleKeysSection").style.display="none",Ye.style.display="none",Ft.style.display="flex",f()}catch(k){Ye.innerHTML=`
           <div style="color: var(--accent-danger);">
             <i data-lucide="alert-circle" style="width: 20px; height: 20px; margin-bottom: 0.35rem; display: inline-block;"></i>
-            <div>Failed to calculate dry-run: ${d(x.message)}</div>
+            <div>Failed to calculate dry-run: ${d(k.message)}</div>
           </div>
-        `,u()}});const s=()=>Oe.classList.remove("active");St&&St.addEventListener("click",s),$t&&$t.addEventListener("click",s),j&&j.addEventListener("click",async()=>{if(K){j.disabled=!0,j.innerHTML='<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlinking...',u();try{const m=await fetch("/api/keys/bulk-delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pattern:K.pattern,type_filter:K.type_filter,expected_count:K.matched_count,confirmed_count:parseInt(le.value.trim(),10),confirmed_env:ne?ne.value.trim():null})});if(!m.ok){const x=await m.json().catch(()=>({detail:"Bulk delete failed"}));throw new Error(x.detail||"Bulk delete failed")}const p=await m.json();alert(`Bulk delete complete!
-${p.message} (Duration: ${p.duration_ms}ms)`),s(),D()}catch(m){alert(`Bulk delete error: ${m.message}`),j.disabled=!1,j.innerHTML='<i data-lucide="trash-2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlink Keys',u()}}})}function Ee(s){const m=document.querySelector(".sidebar"),p=document.getElementById("btnShowSidebar");m&&(s?(m.classList.add("collapsed"),p&&(p.style.display="inline-flex"),localStorage.setItem("redis_insight_sidebar_collapsed","true")):(m.classList.remove("collapsed"),p&&(p.style.display="none"),localStorage.setItem("redis_insight_sidebar_collapsed","false")),u())}const _t=document.getElementById("btnToggleSidebar");_t&&_t.addEventListener("click",()=>Ee(!0));const At=document.getElementById("btnShowSidebar");At&&At.addEventListener("click",()=>Ee(!1)),localStorage.getItem("redis_insight_sidebar_collapsed")==="true"&&Ee(!0),document.addEventListener("keydown",s=>{if((s.ctrlKey||s.metaKey)&&s.key.toLowerCase()==="b"){const m=document.querySelector(".sidebar"),p=m&&m.classList.contains("collapsed");Ee(!p),s.preventDefault()}}),document.addEventListener("keydown",s=>{s.key==="Escape"&&document.querySelectorAll(".modal-backdrop.active").forEach(p=>p.classList.remove("active"))}),document.querySelectorAll(".modal-backdrop").forEach(s=>{s.addEventListener("click",m=>{m.target===s&&s.classList.remove("active")})}),setInterval(q,15e3)}async function Kt(){io(),u(),_o();try{await Q(),await q()}catch(t){console.error("Failed to load initial status:",t)}I.find(t=>t.is_connected&&t.is_selected)||I.find(t=>t.is_connected)?await D():it()}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",Kt):Kt();
+        `,f()}});const l=()=>We.classList.remove("active");Nt&&Nt.addEventListener("click",l),zt&&zt.addEventListener("click",l),j&&j.addEventListener("click",async()=>{if(U){j.disabled=!0,j.innerHTML='<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlinking...',f();try{const y=await fetch("/api/keys/bulk-delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pattern:U.pattern,type_filter:U.type_filter,expected_count:U.matched_count,confirmed_count:parseInt(pe.value.trim(),10),confirmed_env:se?se.value.trim():null})});if(!y.ok){const k=await y.json().catch(()=>({detail:"Bulk delete failed"}));throw new Error(k.detail||"Bulk delete failed")}const u=await y.json();alert(`Bulk delete complete!
+${u.message} (Duration: ${u.duration_ms}ms)`),l(),N()}catch(y){alert(`Bulk delete error: ${y.message}`),j.disabled=!1,j.innerHTML='<i data-lucide="trash-2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlink Keys',f()}}})}function Te(l){const y=document.querySelector(".sidebar"),u=document.getElementById("btnShowSidebar");y&&(l?(y.classList.add("collapsed"),u&&(u.style.display="inline-flex"),localStorage.setItem("redis_insight_sidebar_collapsed","true")):(y.classList.remove("collapsed"),u&&(u.style.display="none"),localStorage.setItem("redis_insight_sidebar_collapsed","false")),f())}const Kt=document.getElementById("btnToggleSidebar");Kt&&Kt.addEventListener("click",()=>Te(!0));const jt=document.getElementById("btnShowSidebar");jt&&jt.addEventListener("click",()=>Te(!1)),localStorage.getItem("redis_insight_sidebar_collapsed")==="true"&&Te(!0),document.addEventListener("keydown",l=>{if((l.ctrlKey||l.metaKey)&&l.key.toLowerCase()==="b"){const y=document.querySelector(".sidebar"),u=y&&y.classList.contains("collapsed");Te(!u),l.preventDefault()}}),document.addEventListener("keydown",l=>{l.key==="Escape"&&document.querySelectorAll(".modal-backdrop.active").forEach(u=>u.classList.remove("active"))}),document.querySelectorAll(".modal-backdrop").forEach(l=>{l.addEventListener("click",y=>{y.target===l&&l.classList.remove("active")})}),setInterval(G,15e3)}async function Xt(){ko(),f(),Xo();try{await oe(),await G()}catch(t){console.error("Failed to load initial status:",t)}M.find(t=>t.is_connected&&t.is_selected)||M.find(t=>t.is_connected)?await N():gt()}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",Xt):Xt();

@@ -161,18 +161,28 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] Search for `user:*` &rarr; table updates immediately without page reload.
    - [ ] Filter by Type (e.g. `hash`, `string`, `set`) &rarr; table only displays matched types.
 
-4. **Key Inspection Modal**:
+4. **Virtual Folder Tree View**:
+   - [ ] Click **Tree** view tab in the action bar &rarr; keyspace switches smoothly from table to collapsible namespace folders.
+   - [ ] Check Delimiter dropdown &rarr; test `Auto (:, /, .)`, `:`, `/`, `.`, and `-`.
+   - [ ] Click on a folder &rarr; toggles expand/collapse state.
+   - [ ] Click **Collapse All** / **Expand All** &rarr; collapses or expands all namespace levels.
+   - [ ] Type into the in-tree filter input &rarr; tree filters matching folders and leaf keys in real time.
+   - [ ] Click **Filter** badge on any folder &rarr; sets global pattern search to `namespace:*` and scans immediately.
+   - [ ] Click on any leaf key in tree view &rarr; Key Inspector modal opens.
+   - [ ] Click **Table** view tab &rarr; switches back to the flat data table.
+
+5. **Key Inspection Modal**:
    - [ ] Click on a cluster key &rarr; verify key details modal displays:
      - Accurate Type and TTL.
      - Key Slot (e.g. `1024 / 16383`).
      - Server Node attribution (e.g. `127.0.0.1:7000 (Primary)`).
 
-5. **Auto-Refresh & Batch Limit**:
+6. **Auto-Refresh & Batch Limit**:
    - [ ] Select `10,000` in the Keys/Batch dropdown &rarr; verify label updates to `10,000 keys per chunk`.
    - [ ] Toggle Auto-Refresh ON with `5m` interval &rarr; countdown begins with 5m.
    - [ ] Toggle Auto-Refresh OFF &rarr; timer stops.
 
-6. **Diagnostic Modals**:
+7. **Diagnostic Modals**:
    - [ ] Click **Memory** in top bar &rarr; Memory Analysis & Profiler modal opens.
    - [ ] Click **Clients** in top bar &rarr; Connected Clients modal opens.
    - [ ] Click **Slowlog** &rarr; Slowlog modal opens and lists logged commands.

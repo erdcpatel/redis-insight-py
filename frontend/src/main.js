@@ -35,7 +35,15 @@ import {
   ChevronRight,
   PanelLeft,
   Download,
-  FileText
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderTree,
+  Table,
+  List,
+  ChevronDown,
+  Key,
+  Filter
 } from "lucide";
 
 // Global State
@@ -44,6 +52,13 @@ let allSlowlogEntries = [];
 let currentSlowlogMinDuration = 0;
 let currentSlowlogSearch = "";
 let currentSlowlogNode = "all";
+
+// View Mode state (Flat Table vs Virtual Tree)
+let currentViewMode = localStorage.getItem("redis_insight_view_mode") || "table";
+let currentTreeDelimiter = localStorage.getItem("redis_insight_tree_delimiter") || "auto";
+let treeExpandedPaths = new Set();
+let treeInitialized = false;
+let currentTreeFilterQuery = "";
 
 let currentMemoryOverview = null;
 let currentMemoryAnalysis = null;
@@ -127,7 +142,15 @@ function setupIcons() {
       ChevronRight,
       PanelLeft,
       Download,
-      FileText
+      FileText,
+      Folder,
+      FolderOpen,
+      FolderTree,
+      Table,
+      List,
+      ChevronDown,
+      Key,
+      Filter
     }
   });
 }
@@ -319,6 +342,17 @@ function renderAppShell() {
           <!-- Panel 2: Key Browsing Pagination & Action Operations -->
           <div class="keys-actions-bar">
             <div class="actions-left" id="scanActionsGroup">
+              <div class="view-mode-toggle-group" id="viewModeToggleGroup">
+                <button type="button" class="view-mode-tab ${currentViewMode === 'table' ? 'active' : ''}" id="btnViewTable" data-mode="table" title="Flat Table View">
+                  <i data-lucide="table" style="width: 13px; height: 13px;"></i>
+                  <span>Table</span>
+                </button>
+                <button type="button" class="view-mode-tab ${currentViewMode === 'tree' ? 'active' : ''}" id="btnViewTree" data-mode="tree" title="Virtual Tree / Namespace Folder View">
+                  <i data-lucide="folder-tree" style="width: 13px; height: 13px;"></i>
+                  <span>Tree</span>
+                </button>
+              </div>
+              <div class="actions-divider"></div>
               <label for="scanBatchSizeSelect" class="batch-size-label">Keys per scan</label>
               <select id="scanBatchSizeSelect" class="batch-size-select" title="Keys requested per SCAN batch (applies to the next Load More)">
                 ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n.toLocaleString()}</option>`).join("")}
@@ -955,6 +989,8 @@ async function resetAndScan() {
   totalScanned = 0;
   keysTableRows = [];
   loadedKeysSet.clear();
+  treeInitialized = false;
+  treeExpandedPaths.clear();
 
   const emptyEl = document.getElementById("emptyWorkspaceState");
   const gridContainer = document.getElementById("gridViewerContainer");
@@ -1134,7 +1170,119 @@ async function scanNextBatch(expectedEpoch = null) {
   }
 }
 
-function renderKeysTable() {
+// Delimiter helper: finds delimiter in key based on preference
+function getDelimiterForKey(key, delimiterPreference = "auto") {
+  if (!key) return null;
+  if (delimiterPreference && delimiterPreference !== "auto") {
+    return key.includes(delimiterPreference) ? delimiterPreference : null;
+  }
+  // Auto mode: priority :, /, ., -
+  if (key.includes(":")) return ":";
+  if (key.includes("/")) return "/";
+  if (key.includes(".")) return ".";
+  if (key.includes("-")) return "-";
+  return null;
+}
+
+// Builds hierarchical tree of folders and leaf keys
+function buildNamespaceTree(rows, delimiterPreference = "auto") {
+  const root = {
+    id: "__root__",
+    name: "Root",
+    fullPrefix: "",
+    delimiter: "",
+    depth: -1,
+    folders: new Map(),
+    keys: [],
+    totalKeyCount: 0
+  };
+
+  for (const row of rows) {
+    const key = row.key || "";
+    const delim = getDelimiterForKey(key, delimiterPreference);
+
+    if (!delim) {
+      root.keys.push({ ...row, leafName: key });
+      continue;
+    }
+
+    const rawParts = key.split(delim);
+    let parts = rawParts;
+    // Strip trailing empty segment if key ends with delimiter
+    if (parts.length > 1 && parts[parts.length - 1] === "") {
+      parts = parts.slice(0, -1);
+    }
+
+    if (parts.length <= 1) {
+      root.keys.push({ ...row, leafName: key });
+      continue;
+    }
+
+    let currentNode = root;
+    let currentPrefix = "";
+
+    // Walk folder segments
+    for (let i = 0; i < parts.length - 1; i++) {
+      const seg = parts[i];
+      currentPrefix += (i > 0 ? delim : "") + seg;
+      const fullFolderPrefix = currentPrefix + delim;
+
+      if (!currentNode.folders.has(seg)) {
+        currentNode.folders.set(seg, {
+          id: fullFolderPrefix,
+          name: seg,
+          fullPrefix: fullFolderPrefix,
+          delimiter: delim,
+          depth: i,
+          folders: new Map(),
+          keys: [],
+          totalKeyCount: 0
+        });
+      }
+      currentNode = currentNode.folders.get(seg);
+    }
+
+    // Leaf key
+    const leafName = parts[parts.length - 1] || "(empty)";
+    currentNode.keys.push({ ...row, leafName });
+  }
+
+  function finalizeNode(node) {
+    let count = node.keys.length;
+    node.keys.sort((a, b) => (a.leafName || a.key).localeCompare(b.leafName || b.key));
+
+    const sortedFolders = new Map([...node.folders.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+    node.folders = sortedFolders;
+
+    for (const child of node.folders.values()) {
+      finalizeNode(child);
+      count += child.totalKeyCount;
+    }
+    node.totalKeyCount = count;
+  }
+
+  finalizeNode(root);
+  return root;
+}
+
+function folderMatchesQuery(folder, q) {
+  if (folder.name.toLowerCase().includes(q) || folder.fullPrefix.toLowerCase().includes(q)) {
+    return true;
+  }
+  for (const k of folder.keys) {
+    if (k.key.toLowerCase().includes(q) || (k.leafName && k.leafName.toLowerCase().includes(q))) {
+      return true;
+    }
+  }
+  for (const child of folder.folders.values()) {
+    if (folderMatchesQuery(child, q)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function renderKeysFlatTable() {
   const container = document.getElementById("gridViewerContainer");
   if (!container) return;
   if (keysTableRows.length === 0) {
@@ -1202,7 +1350,6 @@ function renderKeysTable() {
 
   setupIcons();
 
-  // Attach click handler on row to open key inspector
   container.querySelectorAll(".key-row").forEach(row => {
     row.addEventListener("click", () => {
       const k = decodeURIComponent(row.getAttribute("data-key"));
@@ -1210,7 +1357,6 @@ function renderKeysTable() {
     });
   });
 
-  // Attach delete button click handler
   container.querySelectorAll(".btn-delete-key-table").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1220,6 +1366,320 @@ function renderKeysTable() {
       });
     });
   });
+}
+
+function renderKeysTreeView() {
+  const container = document.getElementById("gridViewerContainer");
+  if (!container) return;
+  if (keysTableRows.length === 0) {
+    const notStarted = !scanComplete && isScanCursorComplete(currentCursor);
+    container.innerHTML = scanComplete
+      ? `
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        No keys found matching pattern "<code>${escapeHtml(currentPattern)}</code>".
+      </div>
+    `
+      : notStarted
+      ? `
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        Scanning keys matching "<code>${escapeHtml(currentPattern)}</code>"...
+      </div>
+    `
+      : `
+      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        No matches yet for "<code>${escapeHtml(currentPattern)}</code>" in the part of the keyspace scanned so far.<br>
+        The scan is not finished — click <strong>Load More</strong> to keep scanning.
+      </div>
+    `;
+    return;
+  }
+
+  const treeRoot = buildNamespaceTree(keysTableRows, currentTreeDelimiter);
+
+  // Auto-expand top-level folders on first load
+  if (!treeInitialized && treeExpandedPaths.size === 0) {
+    for (const f of treeRoot.folders.values()) {
+      treeExpandedPaths.add(f.id);
+    }
+    treeInitialized = true;
+  }
+
+  function countAllFolders(node) {
+    let c = node.folders.size;
+    for (const child of node.folders.values()) {
+      c += countAllFolders(child);
+    }
+    return c;
+  }
+  const totalFolders = countAllFolders(treeRoot);
+
+  const isFiltered = Boolean(currentTreeFilterQuery.trim());
+  const q = currentTreeFilterQuery.trim().toLowerCase();
+
+  function renderTreeKeyRow(r, depth) {
+    const encodedKey = encodeURIComponent(r.key);
+    return `
+      <div class="tree-node tree-leaf key-row" data-key="${encodedKey}" style="padding-left: ${depth * 20 + 26}px;">
+        <div class="tree-node-content">
+          <div class="tree-key-icon">
+            <i data-lucide="key" style="width: 13px; height: 13px;"></i>
+          </div>
+          <span class="tree-key-name btn-inspect-key" data-key="${encodedKey}" title="${escapeHtml(r.key)}">
+            ${escapeHtml(r.leafName || r.key)}
+          </span>
+          <span class="badge-db" style="margin-left: 0.35rem; font-size: 0.68rem; text-transform: uppercase;">${escapeHtml(r.type)}</span>
+          <span class="tree-key-ttl" title="TTL in seconds">${r.ttl_seconds}s</span>
+          <span class="tree-key-status" style="color: ${r.ttl_seconds === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};">${escapeHtml(r.status)}</span>
+          <div class="tree-key-actions" onclick="event.stopPropagation()">
+            ${lastStatus?.read_only ? `
+              <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
+                <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
+              </span>
+            ` : `
+              <button type="button" class="btn-icon danger btn-delete-key-table" data-key="${encodedKey}" title="Delete key">
+                <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+              </button>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderFolderNode(folder, depth) {
+    if (isFiltered && !folderMatchesQuery(folder, q)) {
+      return "";
+    }
+
+    const isExpanded = isFiltered ? true : treeExpandedPaths.has(folder.id);
+    const encodedId = encodeURIComponent(folder.id);
+
+    let innerChildren = "";
+    for (const sub of folder.folders.values()) {
+      innerChildren += renderFolderNode(sub, depth + 1);
+    }
+    for (const k of folder.keys) {
+      if (isFiltered) {
+        if (!k.key.toLowerCase().includes(q) && !(k.leafName && k.leafName.toLowerCase().includes(q))) {
+          continue;
+        }
+      }
+      innerChildren += renderTreeKeyRow(k, depth + 1);
+    }
+
+    return `
+      <div class="tree-folder-group" data-folder-id="${encodedId}">
+        <div class="tree-node tree-folder" data-folder-id="${encodedId}" style="padding-left: ${depth * 20 + 8}px;">
+          <div class="tree-node-content">
+            <button type="button" class="tree-toggle-btn" title="${isExpanded ? 'Collapse' : 'Expand'}">
+              <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" style="width: 14px; height: 14px;"></i>
+            </button>
+            <div class="tree-folder-icon">
+              <i data-lucide="${isExpanded ? 'folder-open' : 'folder'}" style="width: 15px; height: 15px;"></i>
+            </div>
+            <span class="tree-folder-name" title="${escapeHtml(folder.fullPrefix)}">
+              ${escapeHtml(folder.name)}<span class="tree-folder-delim">${escapeHtml(folder.delimiter)}</span>
+            </span>
+            <span class="tree-count-badge" title="${folder.totalKeyCount} keys in this namespace">
+              ${folder.totalKeyCount.toLocaleString()} ${folder.totalKeyCount === 1 ? 'key' : 'keys'}
+            </span>
+            <button type="button" class="tree-filter-prefix-btn" data-prefix="${escapeHtml(folder.fullPrefix)}" title="Filter keys matching '${escapeHtml(folder.fullPrefix)}*'">
+              <i data-lucide="filter" style="width: 11px; height: 11px;"></i>
+              <span>Filter</span>
+            </button>
+          </div>
+        </div>
+        <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'};">
+          ${innerChildren}
+        </div>
+      </div>
+    `;
+  }
+
+  let rootKeysHtml = "";
+  if (treeRoot.keys.length > 0) {
+    const filteredRootKeys = isFiltered
+      ? treeRoot.keys.filter(k => k.key.toLowerCase().includes(q) || (k.leafName && k.leafName.toLowerCase().includes(q)))
+      : treeRoot.keys;
+    if (filteredRootKeys.length > 0) {
+      rootKeysHtml = `
+        <div class="tree-root-keys-section">
+          <div class="tree-root-keys-header" style="padding-left: 10px;">
+            <span class="tree-root-keys-title">ROOT KEYS (NO DELIMITER)</span>
+            <span class="tree-count-badge">${filteredRootKeys.length.toLocaleString()} ${filteredRootKeys.length === 1 ? 'key' : 'keys'}</span>
+          </div>
+          <div class="tree-root-keys-list">
+            ${filteredRootKeys.map(k => renderTreeKeyRow(k, 0)).join("")}
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  container.innerHTML = `
+    <div class="tree-view-wrapper">
+      <div class="tree-toolbar">
+        <div class="tree-toolbar-left">
+          <div class="tree-delimiter-control">
+            <label for="treeDelimiterSelect" class="tree-control-label">Delimiter:</label>
+            <select id="treeDelimiterSelect" class="tree-select" title="Grouping delimiter convention">
+              <option value="auto"${currentTreeDelimiter === "auto" ? " selected" : ""}>Auto (:, /, .)</option>
+              <option value=":"${currentTreeDelimiter === ":" ? " selected" : ""}>: (Colon)</option>
+              <option value="/"${currentTreeDelimiter === "/" ? " selected" : ""}>/ (Slash)</option>
+              <option value="."${currentTreeDelimiter === "." ? " selected" : ""}>. (Dot)</option>
+              <option value="-"${currentTreeDelimiter === "-" ? " selected" : ""}>- (Dash)</option>
+            </select>
+          </div>
+          <div class="tree-summary-pill" id="treeSummaryPill">
+            ${totalFolders.toLocaleString()} ${totalFolders === 1 ? 'Namespace' : 'Namespaces'} &bull; ${keysTableRows.length.toLocaleString()} ${keysTableRows.length === 1 ? 'Key' : 'Keys'}
+          </div>
+        </div>
+        <div class="tree-toolbar-right">
+          <div class="tree-filter-box">
+            <i data-lucide="search" style="width: 12px; height: 12px; color: var(--text-muted); flex-shrink: 0;"></i>
+            <input type="text" id="treeFilterInput" class="tree-filter-input" placeholder="Filter loaded tree..." value="${escapeHtml(currentTreeFilterQuery)}">
+            ${currentTreeFilterQuery ? `
+              <button type="button" class="btn-clear-tree-filter" id="btnClearTreeFilter" title="Clear filter">
+                <i data-lucide="x" style="width: 11px; height: 11px;"></i>
+              </button>
+            ` : ''}
+          </div>
+          <div class="tree-btn-group">
+            <button type="button" class="btn btn-secondary tree-btn" id="btnExpandAllTree" title="Expand all namespace folders">
+              <i data-lucide="folder-open" style="width: 12px; height: 12px;"></i>
+              <span>Expand All</span>
+            </button>
+            <button type="button" class="btn btn-secondary tree-btn" id="btnCollapseAllTree" title="Collapse all namespace folders">
+              <i data-lucide="folder" style="width: 12px; height: 12px;"></i>
+              <span>Collapse All</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="tree-view-body" id="treeViewBody">
+        ${[...treeRoot.folders.values()].map(f => renderFolderNode(f, 0)).join("")}
+        ${rootKeysHtml}
+      </div>
+    </div>
+  `;
+
+  setupIcons();
+
+  // Attach folder toggle listeners
+  container.querySelectorAll(".tree-folder").forEach(folderEl => {
+    folderEl.addEventListener("click", (e) => {
+      if (e.target.closest(".tree-filter-prefix-btn")) return;
+      const folderId = decodeURIComponent(folderEl.getAttribute("data-folder-id"));
+      if (treeExpandedPaths.has(folderId)) {
+        treeExpandedPaths.delete(folderId);
+      } else {
+        treeExpandedPaths.add(folderId);
+      }
+      renderKeysTreeView();
+    });
+  });
+
+  // Attach prefix filter button listeners
+  container.querySelectorAll(".tree-filter-prefix-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const prefix = btn.getAttribute("data-prefix");
+      const searchInput = document.getElementById("keySearchInput");
+      if (searchInput && prefix) {
+        searchInput.value = prefix + "*";
+        currentPattern = prefix + "*";
+        resetAndScan();
+      }
+    });
+  });
+
+  // Attach key row inspect listeners
+  container.querySelectorAll(".tree-leaf").forEach(row => {
+    row.addEventListener("click", () => {
+      const k = decodeURIComponent(row.getAttribute("data-key"));
+      openKeyDetail(k);
+    });
+  });
+
+  // Attach key delete listeners
+  container.querySelectorAll(".btn-delete-key-table").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const k = decodeURIComponent(btn.getAttribute("data-key"));
+      triggerDeleteConfirmation(k, () => {
+        resetAndScan();
+      });
+    });
+  });
+
+  // Delimiter select listener
+  const delimSelect = document.getElementById("treeDelimiterSelect");
+  if (delimSelect) {
+    delimSelect.addEventListener("change", (e) => {
+      currentTreeDelimiter = e.target.value;
+      localStorage.setItem("redis_insight_tree_delimiter", currentTreeDelimiter);
+      treeExpandedPaths.clear();
+      treeInitialized = false;
+      renderKeysTreeView();
+    });
+  }
+
+  // Expand All / Collapse All listeners
+  const btnExpandAll = document.getElementById("btnExpandAllTree");
+  if (btnExpandAll) {
+    btnExpandAll.addEventListener("click", () => {
+      function collectAll(node) {
+        for (const f of node.folders.values()) {
+          treeExpandedPaths.add(f.id);
+          collectAll(f);
+        }
+      }
+      collectAll(treeRoot);
+      renderKeysTreeView();
+    });
+  }
+
+  const btnCollapseAll = document.getElementById("btnCollapseAllTree");
+  if (btnCollapseAll) {
+    btnCollapseAll.addEventListener("click", () => {
+      treeExpandedPaths.clear();
+      renderKeysTreeView();
+    });
+  }
+
+  // In-tree filter search
+  const filterInput = document.getElementById("treeFilterInput");
+  if (filterInput) {
+    filterInput.addEventListener("input", (e) => {
+      currentTreeFilterQuery = e.target.value;
+      renderKeysTreeView();
+      const inp = document.getElementById("treeFilterInput");
+      if (inp) {
+        inp.focus();
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      }
+    });
+  }
+
+  const btnClearFilter = document.getElementById("btnClearTreeFilter");
+  if (btnClearFilter) {
+    btnClearFilter.addEventListener("click", () => {
+      currentTreeFilterQuery = "";
+      renderKeysTreeView();
+    });
+  }
+}
+
+function renderKeysView() {
+  if (currentViewMode === "tree") {
+    renderKeysTreeView();
+  } else {
+    renderKeysFlatTable();
+  }
+}
+
+function renderKeysTable() {
+  renderKeysView();
 }
 
 function updateScanChunkLabel() {
@@ -4672,6 +5132,28 @@ function setupEventListeners() {
       if (isAutoRefreshActive) resetAutoRefreshTimer();
     });
   });
+
+  // View Mode Toggle (Table vs Tree)
+  const btnViewTable = document.getElementById("btnViewTable");
+  const btnViewTree = document.getElementById("btnViewTree");
+  if (btnViewTable) {
+    btnViewTable.addEventListener("click", () => {
+      currentViewMode = "table";
+      localStorage.setItem("redis_insight_view_mode", "table");
+      btnViewTable.classList.add("active");
+      if (btnViewTree) btnViewTree.classList.remove("active");
+      renderKeysView();
+    });
+  }
+  if (btnViewTree) {
+    btnViewTree.addEventListener("click", () => {
+      currentViewMode = "tree";
+      localStorage.setItem("redis_insight_view_mode", "tree");
+      btnViewTree.classList.add("active");
+      if (btnViewTable) btnViewTable.classList.remove("active");
+      renderKeysView();
+    });
+  }
 
   // Scan controls
   const scanBatchSelect = document.getElementById("scanBatchSizeSelect");

@@ -65,6 +65,18 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Configurable refresh interval: **5s (Safe Minimum)**, **10s (Default)**, **15s**, **30s**, or **60s**.
   - Animated pulsing indicator with live countdown badge (e.g., `Auto: 8s`).
   - **Smart Pause**: Automatically suspends countdown while a modal is open or when the browser tab is hidden to avoid disrupting key inspection.
+- **View Mode Toggle (Flat Table vs Virtual Tree)**:
+  - Toggle between **Table View** (flat data grid) and **Tree View** (hierarchical namespace folders) with 1 click from the action bar.
+  - Remembers selected view mode and delimiter choice across page reloads in `localStorage`.
+- **Namespace Delimiter Grouping & Conventions**:
+  - Automatically parses and groups Redis keys following common delimiter conventions (`:`, `/`, `.`, `-`).
+  - Configurable Delimiter dropdown: `Auto (:, /, .)`, `: (Colon)`, `/ (Slash)`, `. (Dot)`, `- (Dash)`.
+  - Un-namespaced keys are neatly organized under a designated "Root Keys" section.
+- **Collapsible Namespace Folders & Key Counts**:
+  - Folders display total nested key counts (e.g., `users:` ➔ `1001:` ➔ `15 keys`).
+  - Expand and collapse folders individually, or use **Expand All** and **Collapse All** toolbar controls.
+  - **In-Tree Live Filter**: Instant client-side search across loaded namespaces and leaf key names without re-querying Redis.
+  - **1-Click Namespace Filter**: Click the "Filter" badge on any folder to immediately set the search pattern (e.g. `users:1001:*`) and scan that namespace.
 - **Cluster Key Slot & Owning Node Mapping**:
   - Displays the CRC16 hash slot (`#Slot`) and owning master node (`host:port (Primary)`) directly on Key Detail metadata for hot-shard and slot debugging.
   - Automatically handles Redis hash tags `{...}` (e.g. `{user:100}:profile`).
