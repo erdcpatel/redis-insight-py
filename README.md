@@ -16,12 +16,14 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Host & Seed Nodes with interactive badges for multi-node clusters.
   - Database Index, Authentication, and TLS / SSL status.
   - Configuration source (`config/connections.yaml` or Local SQLite DB).
+- **Same-Name Clusters across Environments**: Supports compound `(name, env)` uniqueness, allowing identical cluster names (e.g. `"Billing-Cluster"`) across `LOCAL`, `DEV`, `UAT`, and `PROD` without naming conflicts.
 - **Direct Actions**:
   - **Connect**: Connect to the cluster after reviewing configuration.
   - **Test Connection**: Run an isolated latency, version, and cluster reachability check without saving or connecting.
   - **Disconnect**: Safely disconnect and release connection pools.
   - **Switch & View Keys**: Switch focus between connected clusters.
   - **Topology & Nodes**: View live slot distribution, node states, and cluster health.
+  - **Keyspace Distribution**: Aggregated keyspace counts across all master nodes with replica key counts and replication drift tracking.
 - **Smart Multi-Node Cluster Builder & ⚡ Auto-Discovery**:
   - Prevents single-point-of-failure startup risks by saving redundant seed nodes for the cluster client.
   - Enter a single seed node and click **Auto-Discover Nodes**: connects to the seed node, queries `CLUSTER NODES` & `CLUSTER INFO`, and automatically discovers all masters and replicas across the cluster.
@@ -57,27 +59,65 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 ### 4. High-Performance Key Browsing & Inspector
 - **Responsive Glassmorphic Data Grid**: Blazing fast rendering and virtual scrolling for thousands of keys with custom type badges, live TTL tags, and direct row-level key inspection and deletion.
 - **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.
+- **Configurable SCAN Batch Size**: Toggle requested keys per SCAN chunk (50, 100, 200, 500, or 1,000) directly from the toolbar to match network latency.
+- **Real-Time Auto-Refresh Pattern Watcher**:
+  - Watch for keys matching your active pattern (e.g., `orders:*`) and data type filter automatically.
+  - Configurable refresh interval: **5s (Safe Minimum)**, **10s (Default)**, **15s**, **30s**, or **60s**.
+  - Animated pulsing indicator with live countdown badge (e.g., `Auto: 8s`).
+  - **Smart Pause**: Automatically suspends countdown while a modal is open or when the browser tab is hidden to avoid disrupting key inspection.
+- **Cluster Key Slot & Owning Node Mapping**:
+  - Displays the CRC16 hash slot (`#Slot`) and owning master node (`host:port (Primary)`) directly on Key Detail metadata for hot-shard and slot debugging.
+  - Automatically handles Redis hash tags `{...}` (e.g. `{user:100}:profile`).
 - **Comprehensive Key Inspector**:
   - Type-aware viewers for `string`, `hash`, `list`, `set`, `zset`, and `stream`.
+  - **Large Hash Pagination**: Hashes with thousands or millions of fields paginate smoothly (200 fields/page) with server-side field-level search.
+  - **Raw Value Download**: Download key values directly as raw JSON/files with 1 click.
   - JSON formatting, search filtering within hash/list elements, and raw payload views.
   - Live TTL inspection and TTL modification.
   - Key deletion with confirmation.
 
 ---
 
-### 5. Real-Time Slowlog & Latency Profiler
+### 5. Export Matched Key Names (CSV / TXT)
+- **One-Click Export**: Export keys matching your active search pattern and type filter.
+- **Flexible Scope**:
+  - **Currently Loaded Keys**: Instant client-side download via browser `Blob` (zero network hops, zero load on Redis).
+  - **All Matched Keys in Database**: Backend scan streaming keys across all cluster shards.
+- **Standard Formats**:
+  - **CSV**: Structured columns `Key,Type,TTL_Seconds` formatted to POSIX/RFC standards for Excel, sheets, and analytics scripts.
+  - **TXT**: Plain newline-delimited key names for piping into shell scripts, CLI tools, or `xargs`.
+- **Visual Feedback**: Real-time loading spinner and guaranteed `.csv` / `.txt` file extensions.
+
+---
+
+### 6. Safeguarded Bulk Delete with `UNLINK`
+- **Non-Blocking Deletion**: Uses `UNLINK` instead of blocking `DEL` to reclaim memory asynchronously in background threads.
+- **Cluster Cross-Slot Safe**: On Redis Clusters, keys are partitioned and unlinked **per primary node** (`target_nodes=node`), completely eliminating `CROSSSLOT Keys in request don't hash to the same slot` errors!
+- **Strict Multi-Stage Safety Gates**:
+  1. **Dry-Run Simulation**: Scans matching keys without deleting, returning the exact matched count, sample keys, and per-node breakdown.
+  2. **Count Confirmation Barrier**: Requires typing the exact matched count (e.g. `1250`) to enable the confirmation button.
+  3. **Production Gate**: On `PROD` environments, a bright red alert banner appears and requires typing `PROD` to unlock deletion.
+- **Audit Logging**: Logs operation duration, target pattern, and key count for traceability.
+
+---
+
+### 7. Real-Time Slowlog & Latency Profiler
 - **Cluster-Wide Slowlog Aggregation**: Executes `SLOWLOG GET` across standalone instances or aggregates slow command entries from all primary cluster nodes.
 - **Microsecond Precision**: Displays execution duration in milliseconds and microseconds, timestamp, caller IP/client name, command arguments, and target node.
 - **Visual Latency Threshold Badges**:
   - `< 10ms`: Subtle green/cyan badge.
   - `10ms - 50ms`: Amber warning badge.
   - `> 50ms`: Bold red critical latency badge.
+- **1-Click Copy Command**: Copy full slow command strings and arguments directly to clipboard with visual checkmark feedback.
 - **Search & Filter**: Filter slow commands by search query, min latency threshold (>1ms, >5ms, >10ms, >50ms), or specific cluster node.
 - **Reset Buffer**: Safely reset the Redis Slowlog buffer with confirmation.
 
 ---
 
-### 6. Memory Analysis & "BigKeys" Profiler
+### 8. Memory Analysis & "BigKeys" Profiler
+- **What is BigKeys?**:
+  - In Redis, **BigKeys** are keys consuming disproportionate RAM (measured in bytes via `MEMORY USAGE`) or containing excessive collection cardinality (`HLEN`, `LLEN`, `SCARD`, `ZCARD`, `STRLEN`).
+  - Because Redis is single-threaded, operating on or evicting BigKeys causes latency spikes, blocks other client requests, and creates hot shards in clusters.
 - **Live Memory Overview & Health**:
   - Live memory usage, RSS, and peak memory.
   - **Memory Fragmentation Ratio**: Real-time status badge with intelligent classification (`Optimal 1.0-1.5`, `Warning`, or `Critical >2.0`).
@@ -85,25 +125,36 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Maxmemory limits and eviction policy (`noeviction`, `volatile-lru`, `allkeys-lru`, etc.).
 - **Safe Non-Blocking Key Sampling**:
   - **Performance Safeguard**: Does not run automatically. Warns the user upfront with a clear Performance Notice to protect production CPU.
-  - Configurable sample limits (100, 250, 500 [Default], 1,000, 2,500 keys) and pattern filtering using non-blocking `SCAN` and `MEMORY USAGE`.
+  - Configurable sample limits (100, 250, 500 [Default], 1,000, 2,500 keys) and pattern filtering using non-blocking `SCAN` and `MEMORY USAGE` with a concurrency semaphore (`Semaphore(25)`).
 - **Data Type Allocation Bar**: Multi-colored stacked proportional bar showing exact memory % used by Hashes vs Strings vs Sets vs Lists vs ZSets.
 - **Top 50 BigKeys Leaderboard**:
   - Ranks keys by memory consumption with gold, silver, and bronze rank badges.
-  - Interactive Key Inspector links and direct row deletion.
+  - 1-click **Copy Key** button with instant clipboard feedback.
+  - Interactive Key Inspector links and direct row `UNLINK` deletion.
 - **Smart Bottleneck Recommendations**:
   - Automatically identifies large keys (>500KB), oversized collections (>5,000 items), high ratios of non-expiring keys, and memory fragmentation.
 
 ---
 
-### 7. Collapsible Workspace & Full-Screen Mode
-- **One-Click Sidebar Toggle**: Expand or collapse the cluster sidebar instantly via the collapse arrow (`chevron-left`), top-bar expand button, or `Ctrl+B` / `Cmd+B` keyboard shortcut.
-- **Persistent Layout State**: Remembers your sidebar visibility preference in browser local storage.
-- **Full-Screen Focus**: Expands the keys data grid, slowlog inspection, memory visualizations, and terminal views across the entire monitor.
-- **Streamlined 3-Zone Header**: Clean, non-overlapping navbar featuring an active connection pill, unified vitals capsule (Memory, Ops/sec, Connected Clients), and segmented tools launcher.
+### 9. Connected Clients Inspector
+- **Real-Time Client Tracking**: Inspect all active connections via `CLIENT LIST` across standalone instances or cluster primary nodes.
+- **Detailed Caller Metadata**: Displays client IP, port, local target port, authenticated user, connection flags, and currently active command.
+- **Instant Search**: Filter clients by IP, port, client name, user, or executed command.
+- **Client Termination**: 1-click **Kill Client** (`CLIENT KILL`) to terminate rogue or stalled connections with confirmation.
 
 ---
 
-### 8. Security & Static Configuration Sync
+### 10. Workspace Ergonomics & Modal UX
+- **Global Escape Key Dismiss**: Press `Escape` at any time to immediately close any open modal popup.
+- **Backdrop Click Dismiss**: Clicking outside any dialog content on the backdrop smoothly dismisses the modal.
+- **Smooth Animations & Blur**: Modern entrance scaling animations (`modalScaleIn`) with `backdrop-filter: blur(8px)`.
+- **One-Click Sidebar Toggle**: Expand or collapse the cluster sidebar instantly via the collapse arrow, top-bar expand button, or `Ctrl+B` / `Cmd+B` keyboard shortcut.
+- **Persistent Layout State**: Remembers sidebar visibility and auto-refresh intervals in browser local storage.
+- **Streamlined 3-Zone Header**: Clean navbar featuring an active connection pill, unified vitals capsule (Memory, Ops/sec, Connected Clients), and segmented tools launcher.
+
+---
+
+### 11. Security & Static Configuration Sync
 - **Encrypted Password Storage**: Passwords stored in local SQLite are encrypted with **Fernet (AES-128-CBC + HMAC-SHA256)**. The encryption key is generated locally in `.secret.key` and never committed to source control.
 - **Static Configuration (`config/connections.yaml`)**: Predefine cluster endpoints and environments in YAML. Changes are automatically synced on startup.
 
