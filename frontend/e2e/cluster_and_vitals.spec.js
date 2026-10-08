@@ -127,4 +127,41 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     }
   });
 
+  test('Batch size supports 10,000 keys and Auto-refresh offers 5m interval', async ({ page }) => {
+    await page.goto('/');
+
+    // 1. Verify scanBatchSizeSelect has 10000 option and selection updates chunk label
+    const batchSelect = page.locator('#scanBatchSizeSelect');
+    await expect(batchSelect).toBeVisible();
+    
+    // Check that option 10000 exists
+    const opt10k = batchSelect.locator('option[value="10000"]');
+    await expect(opt10k).toHaveCount(1);
+
+    // Select 10000
+    await batchSelect.selectOption('10000');
+    const chunkLabel = page.locator('#scanChunkLabel');
+    await expect(chunkLabel).toContainText('10,000');
+
+    // 2. Verify autoRefreshIntervalSelect has 5m (value 300) option
+    const refreshSelect = page.locator('#autoRefreshIntervalSelect');
+    await expect(refreshSelect).toBeVisible();
+    const opt5m = refreshSelect.locator('option[value="300"]');
+    await expect(opt5m).toHaveCount(1);
+    await expect(opt5m).toHaveText('5m');
+
+    // Select 5m interval and toggle auto refresh
+    await refreshSelect.selectOption('300');
+    const toggleBtn = page.locator('#btnToggleAutoRefresh');
+    await toggleBtn.click();
+    await expect(toggleBtn).toHaveClass(/active/);
+    const statusText = page.locator('#autoRefreshStatusText');
+    await expect(statusText).toContainText(/Auto: (5m|4m \d+s)/);
+
+    // Toggle off
+    await toggleBtn.click();
+    await expect(toggleBtn).not.toHaveClass(/active/);
+    await expect(statusText).toContainText('Auto: Off');
+  });
+
 });

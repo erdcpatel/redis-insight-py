@@ -86,7 +86,7 @@ let activeConfigConn = null;
 let currentScanEpoch = 0;
 let scanBatchSize = 50;
 let hashFieldsState = null;
-const SCAN_BATCH_SIZES = [50, 100, 200, 500, 1000];
+const SCAN_BATCH_SIZES = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
 const HASH_FIELDS_PAGE_SIZE = 200;
 
 function setupIcons() {
@@ -281,50 +281,62 @@ function renderAppShell() {
             </div>
           </div>
 
-          <!-- Safe Chunk Bar -->
+          <!-- Panel 1: Safe SCAN Status & Live Auto-Refresh Watcher -->
           <div class="chunk-status-bar">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="status-left">
               <span class="safety-badge">
                 <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
                 <span id="scanChunkLabel">Safe SCAN (Chunk 50)</span>
               </span>
-              <span id="scanStatusText">Scanning keys...</span>
+              <span id="scanStatusText" class="scan-status-text">Scanning keys...</span>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 0.5rem;" id="scanActionsGroup">
-              <label for="scanBatchSizeSelect" style="font-size: 0.72rem; color: var(--text-muted);">Keys per scan</label>
-              <select id="scanBatchSizeSelect" class="field-search-input" title="Keys requested per SCAN batch (applies to the next Load More)" style="width: auto; font-size: 0.75rem; padding: 0.3rem 0.5rem;">
-                ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n}</option>`).join("")}
-              </select>
-              <button type="button" class="btn btn-secondary" id="btnScanNext" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
-                <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
-                Load More
-              </button>
-              <button type="button" class="btn btn-secondary" id="btnResetScan" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
-                <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-                Refresh
-              </button>
+            <div class="status-right">
               <div class="auto-refresh-control-group" id="autoRefreshGroup" title="Auto-refresh keys matching current pattern & type filter">
                 <button type="button" class="btn btn-secondary btn-auto-refresh" id="btnToggleAutoRefresh" title="Click to start auto-refreshing keys for this pattern">
                   <span class="auto-refresh-dot" id="autoRefreshDot"></span>
-                  <i data-lucide="timer" style="width: 13px; height: 13px;"></i>
+                  <i data-lucide="timer" style="width: 12px; height: 12px;"></i>
                   <span id="autoRefreshStatusText">Auto: Off</span>
                 </button>
-                <select id="autoRefreshIntervalSelect" class="field-search-input auto-refresh-select" title="Auto-refresh interval (Minimum 5s)">
-                  <option value="5">5s (Min)</option>
+                <select id="autoRefreshIntervalSelect" class="auto-refresh-select" title="Auto-refresh interval (5s to 5m)">
+                  <option value="5">5s</option>
                   <option value="10" selected>10s</option>
                   <option value="15">15s</option>
                   <option value="30">30s</option>
-                  <option value="60">60s</option>
+                  <option value="60">1m</option>
+                  <option value="120">2m</option>
+                  <option value="300">5m</option>
                 </select>
               </div>
-              <button type="button" class="btn btn-secondary" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
-                <i data-lucide="download" style="width: 13px; height: 13px;"></i>
-                Export
+
+              <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnResetScan" title="Reload keys matching pattern immediately" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
+                <span>Refresh</span>
               </button>
-              <button type="button" class="btn btn-secondary" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; color: var(--accent-danger); border-color: rgba(239, 68, 68, 0.4);">
-                <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
-                Bulk Delete
+            </div>
+          </div>
+
+          <!-- Panel 2: Key Browsing Pagination & Action Operations -->
+          <div class="keys-actions-bar">
+            <div class="actions-left" id="scanActionsGroup">
+              <label for="scanBatchSizeSelect" class="batch-size-label">Keys per scan</label>
+              <select id="scanBatchSizeSelect" class="batch-size-select" title="Keys requested per SCAN batch (applies to the next Load More)">
+                ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n.toLocaleString()}</option>`).join("")}
+              </select>
+              <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext" style="font-size: 0.75rem; padding: 0.32rem 0.75rem;">
+                <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
+                <span>Load More</span>
+              </button>
+            </div>
+
+            <div class="actions-right">
+              <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                <i data-lucide="download" style="width: 12px; height: 12px;"></i>
+                <span>Export</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-toolbar-action btn-danger-action" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                <span>Bulk Delete</span>
               </button>
             </div>
           </div>
@@ -961,12 +973,18 @@ function updateAutoRefreshUI() {
 
   if (isAutoRefreshActive) {
     btn.classList.add("active");
-    btn.title = `Auto-refresh active (Pattern: "${currentPattern || "*"}"). Refreshing in ${autoRefreshRemainingSec}s. Click to pause.`;
-    text.textContent = `Auto: ${autoRefreshRemainingSec}s`;
+    const timeFormatted = autoRefreshRemainingSec >= 60
+      ? `${Math.floor(autoRefreshRemainingSec / 60)}m ${autoRefreshRemainingSec % 60}s`
+      : `${autoRefreshRemainingSec}s`;
+    btn.title = `Auto-refresh active (Pattern: "${currentPattern || "*"}"). Refreshing in ${timeFormatted}. Click to pause.`;
+    text.textContent = `Auto: ${timeFormatted}`;
     if (select) select.value = String(autoRefreshIntervalSec);
   } else {
     btn.classList.remove("active");
-    btn.title = `Click to watch keys matching pattern "${currentPattern || "*"}" every ${autoRefreshIntervalSec}s`;
+    const intervalFormatted = autoRefreshIntervalSec >= 60
+      ? `${Math.floor(autoRefreshIntervalSec / 60)}m`
+      : `${autoRefreshIntervalSec}s`;
+    btn.title = `Click to watch keys matching pattern "${currentPattern || "*"}" every ${intervalFormatted}`;
     text.textContent = "Auto: Off";
     if (select) select.value = String(autoRefreshIntervalSec);
   }
@@ -1196,7 +1214,7 @@ function renderKeysTable() {
 
 function updateScanChunkLabel() {
   const label = document.getElementById("scanChunkLabel");
-  if (label) label.textContent = `Safe SCAN (Chunk ${scanBatchSize})`;
+  if (label) label.textContent = `Safe SCAN (Chunk ${scanBatchSize.toLocaleString()})`;
 }
 
 function updateScanUI() {
