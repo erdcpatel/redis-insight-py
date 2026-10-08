@@ -63,6 +63,10 @@ htmlcov/
 .hypothesis/
 .mypy_cache/
 .ruff_cache/
+test-results/
+playwright-report/
+frontend/test-results/
+frontend/playwright-report/
 
 # --- Node & Frontend Dependencies ---
 node_modules/

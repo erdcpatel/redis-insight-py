@@ -3664,7 +3664,7 @@ async function refreshStatus() {
     if (s.connected) {
       const activeConn = cachedConnections.find(c => c.is_selected) || cachedConnections.find(c => c.id === s.connection_id) || cachedConnections.find(c => c.is_connected);
       const isCluster = (activeConn && activeConn.conn_type === "cluster") || (s.cluster_nodes && s.cluster_nodes.length > 0) || s.is_cluster;
-      const totalNodes = s.cluster_nodes_count || (s.node_stats ? s.node_stats.length : 1);
+      const totalNodes = s.cluster_nodes_count || (s.node_stats && s.node_stats.length > 0 ? s.node_stats.length : 1);
       const masterStats = (s.node_stats || []).filter(n => n.role === "master");
       lastStatus = s;
 
@@ -3690,7 +3690,7 @@ async function refreshStatus() {
             <div class="vital-item clickable" id="btnOpenTopologyTop" title="View Cluster Topology & Node Health">
               <i data-lucide="layers" style="width: 12px; height: 12px; color: ${isCluster ? '#a78bfa' : 'var(--accent-primary)'};"></i>
               <span class="vital-val" style="color: ${isCluster ? '#c084fc' : 'var(--accent-primary)'};">
-                ${isCluster ? `${totalNodes} Nodes` : `1 Node`}
+                ${isCluster ? `${totalNodes} ${totalNodes === 1 ? 'Node' : 'Nodes'}` : `1 Node`}
               </span>
             </div>
 

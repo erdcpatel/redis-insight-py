@@ -293,6 +293,27 @@ npm run dev
 
 ---
 
+## Local Testing & Verification
+
+A comprehensive testing suite is provided to validate backend APIs, live cluster connections, and browser UI/UX before pushing changes:
+
+```bash
+# 1. Manage local Redis standalone (port 6379) and 6-node cluster (ports 7000-7005)
+./scripts/manage_local_redis.sh status
+./scripts/manage_local_redis.sh start-all
+./scripts/manage_local_redis.sh seed
+
+# 2. Run all unit and live integration tests (85+ tests)
+PYTHONPATH=. pytest tests/
+
+# 3. Run Playwright End-to-End Browser UI tests
+./scripts/run_e2e_tests.sh
+```
+
+For complete instructions and the pre-push verification checklist, see [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md).
+
+---
+
 ## Git & Repository Structure
 
 ```

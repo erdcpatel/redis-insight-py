@@ -336,7 +336,28 @@ class RedisManager:
                 c_info = await temp_client.info("cluster")
                 if c_info.get("cluster_enabled") == 1 or isinstance(temp_client, RedisCluster):
                     is_cluster = True
-                    cluster_nodes_count = int(c_info.get("cluster_known_nodes", 1))
+                    try:
+                        raw_c = await temp_client.execute_command("CLUSTER INFO")
+                        if isinstance(raw_c, bytes):
+                            raw_c = raw_c.decode("utf-8")
+                        if isinstance(raw_c, str):
+                            p_info = {}
+                            for line in raw_c.splitlines():
+                                if ":" in line:
+                                    k, v = line.split(":", 1)
+                                    p_info[k.strip()] = v.strip()
+                            raw_c = p_info
+                        if isinstance(raw_c, dict) and "cluster_known_nodes" in raw_c:
+                            cluster_nodes_count = int(raw_c["cluster_known_nodes"])
+                    except Exception:
+                        pass
+                    if not cluster_nodes_count and hasattr(temp_client, "get_nodes"):
+                        try:
+                            cluster_nodes_count = len(temp_client.get_nodes())
+                        except Exception:
+                            pass
+                    if not cluster_nodes_count:
+                        cluster_nodes_count = int(c_info.get("cluster_known_nodes", 1))
             except Exception:
                 pass
 
@@ -783,7 +804,36 @@ class RedisManager:
                 if c_info.get("cluster_enabled") == 1 or isinstance(client, RedisCluster):
                     is_cluster = True
                     cluster_state = c_info.get("cluster_state", "ok")
-                    cluster_nodes_count = int(c_info.get("cluster_known_nodes", 1))
+                    try:
+                        raw_c = await client.execute_command("CLUSTER INFO")
+                        if isinstance(raw_c, bytes):
+                            raw_c = raw_c.decode("utf-8")
+                        if isinstance(raw_c, str):
+                            p_info = {}
+                            for line in raw_c.splitlines():
+                                if ":" in line:
+                                    k, v = line.split(":", 1)
+                                    p_info[k.strip()] = v.strip()
+                            raw_c = p_info
+                        if isinstance(raw_c, dict):
+                            cluster_state = raw_c.get("cluster_state", cluster_state or "ok")
+                            if "cluster_known_nodes" in raw_c:
+                                cluster_nodes_count = int(raw_c["cluster_known_nodes"])
+                    except Exception:
+                        pass
+
+                    if node_stats:
+                        cluster_nodes_count = max(cluster_nodes_count or 0, len(node_stats))
+                    elif hasattr(client, "get_nodes"):
+                        try:
+                            nodes = client.get_nodes()
+                            if nodes:
+                                cluster_nodes_count = max(cluster_nodes_count or 0, len(nodes))
+                        except Exception:
+                            pass
+
+                    if not cluster_nodes_count:
+                        cluster_nodes_count = int(c_info.get("cluster_known_nodes", 1))
             except Exception:
                 pass
 
