@@ -1939,7 +1939,7 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
           `}).join("")}
       </tbody>
     </table>
-  `,u()}async function K(){const e=document.getElementById("topConnContainer"),t=document.getElementById("topVitalsContainer");try{const o=await(await fetch("/api/status")).json();if(o.connected){const a=I.find(h=>h.is_selected)||I.find(h=>h.id===o.connection_id)||I.find(h=>h.is_connected),i=a&&a.conn_type==="cluster"||o.cluster_nodes&&o.cluster_nodes.length>0||o.is_cluster,r=o.cluster_nodes_count||(o.node_stats?o.node_stats.length:1),l=(o.node_stats||[]).filter(h=>h.role==="master");if(ce=o,e){const h=(o.env||a?.env||"LOCAL").toUpperCase();e.innerHTML=`
+  `,u()}async function K(){const e=document.getElementById("topConnContainer"),t=document.getElementById("topVitalsContainer");try{const o=await(await fetch("/api/status")).json();if(o.connected){const a=I.find(h=>h.is_selected)||I.find(h=>h.id===o.connection_id)||I.find(h=>h.is_connected),i=a&&a.conn_type==="cluster"||o.cluster_nodes&&o.cluster_nodes.length>0||o.is_cluster,r=o.cluster_nodes_count||(o.node_stats&&o.node_stats.length>0?o.node_stats.length:1),l=(o.node_stats||[]).filter(h=>h.role==="master");if(ce=o,e){const h=(o.env||a?.env||"LOCAL").toUpperCase();e.innerHTML=`
           <div class="top-conn-badge">
             <span class="status-indicator connected"></span>
             <span class="top-conn-name" title="${d(o.connection_name||"Connected")}">${d(o.connection_name||"Connected")}</span>
@@ -1955,7 +1955,7 @@ Please disconnect an existing cluster first or increase the limit in the sidebar
             <div class="vital-item clickable" id="btnOpenTopologyTop" title="View Cluster Topology & Node Health">
               <i data-lucide="layers" style="width: 12px; height: 12px; color: ${i?"#a78bfa":"var(--accent-primary)"};"></i>
               <span class="vital-val" style="color: ${i?"#c084fc":"var(--accent-primary)"};">
-                ${i?`${r} Nodes`:"1 Node"}
+                ${i?`${r} ${r===1?"Node":"Nodes"}`:"1 Node"}
               </span>
             </div>
 
