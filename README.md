@@ -310,7 +310,7 @@ PYTHONPATH=. pytest tests/
 ./scripts/run_e2e_tests.sh
 ```
 
-For complete instructions and the pre-push verification checklist, see [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md).
+For complete instructions, pre-push verification checklists, and design rules, see [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md) and [docs/UI_UX_GUIDELINES.md](docs/UI_UX_GUIDELINES.md).
 
 ---
 
