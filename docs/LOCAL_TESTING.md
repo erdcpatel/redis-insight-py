@@ -115,10 +115,32 @@ The E2E tests automatically spin up the server if not already running, launch Ch
 3. Clicking **"6 Nodes"** opens the Cluster Topology modal and renders all 6 nodes in the table.
 4. Standalone connection displays **"1 Node"** on the top vitals bar.
 5. Connected Clients and Memory Analysis modals open and close cleanly.
+6. Batch size selection supports up to 10,000 keys and Auto-refresh offers 5m interval.
+7. Read-Only Mode displays `[🔒 READ ONLY]` badge and disables/locks bulk delete and mutating controls.
 
 ---
 
-## 4. Manual Pre-Push UI/UX Verification Checklist
+## 4. Testing Read-Only Mode Locally
+
+You can validate the Hybrid Read-Only Mode locally in two ways:
+
+### Method A: Environment Variable (`APP_READONLY=true`)
+Run the server with the global read-only environment variable:
+```bash
+APP_READONLY=true python run.py
+```
+- Open `http://localhost:8001`.
+- Any connected cluster or standalone instance will show the **`[🔒 READ ONLY]`** badge in the navbar.
+- The **Bulk Delete** button will be disabled with a lock tooltip.
+- Attempting any deletion or TTL mutation via API will return **HTTP 403 Forbidden**.
+
+### Method B: Connection-Level Read-Only & PROD Auto-Lock
+- Create or connect to an instance with environment set to **`PROD`** (or toggle **Read-Only Mode 🔒** in the connection modal).
+- Only that connection will be locked in read-only mode, leaving non-PROD connections writable.
+
+---
+
+## 5. Manual Pre-Push UI/UX Verification Checklist
 
 Before pushing any feature branch or opening a PR, perform this quick 2-minute validation checklist:
 
@@ -127,23 +149,30 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] Click `6 Nodes` &rarr; verify Cluster Topology modal displays all 6 nodes (3 masters + 3 replicas) and assigned slot ranges.
    - [ ] Switch to standalone (`127.0.0.1:6379`) &rarr; verify top bar displays `1 Node` with DB tag `DB0`.
 
-2. **Keyspace & Search**:
+2. **Read-Only Mode & Safety**:
+   - [ ] Connect to a connection with `env: "PROD"` &rarr; verify `[🔒 READ ONLY]` badge appears next to the environment badge.
+   - [ ] Verify Bulk Delete button is disabled with lock tooltip `🔒 Bulk Delete is disabled in Read-Only mode`.
+   - [ ] Open Key Detail modal &rarr; verify "Delete Key" button is hidden and TTL edit displays a locked badge.
+   - [ ] Open Slowlog modal &rarr; verify "Reset Slowlog" button is hidden.
+   - [ ] Open Clients modal &rarr; verify disconnect button shows lock icon.
+
+3. **Keyspace & Search**:
    - [ ] Run `./scripts/manage_local_redis.sh seed` to ensure test keys are present.
    - [ ] Search for `user:*` &rarr; table updates immediately without page reload.
    - [ ] Filter by Type (e.g. `hash`, `string`, `set`) &rarr; table only displays matched types.
 
-3. **Key Inspection Modal**:
+4. **Key Inspection Modal**:
    - [ ] Click on a cluster key &rarr; verify key details modal displays:
      - Accurate Type and TTL.
      - Key Slot (e.g. `1024 / 16383`).
      - Server Node attribution (e.g. `127.0.0.1:7000 (Primary)`).
 
-4. **Auto-Refresh**:
-   - [ ] Toggle Auto-Refresh ON in the toolbar &rarr; green pulsing dot appears.
-   - [ ] Change refresh interval from `5s` to `10s` &rarr; timer updates cleanly.
+5. **Auto-Refresh & Batch Limit**:
+   - [ ] Select `10,000` in the Keys/Batch dropdown &rarr; verify label updates to `10,000 keys per chunk`.
+   - [ ] Toggle Auto-Refresh ON with `5m` interval &rarr; countdown begins with 5m.
    - [ ] Toggle Auto-Refresh OFF &rarr; timer stops.
 
-5. **Diagnostic Modals**:
+6. **Diagnostic Modals**:
    - [ ] Click **Memory** in top bar &rarr; Memory Analysis & Profiler modal opens.
    - [ ] Click **Clients** in top bar &rarr; Connected Clients modal opens.
    - [ ] Click **Slowlog** &rarr; Slowlog modal opens and lists logged commands.

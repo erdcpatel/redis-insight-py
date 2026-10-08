@@ -164,4 +164,54 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     await expect(statusText).toContainText('Auto: Off');
   });
 
+  test('Read-Only Mode displays [🔒 READ ONLY] badge and disables bulk delete and mutation controls', async ({ page, request }) => {
+    // 1. Create and activate a PROD connection (auto-defaults to read_only=True)
+    const createRes = await request.post('/api/connections', {
+      data: {
+        name: 'E2E Prod ReadOnly Instance',
+        host: '127.0.0.1',
+        port: 6379,
+        conn_type: 'standalone',
+        env: 'PROD',
+      }
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const prodConn = await createRes.json();
+    expect(prodConn.read_only).toBe(true);
+
+    // Free connected slots to respect max connection limit
+    const limitRes = await request.get('/api/connections/limit');
+    if (limitRes.ok()) {
+      const limitData = await limitRes.json();
+      for (const cid of (limitData.connected_ids || [])) {
+        await request.post(`/api/connections/${cid}/disconnect`);
+      }
+    }
+
+    const actRes = await request.post(`/api/connections/${prodConn.id}/activate`);
+    expect(actRes.ok()).toBeTruthy();
+
+    // 2. Load page
+    await page.goto('/');
+
+    // 3. Check for [🔒 READ ONLY] badge in top connection container
+    const roBadge = page.locator('#topConnContainer .badge-readonly');
+    await expect(roBadge).toBeVisible({ timeout: 10000 });
+    await expect(roBadge).toContainText('READ ONLY');
+
+    // 4. Verify Bulk Delete button is disabled with lock tooltip
+    const bulkDeleteBtn = page.locator('#btnOpenBulkDeleteModal');
+    await expect(bulkDeleteBtn).toBeDisabled();
+    await expect(bulkDeleteBtn).toHaveAttribute('title', /Bulk Delete is disabled in Read-Only mode/);
+
+    // 5. Cleanup / restore to standalone LOCAL
+    const connsRes = await request.get('/api/connections');
+    const conns = await connsRes.json();
+    const localConn = conns.find(c => c.env === 'LOCAL');
+    if (localConn) {
+      await request.post(`/api/connections/${localConn.id}/activate`);
+    }
+  });
+
 });
+

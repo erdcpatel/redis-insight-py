@@ -154,7 +154,31 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ---
 
-### 11. Security & Static Configuration Sync
+### 11. Hybrid Read-Only Mode & PROD Auto-Lock
+- **Hybrid Configuration**:
+  - **Global Environment Flag**: Set `APP_READONLY=true` in `.env` or system environment to enforce strict global read-only mode across all connections.
+  - **Per-Connection Flag**: Configure `read_only: true` on individual connections in `config/connections.yaml` or toggle via the connection modal checkbox.
+- **PROD Auto-Lock by Default**:
+  - Connections with `environment: "PROD"` automatically default to `read_only: true` to prevent accidental deletions or mutations in production environments.
+  - Can be explicitly overridden (`read_only: false`) when writes are deliberately needed.
+- **Backend Write Permission Guard (`require_write_permission`)**:
+  - Rejects all mutating operations with **HTTP 403 Forbidden**:
+    - Single key deletion (`DELETE /api/keys/{key}`)
+    - Bulk deletion (`POST /api/keys/bulk-delete`)
+    - TTL modifications (`PUT /api/keys/{key}/ttl`)
+    - Hash field additions & deletions (`PUT/DELETE /api/keys/{key}/field`)
+    - Client termination (`DELETE /api/clients/{id}`)
+    - Slowlog reset (`POST /api/slowlog/reset`)
+- **Frontend UI/UX Protection**:
+  - Top navigation bar renders a prominent **`[🔒 READ ONLY]`** security badge.
+  - Bulk Delete toolbar button is automatically disabled with a lock icon and explanatory tooltip.
+  - Key table rows and bigkeys leaderboard display lock icons instead of delete buttons.
+  - Key Inspector hides or locks Delete Key and Edit TTL controls; Hash Inspector hides Add Field and locks field deletion.
+  - Clients Inspector locks disconnect buttons; Slowlog Inspector hides the reset button.
+
+---
+
+### 12. Security & Static Configuration Sync
 - **Encrypted Password Storage**: Passwords stored in local SQLite are encrypted with **Fernet (AES-128-CBC + HMAC-SHA256)**. The encryption key is generated locally in `.secret.key` and never committed to source control.
 - **Static Configuration (`config/connections.yaml`)**: Predefine cluster endpoints and environments in YAML. Changes are automatically synced on startup.
 

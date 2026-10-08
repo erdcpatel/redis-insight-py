@@ -487,7 +487,7 @@ function renderAppShell() {
               <input class="form-input" type="password" id="connPassword" name="password" placeholder="Leave empty if none">
             </div>
 
-            <div style="display: flex; gap: 1.5rem; margin-top: 0.25rem;">
+            <div style="display: flex; gap: 1.5rem; margin-top: 0.25rem; flex-wrap: wrap;">
               <label class="form-checkbox-group">
                 <input type="checkbox" id="connTls" name="use_tls">
                 <span>Use TLS/SSL</span>
@@ -495,6 +495,10 @@ function renderAppShell() {
               <label class="form-checkbox-group">
                 <input type="checkbox" id="connAutoActivate" name="auto_activate" checked>
                 <span>Activate on save</span>
+              </label>
+              <label class="form-checkbox-group" title="Locks all mutating operations (delete, TTL, client kill, slowlog reset). Automatically enabled for PROD.">
+                <input type="checkbox" id="connReadOnly" name="read_only">
+                <span style="display: inline-flex; align-items: center; gap: 4px;">Read-Only Mode 🔒</span>
               </label>
             </div>
 
@@ -1179,9 +1183,15 @@ function renderKeysTable() {
               <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary);">${r.ttl_seconds}</td>
               <td style="padding: 0.65rem 1rem; font-size: 0.8rem; color: ${r.ttl_seconds === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};">${r.status}</td>
               <td style="padding: 0.65rem 1rem; text-align: right;" onclick="event.stopPropagation()">
-                <button type="button" class="btn-icon danger btn-delete-key-table" data-key="${encodeURIComponent(r.key)}" title="Delete key">
-                  <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                </button>
+                ${lastStatus?.read_only ? `
+                  <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
+                    <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
+                  </span>
+                ` : `
+                  <button type="button" class="btn-icon danger btn-delete-key-table" data-key="${encodeURIComponent(r.key)}" title="Delete key">
+                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                  </button>
+                `}
               </td>
             </tr>
           `).join("")}
@@ -1252,6 +1262,11 @@ async function openKeyDetail(keyName) {
   const titleEl = document.getElementById("detailKeyTitle");
   const metaEl = document.getElementById("detailHeaderMeta");
   const bodyEl = document.getElementById("detailBodyContent");
+
+  const btnDeleteDetail = document.getElementById("btnDeleteKeyFromDetail");
+  if (btnDeleteDetail) {
+    btnDeleteDetail.style.display = lastStatus?.read_only ? "none" : "";
+  }
 
   titleEl.textContent = keyName;
   titleEl.title = keyName;
@@ -1324,19 +1339,32 @@ function renderKeyDetailMeta(data) {
     <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: auto;">
       <i data-lucide="clock" style="width: 13px; height: 13px; color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};"></i>
       <span style="font-family: var(--font-mono); color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'}; font-weight: 600;">${ttlText}</span>
-      <button type="button" class="btn btn-secondary" id="btnEditTtl" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; margin-left: 0.25rem;">
-        Edit TTL
-      </button>
+      ${lastStatus?.read_only ? `
+        <span title="Read-Only Mode: TTL modification locked" style="font-size: 0.72rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; margin-left: 0.25rem;">
+          <i data-lucide="lock" style="width: 11px; height: 11px;"></i>
+        </span>
+      ` : `
+        <button type="button" class="btn btn-secondary" id="btnEditTtl" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; margin-left: 0.25rem;">
+          Edit TTL
+        </button>
+      `}
     </div>
   `;
   setupIcons();
 
-  document.getElementById("btnEditTtl").addEventListener("click", () => {
-    promptUpdateTTL(data.name, data.ttl);
-  });
+  const btnEditTtl = document.getElementById("btnEditTtl");
+  if (btnEditTtl) {
+    btnEditTtl.addEventListener("click", () => {
+      promptUpdateTTL(data.name, data.ttl);
+    });
+  }
 }
 
 async function promptUpdateTTL(keyName, currentTtl) {
+  if (lastStatus?.read_only) {
+    alert("TTL modification is disabled in Read-Only mode.");
+    return;
+  }
   const input = prompt(`Enter new TTL in seconds for '${keyName}':\n(-1 to persist with no expiration, or number of seconds)`, currentTtl > 0 ? currentTtl : "3600");
   if (input === null) return;
   const seconds = parseInt(input.trim(), 10);
@@ -1373,10 +1401,12 @@ function renderKeyDetailValue(data) {
           <input type="text" id="hashFieldSearchInput" class="field-search-input" placeholder="Filter fields (Enter: search all)" title="Filters loaded fields instantly; press Enter to search the whole hash on the server (HSCAN MATCH)">
           <span style="font-size: 0.75rem; color: var(--text-muted);" id="hashFieldCountText">${describeHashFieldCount(fields.length)}</span>
         </div>
-        <button type="button" class="btn btn-secondary" id="btnAddHashField" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
-          <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
-          Add Field
-        </button>
+        ${lastStatus?.read_only ? '' : `
+          <button type="button" class="btn btn-secondary" id="btnAddHashField" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
+            <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
+            Add Field
+          </button>
+        `}
       </div>
 
       <div class="fields-table-container">
@@ -1489,9 +1519,15 @@ function renderHashFieldRows(fields) {
         ${escapeHtml(f.value)}
       </td>
       <td style="padding: 0.6rem 1rem; text-align: right;">
-        <button type="button" class="btn-icon danger btn-delete-hash-field" data-field="${encodeURIComponent(f.field)}" title="Delete field">
-          <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
-        </button>
+        ${lastStatus?.read_only ? `
+          <span title="Read-Only Mode: Field deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
+            <i data-lucide="lock" style="width: 12px; height: 12px;"></i>
+          </span>
+        ` : `
+          <button type="button" class="btn-icon danger btn-delete-hash-field" data-field="${encodeURIComponent(f.field)}" title="Delete field">
+            <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+          </button>
+        `}
       </td>
     </tr>
   `).join("");
@@ -1741,6 +1777,10 @@ function escapeHtml(str) {
 // ==========================================
 
 function triggerDeleteConfirmation(keyName, onSuccess) {
+  if (lastStatus?.read_only) {
+    alert("Key deletion is disabled in Read-Only mode.");
+    return;
+  }
   pendingDeleteKey = keyName;
   pendingDeleteCallback = onSuccess;
 
@@ -1888,9 +1928,15 @@ function renderClientsTable(clients) {
               ${c.idle_human}
             </td>
             <td style="padding: 0.65rem 0.85rem; text-align: right;">
-              <button type="button" class="btn-icon danger btn-kill-client" data-id="${c.id}" data-addr="${escapeHtml(c.addr)}" title="Disconnect client">
-                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-              </button>
+              ${lastStatus?.read_only ? `
+                <span title="Read-Only Mode: Disconnecting clients is locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
+                  <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
+                </span>
+              ` : `
+                <button type="button" class="btn-icon danger btn-kill-client" data-id="${c.id}" data-addr="${escapeHtml(c.addr)}" title="Disconnect client">
+                  <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                </button>
+              `}
             </td>
           </tr>
         `).join("")}
@@ -1910,6 +1956,10 @@ function renderClientsTable(clients) {
 }
 
 async function killConnectedClient(clientId, clientAddr) {
+  if (lastStatus?.read_only) {
+    alert("Client disconnection is disabled in Read-Only mode.");
+    return;
+  }
   if (!confirm(`Are you sure you want to disconnect client #${clientId} (${clientAddr})?`)) {
     return;
   }
@@ -1935,6 +1985,11 @@ async function openSlowlogModal() {
   currentSlowlogMinDuration = 0;
   currentSlowlogSearch = "";
   currentSlowlogNode = "all";
+
+  const btnClear = document.getElementById("btnClearSlowlogModal");
+  if (btnClear) {
+    btnClear.style.display = lastStatus?.read_only ? "none" : "";
+  }
 
   // Reset filter buttons
   document.querySelectorAll(".slowlog-filter-btn").forEach(btn => {
@@ -2152,6 +2207,10 @@ function renderSlowlogTable(entries) {
 }
 
 async function clearSlowlog() {
+  if (lastStatus?.read_only) {
+    alert("Slowlog reset is disabled in Read-Only mode.");
+    return;
+  }
   if (!confirm("Are you sure you want to reset the Redis Slowlog buffer?\n\nThis will clear recorded slow commands across all connected Redis instances.")) {
     return;
   }
@@ -2615,9 +2674,11 @@ function renderBigKeysTableHtml(keys) {
                     <i data-lucide="external-link" style="width: 11px; height: 11px;"></i>
                     Inspect
                   </button>
-                  <button type="button" class="btn btn-danger bigkey-delete-btn" data-key="${escapeHtml(item.key)}" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" title="Delete oversized key">
-                    <i data-lucide="trash-2" style="width: 11px; height: 11px;"></i>
-                  </button>
+                  ${lastStatus?.read_only ? '' : `
+                    <button type="button" class="btn btn-danger bigkey-delete-btn" data-key="${escapeHtml(item.key)}" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" title="Delete oversized key">
+                      <i data-lucide="trash-2" style="width: 11px; height: 11px;"></i>
+                    </button>
+                  `}
                 </div>
               </td>
             </tr>
@@ -2850,6 +2911,7 @@ function renderConnectionsList() {
 
           <div class="conn-tags">
             <span class="badge-env ${envClass}">${envUpper}</span>
+            ${c.read_only ? '<span class="badge-readonly" title="Read-Only Mode: Mutating operations locked">🔒 RO</span>' : ''}
             ${isCluster ? '<span class="badge-conn-type badge-type-cluster">CLUSTER</span>' : ''}
             ${isSentinel ? '<span class="badge-conn-type badge-type-sentinel">SENTINEL</span>' : ''}
             ${!isCluster && !isSentinel ? `<span class="badge-db">DB${c.db}</span>` : ''}
@@ -3669,7 +3731,22 @@ function renderTopologyNodes() {
   setupIcons();
 }
 
-// Refresh status
+function updateBulkDeleteToolbarVisibility() {
+  const btn = document.getElementById("btnOpenBulkDeleteModal");
+  if (!btn) return;
+  if (lastStatus?.read_only) {
+    btn.disabled = true;
+    btn.style.opacity = "0.4";
+    btn.style.cursor = "not-allowed";
+    btn.title = "🔒 Bulk Delete is disabled in Read-Only mode";
+  } else {
+    btn.disabled = false;
+    btn.style.opacity = "1";
+    btn.style.cursor = "pointer";
+    btn.title = "Bulk delete matched keys (Dry-run & confirmation required)";
+  }
+}
+
 // Refresh status
 async function refreshStatus() {
   const connContainer = document.getElementById("topConnContainer");
@@ -3685,6 +3762,7 @@ async function refreshStatus() {
       const totalNodes = s.cluster_nodes_count || (s.node_stats && s.node_stats.length > 0 ? s.node_stats.length : 1);
       const masterStats = (s.node_stats || []).filter(n => n.role === "master");
       lastStatus = s;
+      updateBulkDeleteToolbarVisibility();
 
       if (connContainer) {
         const envVal = (s.env || activeConn?.env || "LOCAL").toUpperCase();
@@ -3693,6 +3771,7 @@ async function refreshStatus() {
             <span class="status-indicator connected"></span>
             <span class="top-conn-name" title="${escapeHtml(s.connection_name || 'Connected')}">${escapeHtml(s.connection_name || "Connected")}</span>
             <span class="badge-env badge-env-${envVal.toLowerCase()}" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; margin-right: 0.25rem;">${envVal}</span>
+            ${s.read_only ? `<span class="badge-readonly" title="Read-Only Mode: All write, update, and delete actions are locked" style="margin-right: 0.25rem;"><i data-lucide="lock"></i> READ ONLY</span>` : ''}
             <span class="top-conn-endpoint">${s.host}:${s.port}</span>
             <span class="top-conn-tag">${isCluster ? 'CLUSTER' : `DB${s.db}`}</span>
             <button type="button" class="top-conn-disconnect" id="btnTopDisconnect" title="Disconnect ${escapeHtml(s.connection_name || 'instance')}">
@@ -4278,6 +4357,7 @@ function setupEventListeners() {
     document.getElementById("connDb").value = conn.db || 0;
     document.getElementById("connUsername").value = conn.username || "";
     document.getElementById("connTls").checked = !!conn.use_tls;
+    document.getElementById("connReadOnly").checked = !!conn.read_only;
     pwdInput.value = "";
     if (conn.has_password) {
       pwdInput.placeholder = "•••••••• (Leave blank to keep saved password)";
@@ -4325,6 +4405,17 @@ function setupEventListeners() {
     modal.classList.add("active");
   };
 
+  // Auto-lock PROD to read-only when environment dropdown changes
+  const connEnvSelect = document.getElementById("connEnv");
+  if (connEnvSelect) {
+    connEnvSelect.addEventListener("change", (e) => {
+      if (e.target.value === "PROD") {
+        const roCheckbox = document.getElementById("connReadOnly");
+        if (roCheckbox) roCheckbox.checked = true;
+      }
+    });
+  }
+
   // Modal controls for Add Connection
   const modal = document.getElementById("connectionModal");
   document.getElementById("btnAddConn").addEventListener("click", () => {
@@ -4343,6 +4434,9 @@ function setupEventListeners() {
     if (pwdInput) {
       pwdInput.placeholder = "Leave empty if none";
     }
+
+    const defaultEnv = document.getElementById("connEnv").value;
+    document.getElementById("connReadOnly").checked = (defaultEnv === "PROD");
 
     document.getElementById("clusterNodesGroup").style.display = "none";
     document.getElementById("connHostLabel").textContent = "Host *";
@@ -4491,6 +4585,7 @@ function setupEventListeners() {
     const pwdVal = document.getElementById("connPassword").value;
     const use_tls = document.getElementById("connTls").checked;
     const auto_activate = document.getElementById("connAutoActivate").checked;
+    const read_only = document.getElementById("connReadOnly")?.checked || false;
 
     let cluster_nodes = null;
     if (conn_type === "cluster") {
@@ -4505,7 +4600,7 @@ function setupEventListeners() {
 
     try {
       if (editingConnectionId) {
-        const updatePayload = { name, env, conn_type, host, port, cluster_nodes, db, username, use_tls };
+        const updatePayload = { name, env, conn_type, host, port, cluster_nodes, db, username, use_tls, read_only };
         if (pwdVal) {
           updatePayload.password = pwdVal;
         }
@@ -4519,7 +4614,7 @@ function setupEventListeners() {
           throw new Error(errData.detail || "Failed to update connection");
         }
       } else {
-        const createPayload = { name, env, conn_type, host, port, cluster_nodes, db, username, password: pwdVal || null, use_tls };
+        const createPayload = { name, env, conn_type, host, port, cluster_nodes, db, username, password: pwdVal || null, use_tls, read_only };
         const res = await fetch(`/api/connections?auto_activate=${auto_activate}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -4745,6 +4840,10 @@ function setupEventListeners() {
 
   if (btnOpenBulkDeleteModal && modalBulkDelete) {
     btnOpenBulkDeleteModal.addEventListener("click", async () => {
+      if (lastStatus?.read_only) {
+        alert("Bulk Delete is disabled in Read-Only mode.");
+        return;
+      }
       const pattern = currentPattern || "*";
       const typeFilter = (currentType && currentType !== "all") ? currentType : null;
 

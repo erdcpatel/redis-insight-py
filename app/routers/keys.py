@@ -5,7 +5,7 @@ import json
 import re
 from urllib.parse import unquote
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, HTTPException, Query, Body, Response
+from fastapi import APIRouter, HTTPException, Query, Body, Response, Depends
 from pydantic import BaseModel, Field
 from redis.exceptions import (
     RedisError,
@@ -17,6 +17,7 @@ from redis.exceptions import (
     ResponseError,
 )
 from app.logger import logger
+from app.dependencies import require_write_permission
 from app.models import (
     KeyListResponse,
     ActiveConnectionStatus,
@@ -88,7 +89,7 @@ async def get_connected_clients():
         raise_mapped_exception(e, "Failed to fetch clients")
 
 
-@router.delete("/clients/{client_id}")
+@router.delete("/clients/{client_id}", dependencies=[Depends(require_write_permission)])
 async def kill_client_endpoint(client_id: str):
     """Disconnect/kill a connected client by its ID."""
     try:
@@ -270,7 +271,7 @@ async def download_key_value(
         raise_mapped_exception(e, f"Failed to download key '{key_name}'")
 
 
-@router.put("/keys/{key_name:path}/ttl")
+@router.put("/keys/{key_name:path}/ttl", dependencies=[Depends(require_write_permission)])
 async def update_key_ttl_endpoint(key_name: str, payload: TTLUpdateRequest):
     """Update TTL for a key. Pass seconds=-1 to persist the key."""
     key_name = unquote(key_name)
@@ -283,7 +284,7 @@ async def update_key_ttl_endpoint(key_name: str, payload: TTLUpdateRequest):
         raise_mapped_exception(e, f"Failed to update TTL for key '{key_name}'")
 
 
-@router.put("/keys/{key_name:path}/field")
+@router.put("/keys/{key_name:path}/field", dependencies=[Depends(require_write_permission)])
 async def set_hash_field_endpoint(key_name: str, payload: HashFieldSetRequest):
     """Set or update a field inside a Hash key."""
     key_name = unquote(key_name)
@@ -294,7 +295,7 @@ async def set_hash_field_endpoint(key_name: str, payload: HashFieldSetRequest):
         raise_mapped_exception(e, f"Failed to set hash field for key '{key_name}'")
 
 
-@router.delete("/keys/{key_name:path}/field/{field_name:path}")
+@router.delete("/keys/{key_name:path}/field/{field_name:path}", dependencies=[Depends(require_write_permission)])
 async def delete_hash_field_endpoint(key_name: str, field_name: str):
     """Delete a field from a Hash key."""
     key_name = unquote(key_name)
@@ -306,7 +307,7 @@ async def delete_hash_field_endpoint(key_name: str, field_name: str):
         raise_mapped_exception(e, f"Failed to delete hash field '{field_name}' from key '{key_name}'")
 
 
-@router.delete("/keys/{key_name:path}")
+@router.delete("/keys/{key_name:path}", dependencies=[Depends(require_write_permission)])
 async def delete_key(
     key_name: str,
     confirmed: bool = Query(False, description="Explicit confirmation flag"),
@@ -350,7 +351,7 @@ async def get_slowlog_endpoint(limit: int = Query(100, ge=1, le=1000, descriptio
         raise_mapped_exception(e, "Failed to fetch slowlog")
 
 
-@router.post("/slowlog/reset")
+@router.post("/slowlog/reset", dependencies=[Depends(require_write_permission)])
 async def reset_slowlog_endpoint():
     """Clear the Redis SLOWLOG buffer."""
     try:
@@ -428,7 +429,7 @@ async def bulk_delete_dry_run_endpoint(request: BulkDeleteDryRunRequest = Body(.
         raise_mapped_exception(e, "Failed to run bulk delete dry-run")
 
 
-@router.post("/keys/bulk-delete", response_model=BulkDeleteExecuteResponse)
+@router.post("/keys/bulk-delete", response_model=BulkDeleteExecuteResponse, dependencies=[Depends(require_write_permission)])
 async def bulk_delete_execute_endpoint(request: BulkDeleteExecuteRequest = Body(...)):
     """Execute bulk key deletion using UNLINK in batches per node with confirmation validation."""
     try:
