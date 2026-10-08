@@ -61,6 +61,13 @@ let lastStatus = null;
 let keysTableRows = [];
 let loadedKeysSet = new Set();
 
+// Auto-Refresh state
+let isAutoRefreshActive = false;
+let autoRefreshIntervalSec = parseInt(localStorage.getItem("redis_insight_auto_refresh_sec") || "10", 10);
+if (isNaN(autoRefreshIntervalSec) || autoRefreshIntervalSec < 5) autoRefreshIntervalSec = 10;
+let autoRefreshRemainingSec = autoRefreshIntervalSec;
+let autoRefreshTimer = null;
+
 // Phase 2 state
 let activeDetailKey = null;
 let activeDetailData = null;
@@ -297,6 +304,20 @@ function renderAppShell() {
                 <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                 Refresh
               </button>
+              <div class="auto-refresh-control-group" id="autoRefreshGroup" title="Auto-refresh keys matching current pattern & type filter">
+                <button type="button" class="btn btn-secondary btn-auto-refresh" id="btnToggleAutoRefresh" title="Click to start auto-refreshing keys for this pattern">
+                  <span class="auto-refresh-dot" id="autoRefreshDot"></span>
+                  <i data-lucide="timer" style="width: 13px; height: 13px;"></i>
+                  <span id="autoRefreshStatusText">Auto: Off</span>
+                </button>
+                <select id="autoRefreshIntervalSelect" class="field-search-input auto-refresh-select" title="Auto-refresh interval (Minimum 5s)">
+                  <option value="5">5s (Min)</option>
+                  <option value="10" selected>10s</option>
+                  <option value="15">15s</option>
+                  <option value="30">30s</option>
+                  <option value="60">60s</option>
+                </select>
+              </div>
               <button type="button" class="btn btn-secondary" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;">
                 <i data-lucide="download" style="width: 13px; height: 13px;"></i>
                 Export
@@ -926,6 +947,82 @@ async function resetAndScan() {
 
   renderKeysTable();
   await scanNextBatch(epoch);
+}
+
+// ==========================================
+// Auto-Refresh Watcher for Keys Browser
+// ==========================================
+
+function updateAutoRefreshUI() {
+  const btn = document.getElementById("btnToggleAutoRefresh");
+  const text = document.getElementById("autoRefreshStatusText");
+  const select = document.getElementById("autoRefreshIntervalSelect");
+  if (!btn || !text) return;
+
+  if (isAutoRefreshActive) {
+    btn.classList.add("active");
+    btn.title = `Auto-refresh active (Pattern: "${currentPattern || "*"}"). Refreshing in ${autoRefreshRemainingSec}s. Click to pause.`;
+    text.textContent = `Auto: ${autoRefreshRemainingSec}s`;
+    if (select) select.value = String(autoRefreshIntervalSec);
+  } else {
+    btn.classList.remove("active");
+    btn.title = `Click to watch keys matching pattern "${currentPattern || "*"}" every ${autoRefreshIntervalSec}s`;
+    text.textContent = "Auto: Off";
+    if (select) select.value = String(autoRefreshIntervalSec);
+  }
+}
+
+function resetAutoRefreshTimer() {
+  autoRefreshRemainingSec = autoRefreshIntervalSec;
+  updateAutoRefreshUI();
+}
+
+function startAutoRefresh() {
+  isAutoRefreshActive = true;
+  autoRefreshRemainingSec = autoRefreshIntervalSec;
+  updateAutoRefreshUI();
+
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(async () => {
+    if (!isAutoRefreshActive) return;
+
+    // Pause countdown if user has any modal open or browser tab is hidden
+    const hasOpenModal = document.querySelector(".modal-backdrop.active");
+    if (document.hidden || hasOpenModal) {
+      return;
+    }
+
+    autoRefreshRemainingSec--;
+    if (autoRefreshRemainingSec <= 0) {
+      autoRefreshRemainingSec = autoRefreshIntervalSec;
+      updateAutoRefreshUI();
+
+      const hasConnected = cachedConnections.some(c => c.is_connected);
+      if (hasConnected && !isScanning) {
+        await resetAndScan();
+      }
+    } else {
+      updateAutoRefreshUI();
+    }
+  }, 1000);
+}
+
+function stopAutoRefresh() {
+  isAutoRefreshActive = false;
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+  autoRefreshRemainingSec = autoRefreshIntervalSec;
+  updateAutoRefreshUI();
+}
+
+function toggleAutoRefresh() {
+  if (isAutoRefreshActive) {
+    stopAutoRefresh();
+  } else {
+    startAutoRefresh();
+  }
 }
 
 // SCAN cursor is an int (standalone) or a JSON string of per-node cursors (cluster)
@@ -1993,7 +2090,12 @@ function renderSlowlogTable(entries) {
                 </span>
               </td>
               <td>
-                <span class="slowlog-cmd-code" title="${escapeHtml(cmdStr)}">${escapeHtml(cmdStr)}</span>
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                  <span class="slowlog-cmd-code" title="${escapeHtml(cmdStr)}">${escapeHtml(cmdStr)}</span>
+                  <button type="button" class="btn-copy-inline btn-copy-slowlog-cmd" data-cmd="${escapeHtml(cmdStr)}" title="Copy full command">
+                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                  </button>
+                </div>
               </td>
               <td>
                 ${e.node ? `<span class="slowlog-node-pill">${escapeHtml(e.node)}</span>` : '<span style="color: var(--text-muted); font-size: 0.75rem;">Default</span>'}
@@ -2010,6 +2112,25 @@ function renderSlowlogTable(entries) {
   `;
 
   setupIcons();
+
+  document.querySelectorAll(".btn-copy-slowlog-cmd").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const c = btn.getAttribute("data-cmd");
+      if (c) {
+        navigator.clipboard.writeText(c).then(() => {
+          btn.classList.add("copied");
+          btn.innerHTML = `<i data-lucide="check" style="width: 12px; height: 12px;"></i>`;
+          setupIcons();
+          setTimeout(() => {
+            btn.classList.remove("copied");
+            btn.innerHTML = `<i data-lucide="copy" style="width: 12px; height: 12px;"></i>`;
+            setupIcons();
+          }, 1500);
+        });
+      }
+    });
+  });
 }
 
 async function clearSlowlog() {
@@ -2154,6 +2275,19 @@ function renderMemoryProfilingSafeguardUI() {
   if (!container) return;
 
   container.innerHTML = `
+    <!-- Educational Explainer -->
+    <div class="mem-info-banner">
+      <i data-lucide="info" style="width: 20px; height: 20px; color: #38bdf8; flex-shrink: 0; margin-top: 2px;"></i>
+      <div>
+        <strong style="color: var(--text-primary); font-size: 0.85rem; display: block; margin-bottom: 3px;">What is BigKeys and how does it work?</strong>
+        <p style="margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary);">
+          In Redis, <strong>BigKeys</strong> are keys that consume excessive RAM (measured in bytes via <code>MEMORY USAGE</code>) or contain very high element counts (e.g., a hash with 50,000 fields, list with 100,000 items).
+          Because Redis is single-threaded, operating on or evicting BigKeys causes latency spikes, blocks other client requests, and creates hot shards in clusters.
+          This profiler safely samples your keyspace to identify memory hogs so you can partition or add TTLs to them.
+        </p>
+      </div>
+    </div>
+
     <div class="mem-safeguard-box">
       <div class="mem-safeguard-header">
         <i data-lucide="alert-triangle" style="width: 22px; height: 22px;"></i>
@@ -2429,9 +2563,14 @@ function renderBigKeysTableHtml(keys) {
                 <span class="rank-badge ${rankClass}">#${idx + 1}</span>
               </td>
               <td>
-                <a href="javascript:void(0)" class="key-name-link bigkey-inspect-btn" data-key="${escapeHtml(item.key)}" style="font-family: var(--font-mono); font-size: 0.82rem; font-weight: 600; color: #38bdf8; text-decoration: none;" title="Inspect key: ${escapeHtml(item.key)}">
-                  ${escapeHtml(item.key)}
-                </a>
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                  <a href="javascript:void(0)" class="key-name-link bigkey-inspect-btn" data-key="${escapeHtml(item.key)}" style="font-family: var(--font-mono); font-size: 0.82rem; font-weight: 600; color: #38bdf8; text-decoration: none;" title="Inspect key: ${escapeHtml(item.key)}">
+                    ${escapeHtml(item.key)}
+                  </a>
+                  <button type="button" class="btn-copy-inline btn-copy-bigkey" data-key="${escapeHtml(item.key)}" title="Copy key name">
+                    <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
+                  </button>
+                </div>
               </td>
               <td>
                 <span class="type-badge ${item.type.toLowerCase()}" style="font-size: 0.68rem; padding: 0.15rem 0.45rem;">
@@ -2478,6 +2617,25 @@ function attachBigKeyRowHandlers() {
       if (keyName) {
         closeMemoryModal();
         openKeyDetail(keyName);
+      }
+    });
+  });
+
+  document.querySelectorAll(".btn-copy-bigkey").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const k = btn.getAttribute("data-key");
+      if (k) {
+        navigator.clipboard.writeText(k).then(() => {
+          btn.classList.add("copied");
+          btn.innerHTML = `<i data-lucide="check" style="width: 11px; height: 11px;"></i>`;
+          setupIcons();
+          setTimeout(() => {
+            btn.classList.remove("copied");
+            btn.innerHTML = `<i data-lucide="copy" style="width: 11px; height: 11px;"></i>`;
+            setupIcons();
+          }, 1500);
+        });
       }
     });
   });
@@ -4379,6 +4537,7 @@ function setupEventListeners() {
     searchDebounce = setTimeout(() => {
       currentPattern = searchInput.value.trim() || "*";
       resetAndScan();
+      if (isAutoRefreshActive) resetAutoRefreshTimer();
     }, 400);
   });
   searchInput.addEventListener("keydown", (e) => {
@@ -4386,6 +4545,7 @@ function setupEventListeners() {
       clearTimeout(searchDebounce);
       currentPattern = searchInput.value.trim() || "*";
       resetAndScan();
+      if (isAutoRefreshActive) resetAutoRefreshTimer();
     }
   });
 
@@ -4396,6 +4556,7 @@ function setupEventListeners() {
       tab.classList.add("active");
       currentType = tab.getAttribute("data-type");
       resetAndScan();
+      if (isAutoRefreshActive) resetAutoRefreshTimer();
     });
   });
 
@@ -4416,8 +4577,35 @@ function setupEventListeners() {
   }
   const btnResetScan = document.getElementById("btnResetScan");
   if (btnResetScan) {
-    btnResetScan.addEventListener("click", resetAndScan);
+    btnResetScan.addEventListener("click", () => {
+      resetAndScan();
+      if (isAutoRefreshActive) resetAutoRefreshTimer();
+    });
   }
+
+  // Auto-Refresh Controls
+  const btnToggleAutoRefresh = document.getElementById("btnToggleAutoRefresh");
+  const autoRefreshSelect = document.getElementById("autoRefreshIntervalSelect");
+  if (autoRefreshSelect) {
+    autoRefreshSelect.value = String(autoRefreshIntervalSec);
+    autoRefreshSelect.addEventListener("change", () => {
+      const val = Math.max(5, parseInt(autoRefreshSelect.value, 10) || 10);
+      autoRefreshIntervalSec = val;
+      autoRefreshRemainingSec = val;
+      localStorage.setItem("redis_insight_auto_refresh_sec", String(val));
+      if (isAutoRefreshActive) {
+        startAutoRefresh();
+      } else {
+        updateAutoRefreshUI();
+      }
+    });
+  }
+  if (btnToggleAutoRefresh) {
+    btnToggleAutoRefresh.addEventListener("click", () => {
+      toggleAutoRefresh();
+    });
+  }
+  updateAutoRefreshUI();
 
   // ==========================================
   // Export Matched Keys
@@ -4693,6 +4881,22 @@ function setupEventListeners() {
       setSidebarCollapsed(!isCurrentlyCollapsed);
       e.preventDefault();
     }
+  });
+
+  // Global Modal UX: Close on Escape key or backdrop click
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const activeModals = document.querySelectorAll(".modal-backdrop.active");
+      activeModals.forEach(m => m.classList.remove("active"));
+    }
+  });
+
+  document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) {
+        backdrop.classList.remove("active");
+      }
+    });
   });
 
   // Periodic heartbeat
