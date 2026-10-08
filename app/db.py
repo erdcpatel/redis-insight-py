@@ -34,6 +34,7 @@ def init_db():
                 cluster_nodes TEXT DEFAULT '',
                 sentinel_master TEXT DEFAULT '',
                 source TEXT NOT NULL DEFAULT 'ui',
+                read_only INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -53,6 +54,8 @@ def init_db():
             conn.execute("ALTER TABLE connections ADD COLUMN sentinel_master TEXT DEFAULT ''")
         if "source" not in columns:
             conn.execute("ALTER TABLE connections ADD COLUMN source TEXT NOT NULL DEFAULT 'ui'")
+        if "read_only" not in columns:
+            conn.execute("ALTER TABLE connections ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0")
         conn.commit()
 
 
@@ -91,6 +94,7 @@ def list_connections(search: Optional[str] = None, env: Optional[str] = None) ->
                 "cluster_nodes": r["cluster_nodes"] if "cluster_nodes" in r.keys() else "",
                 "sentinel_master": r["sentinel_master"] if "sentinel_master" in r.keys() else "",
                 "source": r["source"] if "source" in r.keys() else "ui",
+                "read_only": bool(r["read_only"]) if "read_only" in r.keys() else False,
                 "created_at": r["created_at"],
                 "updated_at": r["updated_at"],
             })
@@ -118,6 +122,7 @@ def get_connection(conn_id: str, include_password: bool = False) -> Optional[Dic
             "cluster_nodes": r["cluster_nodes"] if "cluster_nodes" in r.keys() else "",
             "sentinel_master": r["sentinel_master"] if "sentinel_master" in r.keys() else "",
             "source": r["source"] if "source" in r.keys() else "ui",
+            "read_only": bool(r["read_only"]) if "read_only" in r.keys() else False,
             "created_at": r["created_at"],
             "updated_at": r["updated_at"],
         }
@@ -147,6 +152,7 @@ def get_active_connection(include_password: bool = True) -> Optional[Dict[str, A
             "cluster_nodes": r["cluster_nodes"] if "cluster_nodes" in r.keys() else "",
             "sentinel_master": r["sentinel_master"] if "sentinel_master" in r.keys() else "",
             "source": r["source"] if "source" in r.keys() else "ui",
+            "read_only": bool(r["read_only"]) if "read_only" in r.keys() else False,
             "created_at": r["created_at"],
             "updated_at": r["updated_at"],
         }
@@ -166,13 +172,17 @@ def create_connection(data: Dict[str, Any]) -> Dict[str, Any]:
         cluster_nodes = json.dumps(cluster_nodes)
     sentinel_master = data.get("sentinel_master") or ""
     source = data.get("source") or "ui"
+    if data.get("read_only") is not None:
+        read_only = 1 if data["read_only"] else 0
+    else:
+        read_only = 1 if env == "PROD" else 0
 
     with get_db_connection() as conn:
         conn.execute("""
             INSERT INTO connections (
                 id, name, host, port, db, username, password_encrypted, use_tls, is_active,
-                env, conn_type, cluster_nodes, sentinel_master, source, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                env, conn_type, cluster_nodes, sentinel_master, source, read_only, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             conn_id,
             data["name"],
@@ -188,6 +198,7 @@ def create_connection(data: Dict[str, Any]) -> Dict[str, Any]:
             cluster_nodes,
             sentinel_master,
             source,
+            read_only,
             now,
             now
         ))
@@ -214,6 +225,13 @@ def update_connection(conn_id: str, data: Dict[str, Any]) -> Optional[Dict[str, 
         cluster_nodes = json.dumps(cluster_nodes)
     sentinel_master = data["sentinel_master"] if "sentinel_master" in data else current["sentinel_master"]
 
+    if "read_only" in data and data["read_only"] is not None:
+        read_only = 1 if data["read_only"] else 0
+    elif env == "PROD" and current.get("env") != "PROD" and "read_only" not in data:
+        read_only = 1
+    else:
+        read_only = 1 if current.get("read_only") else 0
+
     now = datetime.now(timezone.utc).isoformat()
 
     with get_db_connection() as conn:
@@ -222,16 +240,16 @@ def update_connection(conn_id: str, data: Dict[str, Any]) -> Optional[Dict[str, 
             conn.execute("""
                 UPDATE connections
                 SET name = ?, host = ?, port = ?, db = ?, username = ?, password_encrypted = ?, use_tls = ?,
-                    env = ?, conn_type = ?, cluster_nodes = ?, sentinel_master = ?, updated_at = ?
+                    env = ?, conn_type = ?, cluster_nodes = ?, sentinel_master = ?, read_only = ?, updated_at = ?
                 WHERE id = ?
-            """, (name, host, port, db, username, pwd_enc, 1 if use_tls else 0, env, conn_type, cluster_nodes, sentinel_master, now, conn_id))
+            """, (name, host, port, db, username, pwd_enc, 1 if use_tls else 0, env, conn_type, cluster_nodes, sentinel_master, read_only, now, conn_id))
         else:
             conn.execute("""
                 UPDATE connections
                 SET name = ?, host = ?, port = ?, db = ?, username = ?, use_tls = ?,
-                    env = ?, conn_type = ?, cluster_nodes = ?, sentinel_master = ?, updated_at = ?
+                    env = ?, conn_type = ?, cluster_nodes = ?, sentinel_master = ?, read_only = ?, updated_at = ?
                 WHERE id = ?
-            """, (name, host, port, db, username, 1 if use_tls else 0, env, conn_type, cluster_nodes, sentinel_master, now, conn_id))
+            """, (name, host, port, db, username, 1 if use_tls else 0, env, conn_type, cluster_nodes, sentinel_master, read_only, now, conn_id))
         conn.commit()
 
     return get_connection(conn_id, include_password=False)

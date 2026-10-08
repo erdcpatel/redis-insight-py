@@ -127,7 +127,12 @@ async def update_connection_by_id(conn_id: str, payload: ConnectionUpdate):
     if not updated:
         raise HTTPException(status_code=404, detail="Connection not found")
 
-    # If this was the active connection, reconnect with updated params
+    # If this was connected or active, ensure manager info is synced
+    if redis_manager.is_conn_connected(conn_id):
+        if conn_id in redis_manager._conn_infos:
+            redis_manager._conn_infos[conn_id]["read_only"] = updated.get("read_only", False)
+            redis_manager._conn_infos[conn_id]["env"] = updated.get("env", "LOCAL")
+
     if updated.get("is_active"):
         try:
             await redis_manager.activate_connection(conn_id)

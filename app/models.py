@@ -14,6 +14,7 @@ class ConnectionBase(BaseModel):
     cluster_nodes: Optional[str] = Field(default=None, description="Comma-separated or JSON list of cluster nodes")
     sentinel_master: Optional[str] = Field(default=None, description="Sentinel master group name")
     source: str = Field(default="ui", description="ui or config")
+    read_only: Optional[bool] = Field(default=None, description="Read-only mode for this connection (defaults to True for PROD)")
 
 
 class ConnectionCreate(ConnectionBase):
@@ -32,10 +33,12 @@ class ConnectionUpdate(BaseModel):
     conn_type: Optional[str] = None
     cluster_nodes: Optional[str] = None
     sentinel_master: Optional[str] = None
+    read_only: Optional[bool] = None
 
 
 class ConnectionOut(ConnectionBase):
     id: str
+    read_only: bool = False
     has_password: bool = False
     is_active: bool = False
     is_connected: bool = False
@@ -147,6 +150,7 @@ class ActiveConnectionStatus(BaseModel):
     cluster_state: Optional[str] = None
     cluster_nodes_count: Optional[int] = None
     node_stats: Optional[List[NodeStat]] = None
+    read_only: bool = False
     error: Optional[str] = None
 
 

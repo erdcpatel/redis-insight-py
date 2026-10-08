@@ -38,6 +38,12 @@ def load_env_file() -> None:
             logger.warning(f"Failed to read .env file: {e}")
 
 
+def is_app_readonly() -> bool:
+    """Check if global APP_READONLY environment variable is enabled."""
+    load_env_file()
+    return os.getenv("APP_READONLY", "").strip().lower() in ("1", "true", "yes")
+
+
 def expand_env_vars(val: Any) -> Any:
     """
     Recursively expand ${VAR} and ${VAR:-default} environment variables in strings,
@@ -178,6 +184,18 @@ def sync_connections_from_config(custom_path: Optional[str] = None) -> Dict[str,
 
             sentinel_master = item.get("sentinel_master") or item.get("master_name") or ""
 
+            # Read-only configuration:
+            # - If explicitly specified (boolean or truthy string), respect that value.
+            # - If omitted, automatically default to True for PROD, False for non-PROD.
+            raw_ro = item.get("read_only")
+            if raw_ro is not None:
+                if isinstance(raw_ro, str):
+                    read_only = raw_ro.strip().lower() in ("true", "1", "yes")
+                else:
+                    read_only = bool(raw_ro)
+            else:
+                read_only = (env == "PROD")
+
             upsert_config_connection({
                 "name": name,
                 "host": host,
@@ -190,6 +208,7 @@ def sync_connections_from_config(custom_path: Optional[str] = None) -> Dict[str,
                 "conn_type": conn_type,
                 "cluster_nodes": cluster_nodes_str,
                 "sentinel_master": sentinel_master,
+                "read_only": read_only,
                 "source": "config"
             })
             synced_count += 1

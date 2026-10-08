@@ -82,11 +82,29 @@ All dialogs and profilers must follow the standard modal architecture:
 
 ---
 
-## 5. UI/UX Pre-PR Verification Checklist
+## 5. Read-Only Mode & Safety Guardrails
+
+When Read-Only mode is active (globally via `APP_READONLY=true` or per-connection via `read_only: true` / PROD auto-lock):
+
+1. **Prominent Navbar Security Badge**:
+   - The top navigation bar must render the **`[🔒 READ ONLY]`** amber badge (`.badge-readonly`) immediately adjacent to the environment badge.
+   - Tooltip must state: `"Read-Only Mode: All write, update, and delete actions are locked"`.
+2. **Mutating Control Suppression**:
+   - **Bulk Delete**: The toolbar button must be visibly disabled (`opacity: 0.4`, `cursor: not-allowed`) with tooltip `🔒 Bulk Delete is disabled in Read-Only mode`.
+   - **Row-Level Deletions**: In the keys table, bigkeys table, and client inspector, replace active delete/trash icon buttons with a subtle lock icon (`<i data-lucide="lock"></i>`) and tooltip.
+   - **Key Detail Modal**: The "Delete Key" button and "Add Field" button must be hidden. The "Edit TTL" button must be replaced by a locked badge (`🔒 Locked`).
+   - **Slowlog Modal**: The "Reset Slowlog" button must be hidden.
+3. **Defense-in-Depth UI Feedback**:
+   - If an action or hotkey triggers a delete confirmation modal or prompt while in read-only mode, it must immediately alert the user (`"... is disabled in Read-Only mode."`) without initiating network requests or modal opens.
+
+---
+
+## 6. UI/UX Pre-PR Verification Checklist
 
 Before opening any Pull Request:
 
 1. [ ] **Responsive Test**: Shrink browser window to `1024px` and verify toolbars don't wrap awkwardly or overlap.
 2. [ ] **Control Sizing**: Verify no dropdown or input is excessively wide or misaligned.
 3. [ ] **Visual Feedback**: Verify hover states, active pulsing dots, and tooltip text work as expected.
-4. [ ] **Automated E2E Suite**: Run `./scripts/run_e2e_tests.sh` to ensure Playwright browser tests pass.
+4. [ ] **Read-Only Mode Test**: Connect to a PROD or read-only connection and confirm `[🔒 READ ONLY]` badge appears, bulk delete is disabled, and mutation controls are hidden/locked.
+5. [ ] **Automated E2E Suite**: Run `./scripts/run_e2e_tests.sh` to ensure Playwright browser tests pass.

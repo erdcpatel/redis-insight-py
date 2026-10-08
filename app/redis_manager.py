@@ -99,6 +99,15 @@ class RedisManager:
             return self._conn_infos[self._selected_conn_id]
         return None
 
+    @property
+    def is_read_only(self) -> bool:
+        from app.config_loader import is_app_readonly
+        if is_app_readonly():
+            return True
+        if self.active_info:
+            return bool(self.active_info.get("read_only", False))
+        return False
+
     async def get_client(self, conn_id: Optional[str] = None) -> Any:
         target_id = conn_id or self._selected_conn_id
         current_loop = asyncio.get_running_loop()
@@ -769,10 +778,11 @@ class RedisManager:
                         host=active["host"],
                         port=active["port"],
                         db=active["db"],
+                        read_only=self.is_read_only or bool(active.get("read_only", False)),
                         error=str(e),
                     )
             else:
-                return ActiveConnectionStatus(connected=False, error="No cluster connected or selected")
+                return ActiveConnectionStatus(connected=False, read_only=self.is_read_only, error="No cluster connected or selected")
 
         try:
             client = await self.get_client()
@@ -859,6 +869,7 @@ class RedisManager:
                 cluster_state=cluster_state,
                 cluster_nodes_count=cluster_nodes_count,
                 node_stats=node_stats,
+                read_only=self.is_read_only,
             )
         except Exception as e:
             logger.warning(f"Failed to fetch active Redis status: {e}")
@@ -868,6 +879,7 @@ class RedisManager:
                 connection_name=active_conn.get("name") if active_conn else None,
                 host=active_conn.get("host") if active_conn else None,
                 port=active_conn.get("port") if active_conn else None,
+                read_only=self.is_read_only,
                 error=str(e),
             )
 
