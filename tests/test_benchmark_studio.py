@@ -136,3 +136,37 @@ def test_cluster_matrix_standalone():
     assert data["is_cluster"] is False
     assert len(data["nodes"]) == 1
     assert data["nodes"][0]["role"] == "master (standalone)"
+
+
+def test_dynamic_histogram_adaptive_scaling():
+    """Test that build_histogram adapts dynamically and avoids collapsing into > 5ms."""
+    from app.benchmark_manager import build_histogram
+
+    # 1. High-latency remote workload (e.g., cloud across AZ / VPN: 12ms - 32ms)
+    high_latencies = [12.0, 14.5, 16.0, 18.2, 20.0, 22.5, 24.0, 25.0, 28.0, 32.0]
+    hist_high = build_histogram(high_latencies)
+    labels_high = [b.label for b in hist_high]
+    # Boundaries adapt to scale above 5ms instead of static > 5ms
+    assert "< 15 ms" in labels_high
+    assert "15 - 30 ms" in labels_high
+    assert "30 - 60 ms" in labels_high
+    # Data is distributed across buckets, not collapsed into 1 bucket
+    non_zero_buckets = [b for b in hist_high if b.count > 0]
+    assert len(non_zero_buckets) >= 2
+    assert sum(b.percentage for b in hist_high) == pytest.approx(100.0, abs=0.5)
+
+    # 2. Ultra-fast local pipeline / Unix socket workload (0.05ms - 0.4ms)
+    fast_latencies = [0.08, 0.12, 0.15, 0.18, 0.22, 0.28, 0.35, 0.42, 0.50, 0.65]
+    hist_fast = build_histogram(fast_latencies)
+    labels_fast = [b.label for b in hist_fast]
+    assert "< 0.1 ms" in labels_fast
+    assert "0.1 - 0.25 ms" in labels_fast
+    assert sum(b.percentage for b in hist_fast) == pytest.approx(100.0, abs=0.5)
+
+    # 3. WAN / Heavy Lua script workload (50ms - 95ms)
+    wan_latencies = [45.0, 52.0, 60.0, 68.0, 72.0, 80.0, 85.0, 92.0, 98.0, 115.0]
+    hist_wan = build_histogram(wan_latencies)
+    labels_wan = [b.label for b in hist_wan]
+    assert "< 15 ms" in labels_wan or "< 50 ms" in labels_wan
+    assert sum(b.percentage for b in hist_wan) == pytest.approx(100.0, abs=0.5)
+

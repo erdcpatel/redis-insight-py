@@ -32,6 +32,17 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
       clusterConn = await createRes.json();
     }
 
+    // Free connected slots to respect max connection limit
+    const limitRes = await request.get('/api/connections/limit');
+    if (limitRes.ok()) {
+      const limitData = await limitRes.json();
+      for (const cid of (limitData.connected_ids || [])) {
+        if (cid !== clusterConn.id) {
+          await request.post(`/api/connections/${cid}/disconnect`);
+        }
+      }
+    }
+
     const actRes = await request.post(`/api/connections/${clusterConn.id}/activate`);
     expect(actRes.ok()).toBeTruthy();
 
@@ -84,6 +95,17 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
         }
       });
       standaloneConn = await createRes.json();
+    }
+
+    // Free connected slots to respect max connection limit
+    const limitRes = await request.get('/api/connections/limit');
+    if (limitRes.ok()) {
+      const limitData = await limitRes.json();
+      for (const cid of (limitData.connected_ids || [])) {
+        if (cid !== standaloneConn.id) {
+          await request.post(`/api/connections/${cid}/disconnect`);
+        }
+      }
     }
 
     const actRes = await request.post(`/api/connections/${standaloneConn.id}/activate`);
@@ -220,6 +242,15 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     const conns = await connsRes.json();
     const localConn = conns.find(c => (c.host === '127.0.0.1' || c.host === 'localhost') && c.port === 6379 && c.conn_type === 'standalone');
     if (localConn) {
+      const limitRes = await request.get('/api/connections/limit');
+      if (limitRes.ok()) {
+        const limitData = await limitRes.json();
+        for (const cid of (limitData.connected_ids || [])) {
+          if (cid !== localConn.id) {
+            await request.post(`/api/connections/${cid}/disconnect`);
+          }
+        }
+      }
       await request.post(`/api/connections/${localConn.id}/activate`);
     }
 

@@ -65,38 +65,87 @@ def calculate_percentiles(latencies: List[float]) -> LatencyPercentiles:
 
 
 def build_histogram(latencies: List[float]) -> List[HistogramBucket]:
-    """Group latencies into standard intuitive microsecond/millisecond histogram buckets."""
+    """Group latencies into dynamically scaled intuitive histogram buckets based on P95.
+
+    Adapts boundaries dynamically whether testing in ultra-fast local memory (<0.5ms),
+    standard localhost (0.5-3ms), cloud/VPC (5-30ms), or WAN/heavy Lua (>50ms),
+    guaranteeing a meaningful distribution curve instead of collapsing into a single bucket.
+    """
     if not latencies:
         return []
 
-    buckets = [
-        {"label": "< 0.5 ms", "count": 0, "upper": 0.5},
-        {"label": "0.5 - 1.0 ms", "count": 0, "upper": 1.0},
-        {"label": "1.0 - 2.0 ms", "count": 0, "upper": 2.0},
-        {"label": "2.0 - 5.0 ms", "count": 0, "upper": 5.0},
-        {"label": "> 5.0 ms", "count": 0, "upper": float("inf")},
+    sorted_l = sorted(latencies)
+    n = len(sorted_l)
+    total = n
+
+    # Calculate 95th percentile to determine optimal bucket scale
+    k = (n - 1) * 0.95
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        p95 = sorted_l[int(k)]
+    else:
+        p95 = sorted_l[int(f)] * (c - k) + sorted_l[int(c)] * (k - f)
+
+    # Adaptive scale tiers based on P95:
+    if p95 <= 0.8:
+        # Tier 1: Sub-millisecond / Unix Socket / Fast pipeline
+        cuts = [0.1, 0.25, 0.5, 0.8]
+    elif p95 <= 3.0:
+        # Tier 2: Standard local Redis / Loopback / Docker
+        cuts = [0.5, 1.0, 2.0, 3.0]
+    elif p95 <= 10.0:
+        # Tier 3: Same-AZ Cloud / Low-latency LAN / Fast VPC
+        cuts = [1.0, 2.5, 5.0, 10.0]
+    elif p95 <= 30.0:
+        # Tier 4: Cross-AZ Cloud / Managed Redis / VPN link
+        cuts = [5.0, 10.0, 20.0, 30.0]
+    elif p95 <= 100.0:
+        # Tier 5: WAN / Cross-Region / Moderate Lua Script
+        cuts = [15.0, 30.0, 60.0, 100.0]
+    elif p95 <= 500.0:
+        # Tier 6: High latency WAN / Heavier Lua script / Contention
+        cuts = [50.0, 100.0, 250.0, 500.0]
+    else:
+        # Tier 7: Extreme latency / Very heavy blocking Lua scripts
+        step = math.ceil(p95 / 4.0 / 50.0) * 50.0
+        cuts = [step, step * 2, step * 3, step * 4]
+
+    def fmt(val: float) -> str:
+        if val >= 10:
+            return f"{int(round(val))}"
+        elif val == int(val):
+            return f"{int(val)}"
+        else:
+            return f"{val:g}"
+
+    bucket_defs = [
+        {"label": f"< {fmt(cuts[0])} ms", "upper": cuts[0], "count": 0},
+        {"label": f"{fmt(cuts[0])} - {fmt(cuts[1])} ms", "upper": cuts[1], "count": 0},
+        {"label": f"{fmt(cuts[1])} - {fmt(cuts[2])} ms", "upper": cuts[2], "count": 0},
+        {"label": f"{fmt(cuts[2])} - {fmt(cuts[3])} ms", "upper": cuts[3], "count": 0},
+        {"label": f"> {fmt(cuts[3])} ms", "upper": float("inf"), "count": 0},
     ]
 
     for val in latencies:
-        if val < 0.5:
-            buckets[0]["count"] += 1
-        elif val < 1.0:
-            buckets[1]["count"] += 1
-        elif val < 2.0:
-            buckets[2]["count"] += 1
-        elif val < 5.0:
-            buckets[3]["count"] += 1
+        if val < cuts[0]:
+            bucket_defs[0]["count"] += 1
+        elif val < cuts[1]:
+            bucket_defs[1]["count"] += 1
+        elif val < cuts[2]:
+            bucket_defs[2]["count"] += 1
+        elif val < cuts[3]:
+            bucket_defs[3]["count"] += 1
         else:
-            buckets[4]["count"] += 1
+            bucket_defs[4]["count"] += 1
 
-    total = len(latencies)
     return [
         HistogramBucket(
             label=b["label"],
             count=b["count"],
             percentage=round((b["count"] / total) * 100, 1),
         )
-        for b in buckets
+        for b in bucket_defs
     ]
 
 
