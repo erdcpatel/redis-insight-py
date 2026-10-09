@@ -301,4 +301,118 @@ class BulkDeleteExecuteResponse(BaseModel):
     message: str
 
 
+# --- Benchmark & Latency Models ---
+class LatencyBreakdown(BaseModel):
+    total_rtt_ms: float
+    server_exec_ms: float
+    network_overhead_ms: float
+    network_percentage: float
+    server_percentage: float
+
+
+class LatencyPercentiles(BaseModel):
+    min_ms: float
+    p50_ms: float
+    p90_ms: float
+    p95_ms: float
+    p99_ms: float
+    max_ms: float
+    jitter_ms: float
+
+
+class HistogramBucket(BaseModel):
+    label: str
+    count: int
+    percentage: float
+
+
+class BenchmarkProbeRequest(BaseModel):
+    count: int = Field(default=100, ge=10, le=1000, description="Number of baseline probe requests")
+
+
+class BenchmarkProbeResponse(BaseModel):
+    success: bool
+    count: int
+    avg_rtt_ms: float
+    ops_per_sec: float
+    duration_ms: float
+    breakdown: LatencyBreakdown
+    percentiles: LatencyPercentiles
+    histogram: List[HistogramBucket]
+    node_info: Optional[str] = None
+    error: Optional[str] = None
+
+
+class CommandBenchmarkRequest(BaseModel):
+    preset: str = Field(default="read", description="read, write, balanced, structures")
+    requests: int = Field(default=1000, ge=50, le=10000, description="Total requests to execute")
+    concurrency: int = Field(default=5, ge=1, le=20, description="Parallel concurrent workers")
+    pipeline: int = Field(default=1, ge=1, le=25, description="Commands per pipeline batch")
+
+
+class CommandBenchmarkResponse(BaseModel):
+    success: bool
+    preset: str
+    total_requests: int
+    concurrency: int
+    pipeline: int
+    ops_per_sec: float
+    duration_ms: float
+    avg_latency_ms: float
+    breakdown: LatencyBreakdown
+    percentiles: LatencyPercentiles
+    histogram: List[HistogramBucket]
+    cleaned_keys_count: int
+    is_read_only: bool = False
+    error: Optional[str] = None
+
+
+class LuaBenchmarkRequest(BaseModel):
+    script: str = Field(..., description="Lua script body")
+    keys: List[str] = Field(default=[], description="KEYS array passed to Redis EVAL")
+    args: List[str] = Field(default=[], description="ARGV array passed to Redis EVAL")
+    mode: str = Field(default="profile", description="'profile' for single detailed inspection, 'benchmark' for N runs")
+    iterations: int = Field(default=100, ge=1, le=5000, description="Total executions for benchmark mode")
+    concurrency: int = Field(default=5, ge=1, le=20, description="Parallel workers for benchmark mode")
+
+
+class LuaBenchmarkResponse(BaseModel):
+    success: bool
+    mode: str
+    result: Any = None
+    duration_ms: float
+    server_duration_ms: float
+    network_overhead_ms: float
+    breakdown: LatencyBreakdown
+    atomicity_warning: bool = False
+    warning_message: Optional[str] = None
+    ops_per_sec: Optional[float] = None
+    percentiles: Optional[LatencyPercentiles] = None
+    histogram: Optional[List[HistogramBucket]] = None
+    error: Optional[str] = None
+
+
+class ClusterNodeMatrixItem(BaseModel):
+    node: str
+    role: str
+    slots: Optional[str] = None
+    slot_count: int = 0
+    ops_per_sec: float
+    avg_latency_ms: float
+    p99_latency_ms: float
+    outlier: bool = False
+
+
+class ClusterMatrixResponse(BaseModel):
+    success: bool
+    is_cluster: bool
+    nodes: List[ClusterNodeMatrixItem] = []
+    cluster_avg_latency_ms: float = 0.0
+    fastest_node: Optional[str] = None
+    slowest_node: Optional[str] = None
+    message: Optional[str] = None
+    error: Optional[str] = None
+
+
+
 

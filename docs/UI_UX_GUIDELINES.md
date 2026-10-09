@@ -96,6 +96,19 @@ All dialogs and profilers must follow the standard modal architecture:
   - Pressing `Escape` must close any active modal.
   - Modals must pause active background polling to conserve bandwidth and prevent state conflicts.
 
+### B. Benchmark & Latency Studio Standards
+
+1. **Top Segmented Level Switcher**:
+   - Navigation between the 4 levels (Probe, Commands, Lua Profiler, Cluster Matrix) must use clean segmented tabs (`.benchmark-tab-btn`).
+2. **Visual Latency Decomposition**:
+   - Always display the dual-color **Latency Decomposition Bar** separating **Network Transit** (`#38bdf8`) from **Server CPU Time** (`#10b981`) with exact percentage and microsecond/millisecond tags.
+3. **Atomicity Safeguards for Lua**:
+   - Lua script profiling must prominently display a green **Atomicity Safe** banner for runs $\le 5\text{ms}$ and a bright red **High Atomicity Warning** banner for runs $> 5\text{ms}$ with clear explanatory guidance.
+4. **Ephemeral Key Reassurance**:
+   - Display a green safety badge confirming that benchmark keys are isolated to `__ri_bench__:*` and automatically deleted via `UNLINK`.
+5. **Read-Only / PROD Lockout**:
+   - In Read-Only mode or PROD environments, write benchmarks (`SET`, `HSET`) must be automatically locked out.
+
 ---
 
 ## 5. Read-Only Mode & Safety Guardrails
