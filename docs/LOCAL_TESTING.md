@@ -186,3 +186,11 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] Click **Memory** in top bar &rarr; Memory Analysis & Profiler modal opens.
    - [ ] Click **Clients** in top bar &rarr; Connected Clients modal opens.
    - [ ] Click **Slowlog** &rarr; Slowlog modal opens and lists logged commands.
+
+8. **Redis Benchmark & Latency Studio**:
+   - [ ] Click **Benchmark** in the top navigation bar &rarr; Benchmark & Latency Studio opens.
+   - [ ] **Level 1 (Probe)**: Click **Run Latency Probe** &rarr; verifies RTT, Server CPU time, Network Overhead, Decomposition bar, percentiles, and histogram render.
+   - [ ] **Level 2 (Commands)**: Switch to **Core Command Suite** tab &rarr; click **Start Benchmark** &rarr; verifies throughput ops/s, avg latency, P99, and auto-cleaned ephemeral keys count.
+   - [ ] **Level 3 (Lua Profiler)**: Switch to **Lua Script Profiler** tab &rarr; test preloaded sample script &rarr; click **Execute & Profile** &rarr; verifies return value and non-blocking / atomicity warning banner.
+   - [ ] **Level 4 (Cluster Matrix)**: Switch to **Cluster Matrix** tab &rarr; click **Evaluate Cluster Latency Matrix** &rarr; verifies side-by-side node latency, P99, and health status across all cluster primaries.
+

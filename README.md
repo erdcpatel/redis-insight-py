@@ -187,10 +187,36 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Key table rows and bigkeys leaderboard display lock icons instead of delete buttons.
   - Key Inspector hides or locks Delete Key and Edit TTL controls; Hash Inspector hides Add Field and locks field deletion.
   - Clients Inspector locks disconnect buttons; Slowlog Inspector hides the reset button.
+  - Write benchmarks (SET, HSET) are automatically locked in Benchmark Studio.
 
 ---
 
-### 12. Security & Static Configuration Sync
+### 12. Redis Benchmark & Latency Studio (with Lua Profiler & Cluster Matrix)
+- **Built-in Native Engine**: Zero external dependencies—runs directly inside the FastAPI backend and browser without requiring `redis-benchmark` or `memtier_benchmark` to be installed on host.
+- **Network Latency vs. Server Execution Isolation**:
+  - Isolates client-server round-trip time (RTT) from server-side CPU processing.
+  - Visual **Latency Decomposition Bar** shows exact percentage and milliseconds spent in **Network Transit** vs **Redis Server CPU**.
+- **4 Progressive Diagnostic Levels**:
+  - **Level 1: Network & RTT Probe**: Fast PING bursts (50 to 500 probes) calculating Min, P50 (median), P90, P95, P99, Max, Jitter, and bucket distribution histogram.
+  - **Level 2: Core Command Synthetic Suite**:
+    - Presets: Read-Heavy (100% GET), Write (100% SET), Balanced (80% GET, 20% SET), Data Structures (HSET / HGET).
+    - Configurable total requests (500 to 10,000), concurrency workers (1 to 20), and pipeline batching (1 to 10).
+    - **Safe & Ephemeral**: Keys generated in `__ri_bench__:*` namespace with guaranteed auto-cleanup via `UNLINK`.
+  - **Level 3: Lua Script Profiler & Sandbox**:
+    - Preloaded script templates (Atomic Counter + TTL, Hash loop lookup, Distributed Lock simulation, or custom scripts).
+    - Preloads scripts via `SCRIPT LOAD` and executes using `EVALSHA` to eliminate script body re-transmission overhead.
+    - Measures exact server-side microsecond execution time using internal Redis `TIME` delta.
+    - **Atomicity Alert Banner**: Displays high-priority warning if server execution exceeds 5ms, alerting you before deploying scripts that could block other clients.
+    - Inspects return values directly in the UI.
+  - **Level 4: Cluster Cross-Node Matrix**:
+    - Probes each cluster primary master node individually.
+    - Compares Avg Latency, P99 Tail Latency, and Throughput side-by-side in a matrix table.
+    - Automatically highlights **Latency Outliers (>1.75x cluster avg)** to detect hot shards or CPU throttling.
+- **Read-Only / PROD Guardrails**: Write benchmarks are locked when connected to Read-Only or PROD instances.
+
+---
+
+### 13. Security & Static Configuration Sync
 - **Encrypted Password Storage**: Passwords stored in local SQLite are encrypted with **Fernet (AES-128-CBC + HMAC-SHA256)**. The encryption key is generated locally in `.secret.key` and never committed to source control.
 - **Static Configuration (`config/connections.yaml`)**: Predefine cluster endpoints and environments in YAML. Changes are automatically synced on startup.
 

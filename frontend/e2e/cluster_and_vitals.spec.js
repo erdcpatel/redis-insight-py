@@ -313,6 +313,81 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     await expect(page.locator('#gridViewerContainer .data-table')).toBeVisible();
   });
 
+  test('Redis Benchmark & Latency Studio opens, runs probe, commands, Lua profiler, and cluster matrix', async ({ page }) => {
+    await page.goto('/');
+
+    // 1. Open Benchmark Studio modal from top navbar
+    const btnBenchmark = page.locator('#btnOpenBenchmarkModal');
+    await expect(btnBenchmark).toBeVisible();
+    await btnBenchmark.click();
+
+    const benchModal = page.locator('#benchmarkModal');
+    await expect(benchModal).toHaveClass(/active/);
+    await expect(page.locator('#tabBtnProbe')).toHaveClass(/active/);
+
+    // 2. Run Level 1: Latency Probe (50 probes)
+    const selProbeCount = page.locator('#selProbeCount');
+    await selProbeCount.selectOption('50');
+    const btnRunProbe = page.locator('#btnRunProbe');
+    await btnRunProbe.click();
+
+    // Verify probe results render decomposition bar and metrics
+    const decompCard = page.locator('#benchmarkProbeResults .latency-decomp-card');
+    await expect(decompCard).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#benchmarkProbeResults .benchmark-metrics-grid')).toBeVisible();
+    await expect(page.locator('#benchmarkProbeResults .percentiles-chip-row')).toBeVisible();
+
+    // 3. Switch to Level 2: Core Command Suite
+    const tabCommands = page.locator('#tabBtnCommands');
+    await tabCommands.click();
+    await expect(tabCommands).toHaveClass(/active/);
+    await expect(page.locator('#benchmarkPaneCommands')).toBeVisible();
+
+    // Run Command Benchmark (500 ops)
+    const selRequests = page.locator('#selCommandRequests');
+    await selRequests.selectOption('500');
+    const btnRunCommands = page.locator('#btnRunCommandBench');
+    await btnRunCommands.click();
+
+    // Verify command results render throughput and cleaned ephemeral keys
+    const cmdDecomp = page.locator('#benchmarkCommandResults .latency-decomp-card');
+    await expect(cmdDecomp).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#benchmarkCommandResults .benchmark-metric-card .val').first()).toBeVisible();
+
+    // 4. Switch to Level 3: Lua Script Profiler
+    const tabLua = page.locator('#tabBtnLua');
+    await tabLua.click();
+    await expect(tabLua).toHaveClass(/active/);
+    await expect(page.locator('#benchmarkPaneLua')).toBeVisible();
+
+    // Execute preloaded counter script
+    const btnRunLua = page.locator('#btnRunLuaBench');
+    await btnRunLua.click();
+
+    // Verify atomicity safety banner and return value
+    const atomicityBanner = page.locator('#benchmarkLuaResults .atomicity-alert');
+    await expect(atomicityBanner).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#benchmarkLuaResults pre')).toBeVisible();
+
+    // 5. Switch to Level 4: Cluster Matrix
+    const tabCluster = page.locator('#tabBtnCluster');
+    await tabCluster.click();
+    await expect(tabCluster).toHaveClass(/active/);
+    await expect(page.locator('#benchmarkPaneCluster')).toBeVisible();
+
+    const btnRunCluster = page.locator('#btnRunClusterMatrix');
+    await btnRunCluster.click();
+
+    const clusterTable = page.locator('#benchmarkClusterResults .cluster-matrix-table');
+    await expect(clusterTable).toBeVisible({ timeout: 15000 });
+
+    // 6. Close Benchmark Modal
+    const btnCloseBench = page.locator('#btnCloseBenchmarkModal');
+    await btnCloseBench.click();
+    await expect(benchModal).not.toHaveClass(/active/);
+  });
+
 });
+
 
 
