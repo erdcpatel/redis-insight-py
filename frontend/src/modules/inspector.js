@@ -1,0 +1,568 @@
+import { state, escapeHtml, HASH_FIELDS_PAGE_SIZE } from "./state.js";
+import { setupIcons } from "./icons.js";
+
+let onDeleteKey = null;
+
+export function registerInspectorDeleteKey(deleteFn) {
+  onDeleteKey = deleteFn;
+}
+
+export async function openKeyDetail(keyName) {
+  state.activeDetailKey = keyName;
+  const modal = document.getElementById("keyDetailModal");
+  const titleEl = document.getElementById("detailKeyTitle");
+  const metaEl = document.getElementById("detailHeaderMeta");
+  const bodyEl = document.getElementById("detailBodyContent");
+
+  const btnDeleteDetail = document.getElementById("btnDeleteKeyFromDetail");
+  if (btnDeleteDetail) {
+    btnDeleteDetail.style.display = state.lastStatus?.read_only ? "none" : "";
+  }
+
+  if (titleEl) {
+    titleEl.textContent = keyName;
+    titleEl.title = keyName;
+  }
+  if (metaEl) metaEl.innerHTML = `<span style="color: var(--text-muted);">Loading key details...</span>`;
+  if (bodyEl) bodyEl.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Fetching value from Redis...</div>`;
+  if (modal) modal.classList.add("active");
+
+  try {
+    let res = await fetch(`/api/keys/detail?key=${encodeURIComponent(keyName)}`);
+    if (!res.ok) {
+      res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/detail`);
+    }
+
+    if (!res.ok) {
+      let errMsg = "Key not found or could not be read";
+      try {
+        const errJson = await res.json();
+        if (errJson && errJson.detail) errMsg = errJson.detail;
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
+    const data = await res.json();
+    state.activeDetailData = data;
+
+    renderKeyDetailMeta(data);
+    renderKeyDetailValue(data);
+  } catch (err) {
+    if (metaEl) metaEl.innerHTML = `<span style="color: var(--accent-danger);">Error</span>`;
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
+          <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
+          <h4>Failed to inspect key</h4>
+          <p style="font-size: 0.85rem; margin-top: 0.5rem;">${escapeHtml(err.message)}</p>
+        </div>
+      `;
+      setupIcons();
+    }
+  }
+}
+
+export function closeKeyDetail() {
+  const modal = document.getElementById("keyDetailModal");
+  if (modal) modal.classList.remove("active");
+}
+
+export function renderKeyDetailMeta(data) {
+  const metaEl = document.getElementById("detailHeaderMeta");
+  if (!metaEl) return;
+
+  const memFormatted = data.memory_bytes ? (data.memory_bytes > 1024 ? `${(data.memory_bytes / 1024).toFixed(1)} KB` : `${data.memory_bytes} B`) : "N/A";
+  const ttlText = data.ttl === -1 ? "No expiration" : data.ttl === -2 ? "Expired" : `${data.ttl}s`;
+
+  metaEl.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 0.4rem;">
+      <span style="color: var(--text-muted);">Type:</span>
+      <span class="badge-db" style="color: var(--accent-primary); font-weight: 600;">${data.type.toUpperCase()}</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.4rem;">
+      <span style="color: var(--text-muted);">Size:</span>
+      <span style="font-family: var(--font-mono);">${data.length} items / ${memFormatted}</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.4rem;">
+      <span style="color: var(--text-muted);">Encoding:</span>
+      <span style="font-family: var(--font-mono);">${data.encoding}</span>
+    </div>
+    ${data.slot !== undefined && data.slot !== null ? `
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Cluster Hash Slot: slot ${data.slot} of 16384">
+        <span style="color: var(--text-muted);">Slot:</span>
+        <span class="badge-db" style="color: #c084fc; font-family: var(--font-mono); font-weight: 600;">#${data.slot}</span>
+      </div>
+    ` : ''}
+    ${data.node ? `
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Owning Cluster Node">
+        <span style="color: var(--text-muted);">Node:</span>
+        <span class="badge-db" style="color: #38bdf8; font-family: var(--font-mono); font-size: 0.72rem;">${escapeHtml(data.node)}</span>
+      </div>
+    ` : ''}
+    <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: auto;">
+      <i data-lucide="clock" style="width: 13px; height: 13px; color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};"></i>
+      <span style="font-family: var(--font-mono); color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'}; font-weight: 600;">${ttlText}</span>
+      ${state.lastStatus?.read_only ? `
+        <span title="Read-Only Mode: TTL modification locked" style="font-size: 0.72rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; margin-left: 0.25rem;">
+          <i data-lucide="lock" style="width: 11px; height: 11px;"></i>
+        </span>
+      ` : `
+        <button type="button" class="btn btn-secondary" id="btnEditTtl" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; margin-left: 0.25rem;">
+          Edit TTL
+        </button>
+      `}
+    </div>
+  `;
+  setupIcons();
+
+  const btnEditTtl = document.getElementById("btnEditTtl");
+  if (btnEditTtl) {
+    btnEditTtl.addEventListener("click", () => {
+      promptUpdateTTL(data.name, data.ttl);
+    });
+  }
+}
+
+export async function promptUpdateTTL(keyName, currentTtl) {
+  if (state.lastStatus?.read_only) {
+    alert("TTL modification is disabled in Read-Only mode.");
+    return;
+  }
+  const input = prompt(`Enter new TTL in seconds for '${keyName}':\n(-1 to persist with no expiration, or number of seconds)`, currentTtl > 0 ? currentTtl : "3600");
+  if (input === null) return;
+  const seconds = parseInt(input.trim(), 10);
+  if (isNaN(seconds)) {
+    alert("Please enter a valid integer.");
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/ttl`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seconds })
+    });
+    if (!res.ok) throw new Error("Failed to update TTL");
+    openKeyDetail(keyName);
+  } catch (err) {
+    alert("Error updating TTL: " + err.message);
+  }
+}
+
+export function renderKeyDetailValue(data) {
+  const bodyEl = document.getElementById("detailBodyContent");
+  if (!bodyEl) return;
+  const lowerType = data.type.toLowerCase();
+
+  // 1. HASH VIEW
+  if (lowerType === "hash") {
+    const fields = data.fields || [];
+    const cursor = data.has_more_fields ? Number(data.fields_cursor || 0) : 0;
+    state.hashFieldsState = { key: data.name, cursor, fields: [...fields], total: Number(data.length || fields.length), match: null, loading: false };
+    bodyEl.innerHTML = `
+      <div class="fields-toolbar">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="text" id="hashFieldSearchInput" class="field-search-input" placeholder="Filter fields (Enter: search all)" title="Filters loaded fields instantly; press Enter to search the whole hash on the server (HSCAN MATCH)">
+          <span style="font-size: 0.75rem; color: var(--text-muted);" id="hashFieldCountText">${describeHashFieldCount(fields.length)}</span>
+        </div>
+        ${state.lastStatus?.read_only ? '' : `
+          <button type="button" class="btn btn-secondary" id="btnAddHashField" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
+            <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
+            Add Field
+          </button>
+        `}
+      </div>
+
+      <div class="fields-table-container">
+        <table class="data-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th style="width: 35%;">Field</th>
+              <th style="width: 53%;">Value</th>
+              <th style="width: 12%; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="hashFieldsTableBody">
+            ${renderHashFieldRows(fields)}
+          </tbody>
+        </table>
+      </div>
+      <div id="hashFieldsFooter" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);"></div>
+    `;
+    setupIcons();
+    setupHashEventListeners(data.name);
+    updateHashFieldsFooter();
+    return;
+  }
+
+  // 2. JSON or ReJSON-RL VIEW
+  if (data.is_json || lowerType.includes("json")) {
+    const jsonStr = data.parsed_json ? JSON.stringify(data.parsed_json, null, 2) : (data.value || "");
+    bodyEl.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">JSON Document</span>
+        <button type="button" class="btn btn-secondary" id="btnCopyJsonValue" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+          <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
+          Copy JSON
+        </button>
+      </div>
+      <div class="json-view-box" id="jsonViewBox">${escapeHtml(jsonStr)}</div>
+    `;
+    setupIcons();
+    const btnCopy = document.getElementById("btnCopyJsonValue");
+    if (btnCopy) {
+      btnCopy.addEventListener("click", () => {
+        navigator.clipboard.writeText(jsonStr);
+        alert("JSON copied to clipboard!");
+      });
+    }
+    return;
+  }
+
+  // 3. STRING VIEW
+  if (lowerType === "string") {
+    bodyEl.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">String Value (${data.length} bytes)</span>
+        <button type="button" class="btn btn-secondary" id="btnCopyStringValue" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+          <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
+          Copy Value
+        </button>
+      </div>
+      <div class="json-view-box" style="color: #f8fafc;">${escapeHtml(data.value || "")}</div>
+    `;
+    setupIcons();
+    const btnCopy = document.getElementById("btnCopyStringValue");
+    if (btnCopy) {
+      btnCopy.addEventListener("click", () => {
+        navigator.clipboard.writeText(data.value || "");
+        alert("Value copied to clipboard!");
+      });
+    }
+    return;
+  }
+
+  // 4. LIST / SET / ZSET
+  if (Array.isArray(data.value)) {
+    const isZset = lowerType === "zset";
+    bodyEl.innerHTML = `
+      <div class="fields-table-container">
+        <table class="data-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th style="width: 15%;">${isZset ? 'Score' : 'Index'}</th>
+              <th style="width: 85%;">Element / Member</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.value.map((item, idx) => `
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); color: var(--text-muted); font-size: 0.8rem;">
+                  ${isZset ? item.score : `[${idx}]`}
+                </td>
+                <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem;">
+                  ${escapeHtml(isZset ? item.member : String(item))}
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+    return;
+  }
+
+  // Fallback raw display
+  bodyEl.innerHTML = `<div class="json-view-box">${escapeHtml(String(data.value))}</div>`;
+}
+
+export function renderHashFieldRows(fields) {
+  if (fields.length === 0) {
+    return `<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No fields found in hash</td></tr>`;
+  }
+  return fields.map(f => `
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+      <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
+        ${escapeHtml(f.field)}
+      </td>
+      <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; word-break: break-all;">
+        ${escapeHtml(f.value)}
+      </td>
+      <td style="padding: 0.6rem 1rem; text-align: right;">
+        ${state.lastStatus?.read_only ? `
+          <span title="Read-Only Mode: Field deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
+            <i data-lucide="lock" style="width: 12px; height: 12px;"></i>
+          </span>
+        ` : `
+          <button type="button" class="btn-icon danger btn-delete-hash-field" data-field="${encodeURIComponent(f.field)}" title="Delete field">
+            <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+          </button>
+        `}
+      </td>
+    </tr>
+  `).join("");
+}
+
+export function describeHashFieldCount(loaded, shown = null) {
+  const st = state.hashFieldsState;
+  const total = st ? st.total : loaded;
+  const base = st && st.match
+    ? `${loaded.toLocaleString()} matching fields loaded`
+    : loaded < total
+    ? `${loaded.toLocaleString()} of ${total.toLocaleString()} fields loaded`
+    : `${loaded.toLocaleString()} fields`;
+  return shown !== null ? `${shown.toLocaleString()} shown · ${base}` : base;
+}
+
+export function hashGlobForQuery(q) {
+  return `*${q.replace(/[\\*?\[\]]/g, ch => `\\${ch}`)}*`;
+}
+
+export function rerenderHashFields() {
+  const st = state.hashFieldsState;
+  const tbody = document.getElementById("hashFieldsTableBody");
+  const countText = document.getElementById("hashFieldCountText");
+  const searchInput = document.getElementById("hashFieldSearchInput");
+  if (!st || !tbody) return;
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  const filtered = q ? st.fields.filter(f => f.field.toLowerCase().includes(q) || f.value.toLowerCase().includes(q)) : st.fields;
+  tbody.innerHTML = renderHashFieldRows(filtered);
+  if (countText) countText.textContent = describeHashFieldCount(st.fields.length, q ? filtered.length : null);
+  setupIcons();
+  attachHashDeleteHandlers(st.key);
+  updateHashFieldsFooter();
+}
+
+export function updateHashFieldsFooter() {
+  const footer = document.getElementById("hashFieldsFooter");
+  const st = state.hashFieldsState;
+  if (!footer || !st) return;
+  const hasMore = st.cursor !== 0;
+  const note = st.match
+    ? `Server-side filter: <code>${escapeHtml(st.match)}</code> · <a href="#" id="btnClearHashMatch" style="color: var(--accent-primary);">clear</a>`
+    : hasMore
+    ? "Search applies to loaded fields. Press Enter to search all fields on the server."
+    : "";
+  footer.innerHTML = `
+    <span>${note}</span>
+    ${hasMore ? `
+      <button type="button" class="btn btn-secondary" id="btnLoadMoreHashFields" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;" ${st.loading ? "disabled" : ""}>
+        <i data-lucide="${st.loading ? "refresh-cw" : "arrow-down-circle"}" ${st.loading ? 'class="spin"' : ""} style="width: 13px; height: 13px;"></i>
+        ${st.loading ? "Loading..." : "Load More Fields"}
+      </button>` : ""}
+  `;
+  setupIcons();
+  const btnMore = document.getElementById("btnLoadMoreHashFields");
+  if (btnMore) btnMore.addEventListener("click", () => loadMoreHashFields());
+  const btnClear = document.getElementById("btnClearHashMatch");
+  if (btnClear) {
+    btnClear.addEventListener("click", (e) => {
+      e.preventDefault();
+      const searchInput = document.getElementById("hashFieldSearchInput");
+      if (searchInput) searchInput.value = "";
+      loadMoreHashFields({ reset: true, match: null });
+    });
+  }
+}
+
+export async function loadMoreHashFields({ reset = false, match } = {}) {
+  const st = state.hashFieldsState;
+  if (!st || st.loading) return;
+  if (!reset && st.cursor === 0) return;
+  const key = st.key;
+  const nextMatch = reset ? match : st.match;
+  st.loading = true;
+  updateHashFieldsFooter();
+
+  try {
+    const params = new URLSearchParams({ cursor: String(reset ? 0 : st.cursor), count: String(HASH_FIELDS_PAGE_SIZE) });
+    if (nextMatch) params.set("match", nextMatch);
+    const res = await fetch(`/api/keys/${encodeURIComponent(key)}/hash/fields?${params}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error: ${res.status}`);
+    }
+    const page = await res.json();
+    if (state.hashFieldsState !== st || state.activeDetailKey !== key) return;
+
+    if (reset) st.fields = [];
+    const seen = new Set(st.fields.map(f => f.field));
+    for (const f of page.fields || []) {
+      if (!seen.has(f.field)) {
+        seen.add(f.field);
+        st.fields.push(f);
+      }
+    }
+    st.cursor = Number(page.cursor || 0);
+    st.total = Number(page.total ?? st.total);
+    st.match = nextMatch || null;
+  } catch (err) {
+    alert("Failed to load hash fields: " + err.message);
+  } finally {
+    st.loading = false;
+    if (state.hashFieldsState === st) rerenderHashFields();
+  }
+}
+
+export function setupHashEventListeners(keyName) {
+  const searchInput = document.getElementById("hashFieldSearchInput");
+
+  if (searchInput) {
+    searchInput.addEventListener("input", () => rerenderHashFields());
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || !state.hashFieldsState) return;
+      const q = searchInput.value.trim();
+      const st = state.hashFieldsState;
+      const fullyLoaded = st.cursor === 0 && !st.match;
+      if (fullyLoaded) return;
+      loadMoreHashFields({ reset: true, match: q ? hashGlobForQuery(q) : null });
+    });
+  }
+
+  const btnAdd = document.getElementById("btnAddHashField");
+  if (btnAdd) {
+    btnAdd.addEventListener("click", async () => {
+      const field = prompt(`Enter field name for hash '${keyName}':`);
+      if (!field) return;
+      const val = prompt(`Enter value for field '${field}':`);
+      if (val === null) return;
+
+      try {
+        const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field, value: val })
+        });
+        if (!res.ok) throw new Error("Failed to set field");
+        openKeyDetail(keyName);
+      } catch (err) {
+        alert("Error setting field: " + err.message);
+      }
+    });
+  }
+
+  attachHashDeleteHandlers(keyName);
+}
+
+export function attachHashDeleteHandlers(keyName) {
+  document.querySelectorAll(".btn-delete-hash-field").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const field = decodeURIComponent(btn.getAttribute("data-field"));
+      if (confirm(`Delete field '${field}' from hash '${keyName}'?`)) {
+        try {
+          const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field/${encodeURIComponent(field)}`, {
+            method: "DELETE"
+          });
+          if (!res.ok) throw new Error("Failed to delete field");
+          openKeyDetail(keyName);
+        } catch (err) {
+          alert("Error: " + err.message);
+        }
+      }
+    });
+  });
+}
+
+export function parseContentDispositionFilename(disposition) {
+  if (!disposition) return null;
+  const extended = disposition.match(/filename\*\s*=\s*([\w-]*)'[^']*'([^;]+)/i);
+  if (extended) {
+    try {
+      return decodeURIComponent(extended[2].trim().replace(/^"|"$/g, ""));
+    } catch (e) {}
+  }
+  const plain = disposition.match(/filename\s*=\s*"([^"]*)"/i) || disposition.match(/filename\s*=\s*([^;]+)/i);
+  return plain && plain[1].trim() ? plain[1].trim() : null;
+}
+
+export function saveBlobAsFile(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+export async function downloadResponseAsFile(res, fallbackName, format = null) {
+  let filename = parseContentDispositionFilename(res.headers.get("content-disposition")) || fallbackName;
+  const ext = String(res.headers.get("x-export-format") || format || "").toLowerCase();
+  if (ext && !filename.toLowerCase().endsWith(`.${ext}`)) {
+    filename = `${filename}.${ext}`;
+  }
+  const blob = await res.blob();
+  saveBlobAsFile(blob, filename);
+  return filename;
+}
+
+export async function downloadKeyValue(keyName, btn) {
+  if (!keyName) return;
+  const originalHtml = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Downloading...`;
+    setupIcons();
+  }
+  try {
+    const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/download`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error: ${res.status}`);
+    }
+    const fallback = keyName.replace(/[^A-Za-z0-9._-]+/g, "_") || "redis_key";
+    await downloadResponseAsFile(res, fallback);
+    if (res.headers.get("x-export-truncated") === "true") {
+      alert(`Download was capped: the key has ${Number(res.headers.get("x-export-total") || 0).toLocaleString()} entries, only the first portion was included.`);
+    }
+  } catch (err) {
+    alert("Download failed: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      setupIcons();
+    }
+  }
+}
+
+export function setupInspectorEventListeners() {
+  const btnCloseDetail = document.getElementById("btnCloseDetailModal");
+  if (btnCloseDetail) btnCloseDetail.addEventListener("click", closeKeyDetail);
+
+  const detailModal = document.getElementById("keyDetailModal");
+  if (detailModal) {
+    detailModal.addEventListener("click", (e) => {
+      if (e.target === detailModal) closeKeyDetail();
+    });
+  }
+
+  const btnCopyKey = document.getElementById("btnCopyKeyName");
+  if (btnCopyKey) {
+    btnCopyKey.addEventListener("click", () => {
+      if (state.activeDetailKey) {
+        navigator.clipboard.writeText(state.activeDetailKey);
+        alert(`Copied '${state.activeDetailKey}' to clipboard!`);
+      }
+    });
+  }
+
+  const btnDownloadKey = document.getElementById("btnDownloadKeyValue");
+  if (btnDownloadKey) {
+    btnDownloadKey.addEventListener("click", () => {
+      downloadKeyValue(state.activeDetailKey, btnDownloadKey);
+    });
+  }
+
+  const btnDeleteFromDetail = document.getElementById("btnDeleteKeyFromDetail");
+  if (btnDeleteFromDetail) {
+    btnDeleteFromDetail.addEventListener("click", () => {
+      if (state.activeDetailKey && onDeleteKey) {
+        onDeleteKey(state.activeDetailKey, () => {
+          closeKeyDetail();
+        });
+      }
+    });
+  }
+}

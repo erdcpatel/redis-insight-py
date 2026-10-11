@@ -1,159 +1,71 @@
+import { state, escapeHtml, SCAN_BATCH_SIZES } from "./modules/state.js";
+import { setupIcons } from "./modules/icons.js";
+import { initWorkspaceTabs, switchWorkspaceTab, registerTabLoader } from "./modules/tabs.js";
 import {
-  createIcons,
-  Layers,
-  Plus,
-  RefreshCw,
-  Search,
-  Cpu,
-  Trash2,
-  Zap,
-  CheckCircle2,
-  AlertCircle,
-  Database,
-  ShieldCheck,
-  Lock,
-  ArrowDownCircle,
-  X,
-  Play,
-  Copy,
-  Clock,
-  Edit,
-  ExternalLink,
-  Code,
-  Users,
-  Server,
-  Network,
-  GitBranch,
-  ArrowRightLeft,
-  Activity,
-  PieChart,
-  AlertTriangle,
-  TrendingUp,
-  BarChart2,
-  Power,
-  ChevronLeft,
-  ChevronRight,
-  PanelLeft,
-  Download,
-  FileText,
-  Folder,
-  FolderOpen,
-  FolderTree,
-  Table,
-  List,
-  ChevronDown,
-  Key,
-  Filter
-} from "lucide";
+  refreshBenchmarkUI,
+  setupBenchmarkEventListeners
+} from "./modules/benchmark.js";
+import {
+  openMemoryModal,
+  loadMemoryOverview,
+  setupMemoryEventListeners,
+  registerMemoryKeyHandlers
+} from "./modules/memory.js";
+import {
+  loadSlowlog,
+  setupSlowlogEventListeners
+} from "./modules/slowlog.js";
+import {
+  openTopologyModal,
+  loadTopologyData,
+  openKeyspaceModal,
+  updateBulkDeleteToolbarVisibility,
+  setupTopologyEventListeners,
+  registerTopologyClusterConnect
+} from "./modules/topology.js";
+import {
+  openClientsModal,
+  loadConnectedClients,
+  setupClientsEventListeners,
+  registerClientsRefresh
+} from "./modules/clients.js";
+import {
+  loadConnections,
+  renderEmptyWorkspace,
+  connectCluster,
+  disconnectCluster,
+  setupConnectionsEventListeners,
+  registerConnectionsCallbacks
+} from "./modules/connections.js";
+import {
+  openKeyDetail,
+  setupInspectorEventListeners,
+  registerInspectorDeleteKey
+} from "./modules/inspector.js";
+import {
+  triggerDeleteConfirmation,
+  setupActionsEventListeners,
+  registerActionsResetAndScan
+} from "./modules/actions.js";
+import {
+  resetAndScan,
+  setupKeysEventListeners
+} from "./modules/keys.js";
 
-// Global State
-let allConnectedClients = [];
-let allSlowlogEntries = [];
-let currentSlowlogMinDuration = 0;
-let currentSlowlogSearch = "";
-let currentSlowlogNode = "all";
+// Wire module cross-callbacks
+registerConnectionsCallbacks(refreshStatus, resetAndScan);
+registerActionsResetAndScan(resetAndScan);
+registerInspectorDeleteKey(triggerDeleteConfirmation);
+registerMemoryKeyHandlers(openKeyDetail, triggerDeleteConfirmation, refreshStatus);
+registerClientsRefresh(refreshStatus);
+registerTopologyClusterConnect(connectCluster);
 
-// View Mode state (Flat Table vs Virtual Tree)
-let currentViewMode = localStorage.getItem("redis_insight_view_mode") || "table";
-let currentTreeDelimiter = localStorage.getItem("redis_insight_tree_delimiter") || "auto";
-let treeExpandedPaths = new Set();
-let treeInitialized = false;
-let currentTreeFilterQuery = "";
-
-let currentMemoryOverview = null;
-let currentMemoryAnalysis = null;
-let isMemoryProfilingRunning = false;
-let bigkeysSearchQuery = "";
-
-let currentCursor = 0;
-let currentPattern = "*";
-let currentType = "all";
-let isScanning = false;
-let totalScanned = 0;
-let scanComplete = false;
-let dbTotalKeys = 0;
-let lastStatus = null;
-let keysTableRows = [];
-let loadedKeysSet = new Set();
-
-// Auto-Refresh state
-let isAutoRefreshActive = false;
-let autoRefreshIntervalSec = parseInt(localStorage.getItem("redis_insight_auto_refresh_sec") || "10", 10);
-if (isNaN(autoRefreshIntervalSec) || autoRefreshIntervalSec < 5) autoRefreshIntervalSec = 10;
-let autoRefreshRemainingSec = autoRefreshIntervalSec;
-let autoRefreshTimer = null;
-
-// Phase 2 state
-let activeDetailKey = null;
-let activeDetailData = null;
-let pendingDeleteKey = null;
-let pendingDeleteCallback = null;
-
-// Connections & Cluster Topology State
-let cachedConnections = [];
-let currentEnvFilter = "ALL";
-let currentConnSearch = "";
-let currentTopologyData = null;
-let currentTopologyRole = "all";
-let currentTopologySearch = "";
-let currentLimit = 2;
-let activeConfigConn = null;
-let currentScanEpoch = 0;
-let scanBatchSize = 50;
-let hashFieldsState = null;
-const SCAN_BATCH_SIZES = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
-const HASH_FIELDS_PAGE_SIZE = 200;
-
-function setupIcons() {
-  createIcons({
-    icons: {
-      Layers,
-      Plus,
-      RefreshCw,
-      Search,
-      Cpu,
-      Trash2,
-      Zap,
-      CheckCircle2,
-      AlertCircle,
-      Database,
-      ShieldCheck,
-      Lock,
-      ArrowDownCircle,
-      X,
-      Play,
-      Copy,
-      Clock,
-      Edit,
-      ExternalLink,
-      Code,
-      Users,
-      Server,
-      Network,
-      GitBranch,
-      ArrowRightLeft,
-      Activity,
-      PieChart,
-      AlertTriangle,
-      TrendingUp,
-      BarChart2,
-      Power,
-      ChevronLeft,
-      ChevronRight,
-      PanelLeft,
-      Download,
-      FileText,
-      Folder,
-      FolderOpen,
-      FolderTree,
-      Table,
-      List,
-      ChevronDown,
-      Key,
-      Filter
-    }
-  });
-}
+// Register tab lazy loaders
+registerTabLoader("benchmark", () => refreshBenchmarkUI());
+registerTabLoader("memory", () => loadMemoryOverview());
+registerTabLoader("slowlog", () => loadSlowlog());
+registerTabLoader("topology", () => loadTopologyData());
+registerTabLoader("clients", () => loadConnectedClients());
 
 function renderAppShell() {
   const app = document.getElementById("app");
@@ -165,88 +77,89 @@ function renderAppShell() {
         <div class="sidebar-header">
           <div class="brand">
             <div class="brand-icon">
-              <i data-lucide="layers" style="width: 20px; height: 20px;"></i>
+              <i data-lucide="layers" style="width: 18px; height: 18px;"></i>
             </div>
             <div class="brand-title">
-              Redis Insight
-              <span class="brand-badge">py</span>
+              <h2>RedisInsight</h2>
             </div>
           </div>
-          <button type="button" class="sidebar-toggle-btn" id="btnToggleSidebar" title="Hide connections sidebar (Full Screen - Ctrl+B)">
-            <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+          <button type="button" class="sidebar-toggle-btn" id="btnToggleSidebar" title="Toggle Sidebar (Ctrl+B)">
+            <i data-lucide="panel-left" style="width: 14px; height: 14px;"></i>
           </button>
         </div>
 
         <div class="sidebar-action-bar">
-          <span class="sidebar-heading">
-            Connections <span class="badge-conn-count" id="totalConnCountBadge">0</span>
-          </span>
+          <div class="action-bar-title">
+            <span>Connections</span>
+            <span class="conn-count-badge" id="totalConnCountBadge">0</span>
+          </div>
           <div style="display: flex; gap: 0.35rem;">
-            <button type="button" class="btn btn-secondary" id="btnReloadConfig" title="Reload from config/connections.yaml" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+            <button type="button" class="btn btn-secondary btn-icon-only" id="btnReloadConfigStatic" title="Sync & reload connections from config/connections.yaml">
               <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
             </button>
-            <button type="button" class="btn btn-secondary" id="btnAddConn" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-              <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
-              Add
+            <button type="button" class="btn btn-primary btn-add-conn" id="btnAddConn" title="Add new Redis connection">
+              <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
+              <span>Add</span>
             </button>
           </div>
         </div>
 
         <div class="sidebar-filter-section">
           <div class="sidebar-search-box">
-            <i data-lucide="search" style="width: 13px; height: 13px; color: var(--text-muted); flex-shrink: 0;"></i>
-            <input type="text" id="connSearchInput" class="sidebar-search-input" placeholder="Search connections (name, host)...">
-            <button type="button" class="btn-clear-search" id="btnClearConnSearch" style="display: none;" title="Clear search">
-              <i data-lucide="x" style="width: 11px; height: 11px;"></i>
-            </button>
+            <i data-lucide="search" class="sidebar-search-icon" style="width: 13px; height: 13px;"></i>
+            <input type="text" id="connSearchInput" class="sidebar-search-input" placeholder="Filter clusters...">
           </div>
-          <div class="env-filter-pills" id="envFilterPills">
-            <button type="button" class="env-pill-btn active" data-env="ALL">ALL</button>
-            <button type="button" class="env-pill-btn" data-env="DEV">DEV</button>
-            <button type="button" class="env-pill-btn" data-env="UAT">UAT</button>
-            <button type="button" class="env-pill-btn" data-env="PROD">PROD</button>
+          <div class="sidebar-env-tabs" id="envFilterPills">
+            <button type="button" class="env-pill-btn active" data-env="ALL">ALL (0)</button>
+            <button type="button" class="env-pill-btn" data-env="DEV">DEV (0)</button>
+            <button type="button" class="env-pill-btn" data-env="UAT">UAT (0)</button>
+            <button type="button" class="env-pill-btn" data-env="PROD">PROD (0)</button>
           </div>
         </div>
 
-        <!-- Connection Limit Status Bar -->
         <div class="sidebar-limit-bar" id="sidebarLimitBar">
-          <div class="limit-status-left">
-            <i data-lucide="shield-check" class="limit-shield-icon"></i>
-            <div class="limit-meta">
-              <span class="limit-title">Active Clusters</span>
-              <div class="limit-progress-dots" id="limitProgressDots"></div>
+          <div class="limit-bar-top">
+            <div class="limit-status-label">
+              <i data-lucide="shield-check" style="width: 13px; height: 13px; color: var(--accent-primary);"></i>
+              <span class="limit-title">Active Capacity</span>
+              <span class="limit-count-pill" id="limitCountPill">
+                <span id="connectedCountDisplay">0</span>/<span id="connLimitDisplay">2</span>
+              </span>
             </div>
-          </div>
-          <div class="limit-controls">
-            <span class="limit-count-pill" id="limitCountPill">
-              <strong id="connectedCountDisplay" style="color: var(--accent-success);">0</strong>/<span id="connLimitDisplay">2</span>
-            </span>
-            <div class="limit-select-wrapper" title="Simultaneous connected clusters limit">
-              <span>Max:</span>
-              <select id="connLimitSelect" class="limit-select">
+            <div class="limit-select-wrap">
+              <label for="connLimitSelect" class="limit-select-label">Max:</label>
+              <select id="connLimitSelect" class="conn-limit-select" title="Simultaneous connection limit (1-5)">
                 <option value="1">1</option>
                 <option value="2" selected>2</option>
                 <option value="3">3</option>
+                <option value="4">4</option>
                 <option value="5">5</option>
               </select>
             </div>
           </div>
+          <div class="limit-progress-dots" id="limitProgressDots">
+            <span class="limit-slot-dot empty"></span>
+            <span class="limit-slot-dot empty"></span>
+          </div>
         </div>
 
         <div class="connections-list-wrapper" id="connectionsList">
-          <div style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">Loading connections...</div>
+          <div style="padding: 2rem; text-align: center; color: var(--text-muted);">
+            <i data-lucide="refresh-cw" class="spin" style="width: 18px; height: 18px; margin-bottom: 0.5rem; display: inline-block;"></i>
+            <div>Loading connections...</div>
+          </div>
         </div>
 
         <div class="sidebar-footer">
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <i data-lucide="cpu" style="width: 14px; height: 14px; color: var(--accent-primary);"></i>
-            <span>FastAPI + Redis AsyncIO</span>
+          <div class="footer-meta">
+            <span class="status-indicator-dot online"></span>
+            <span>FastAPI Backend Ready</span>
           </div>
-          <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted);">v0.1.0</span>
+          <span class="version-tag">v0.1.0</span>
         </div>
       </aside>
 
-      <!-- Main Section -->
+      <!-- Main Workspace Wrapper -->
       <main class="main-wrapper">
         <!-- Top Status Bar -->
         <header class="top-navbar">
@@ -268,139 +181,540 @@ function renderAppShell() {
           </div>
 
           <div class="top-navbar-right" id="topActionsContainer">
-            <div class="top-tools-group">
-              <button type="button" class="tool-pill-btn" id="btnOpenBenchmarkModal" title="Redis Benchmark & Latency Studio">
-                <i data-lucide="zap" style="width: 13px; height: 13px; color: #f59e0b;"></i>
-                <span>Benchmark</span>
-              </button>
-              <button type="button" class="tool-pill-btn" id="btnOpenSlowlog" title="Real-Time Slowlog & Latency Profiler">
-                <i data-lucide="activity" style="width: 13px; height: 13px; color: #38bdf8;"></i>
-                <span>Slowlog</span>
-              </button>
-              <button type="button" class="tool-pill-btn" id="btnOpenMemoryModal" title="Memory Analysis & BigKeys Profiler">
-                <i data-lucide="pie-chart" style="width: 13px; height: 13px; color: #a78bfa;"></i>
-                <span>BigKeys</span>
-              </button>
-              <button type="button" class="tool-icon-btn" id="btnRefreshStats" title="Ping active instance & refresh vitals">
-                <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-              </button>
-            </div>
+            <button type="button" class="tool-icon-btn" id="btnRefreshStats" title="Ping active instance & refresh vitals">
+              <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+            </button>
           </div>
         </header>
 
-        <!-- Main Workspace -->
-        <div class="workspace-content">
-          <!-- Filter Controls -->
-          <div class="controls-card">
-            <div class="search-group">
-              <i data-lucide="search" class="search-icon" style="width: 16px; height: 16px;"></i>
-              <input type="text" id="keySearchInput" class="search-input" placeholder="Search keys by pattern (e.g. *, bikes:*, sample_*) - Press Enter" value="*">
-            </div>
+        <!-- Modern Workspace Tabs Bar -->
+        <nav class="workspace-tabs-bar" id="workspaceTabsBar" role="tablist">
+          <button type="button" class="ws-tab-btn active" id="tabBtnWorkspaceKeys" data-tab="keys" role="tab" aria-selected="true" title="Key Browser & Virtual Namespace Tree (Ctrl+1)">
+            <i data-lucide="key" style="width: 13px; height: 13px;"></i>
+            <span>Keys</span>
+            <span class="ws-tab-badge" id="tabBadgeKeys">0</span>
+          </button>
+          <button type="button" class="ws-tab-btn" id="btnOpenBenchmarkModal" data-tab="benchmark" role="tab" aria-selected="false" title="Redis Benchmark & Latency Studio (Ctrl+2)">
+            <i data-lucide="zap" style="width: 13px; height: 13px; color: #f59e0b;"></i>
+            <span>Benchmark Studio</span>
+          </button>
+          <button type="button" class="ws-tab-btn" id="btnOpenMemoryModal" data-tab="memory" role="tab" aria-selected="false" title="Memory Diagnostics & BigKeys Profiler (Ctrl+3)">
+            <i data-lucide="pie-chart" style="width: 13px; height: 13px; color: #a78bfa;"></i>
+            <span>Memory & BigKeys</span>
+          </button>
+          <button type="button" class="ws-tab-btn" id="btnOpenSlowlog" data-tab="slowlog" role="tab" aria-selected="false" title="Real-Time Slowlog & Latency Profiler (Ctrl+4)">
+            <i data-lucide="activity" style="width: 13px; height: 13px; color: #38bdf8;"></i>
+            <span>Slowlog</span>
+          </button>
+          <button type="button" class="ws-tab-btn" id="tabBtnWorkspaceTopology" data-tab="topology" role="tab" aria-selected="false" title="Cluster Topology & Node Health (Ctrl+5)">
+            <i data-lucide="layers" style="width: 13px; height: 13px; color: var(--accent-primary);"></i>
+            <span>Cluster Topology</span>
+            <span class="ws-tab-badge" id="tabBadgeTopology">1 Node</span>
+          </button>
+          <button type="button" class="ws-tab-btn" id="tabBtnWorkspaceClients" data-tab="clients" role="tab" aria-selected="false" title="Connected Client Sessions (Ctrl+6)">
+            <i data-lucide="users" style="width: 13px; height: 13px; color: #38bdf8;"></i>
+            <span>Clients</span>
+            <span class="ws-tab-badge" id="tabBadgeClients">0</span>
+          </button>
+        </nav>
 
-            <div class="type-filter-group" id="typeFilterGroup">
-              <button type="button" class="type-tab active" data-type="all">All</button>
-              <button type="button" class="type-tab" data-type="string">Strings</button>
-              <button type="button" class="type-tab" data-type="hash">Hashes</button>
-              <button type="button" class="type-tab" data-type="list">Lists</button>
-              <button type="button" class="type-tab" data-type="set">Sets</button>
-              <button type="button" class="type-tab" data-type="zset">ZSets</button>
-              <button type="button" class="type-tab" data-type="json">JSON</button>
+        <!-- Workspace Panes Container -->
+        <div class="workspace-container">
+          <!-- 1. Keys Tab Pane (Default) -->
+          <div class="ws-tab-pane active" id="paneWorkspaceKeys">
+            <div class="workspace-content">
+              <!-- Filter Controls -->
+              <div class="controls-card">
+                <div class="search-group">
+                  <i data-lucide="search" class="search-icon" style="width: 16px; height: 16px;"></i>
+                  <input type="text" id="keySearchInput" class="search-input" placeholder="Search keys by pattern (e.g. *, bikes:*, sample_*) - Press Enter" value="*">
+                </div>
+
+                <div class="type-filter-group" id="typeFilterGroup">
+                  <button type="button" class="type-tab active" data-type="all">All</button>
+                  <button type="button" class="type-tab" data-type="string">Strings</button>
+                  <button type="button" class="type-tab" data-type="hash">Hashes</button>
+                  <button type="button" class="type-tab" data-type="list">Lists</button>
+                  <button type="button" class="type-tab" data-type="set">Sets</button>
+                  <button type="button" class="type-tab" data-type="zset">ZSets</button>
+                  <button type="button" class="type-tab" data-type="json">JSON</button>
+                </div>
+              </div>
+
+              <!-- Unified Controls Bar: Mode Toggle, Scan Health, Refresh & Bulk Actions -->
+              <div class="keys-actions-bar">
+                <div class="actions-left" id="scanActionsGroup">
+                  <div class="view-mode-toggle-group" id="viewModeToggleGroup">
+                    <button type="button" class="view-mode-tab ${state.currentViewMode === 'table' ? 'active' : ''}" id="btnViewTable" data-mode="table" title="Flat Table View">
+                      <i data-lucide="table" style="width: 13px; height: 13px;"></i>
+                      <span>Table</span>
+                    </button>
+                    <button type="button" class="view-mode-tab ${state.currentViewMode === 'tree' ? 'active' : ''}" id="btnViewTree" data-mode="tree" title="Virtual Tree / Namespace Folder View">
+                      <i data-lucide="folder-tree" style="width: 13px; height: 13px;"></i>
+                      <span>Tree</span>
+                    </button>
+                  </div>
+                  <div class="actions-divider"></div>
+                  <span class="safety-badge">
+                    <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
+                    <span id="scanChunkLabel">Safe SCAN (50)</span>
+                  </span>
+                  <span id="scanStatusText" class="scan-status-text">Scanning keys...</span>
+                </div>
+
+                <div class="actions-right">
+                  <div class="auto-refresh-control-group" id="autoRefreshGroup" title="Auto-refresh keys matching current pattern & type filter">
+                    <button type="button" class="btn btn-secondary btn-auto-refresh" id="btnToggleAutoRefresh" title="Click to start auto-refreshing keys for this pattern">
+                      <span class="auto-refresh-dot" id="autoRefreshDot"></span>
+                      <i data-lucide="timer" style="width: 12px; height: 12px;"></i>
+                      <span id="autoRefreshStatusText">Auto: Off</span>
+                    </button>
+                    <select id="autoRefreshIntervalSelect" class="auto-refresh-select" title="Auto-refresh interval (5s to 5m)">
+                      <option value="5">5s</option>
+                      <option value="10" selected>10s</option>
+                      <option value="15">15s</option>
+                      <option value="30">30s</option>
+                      <option value="60">1m</option>
+                      <option value="120">2m</option>
+                      <option value="300">5m</option>
+                    </select>
+                  </div>
+
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnResetScan" title="Reload keys matching pattern immediately" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                    <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
+                    <span>Refresh</span>
+                  </button>
+
+                  <div class="actions-divider"></div>
+
+                  <label for="scanBatchSizeSelect" class="batch-size-label">Batch:</label>
+                  <select id="scanBatchSizeSelect" class="batch-size-select" title="Keys requested per SCAN batch (applies to the next Load More)">
+                    ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n.toLocaleString()}</option>`).join("")}
+                  </select>
+                  <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext" style="font-size: 0.75rem; padding: 0.32rem 0.75rem;">
+                    <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
+                    <span>Load More</span>
+                  </button>
+
+                  <div class="actions-divider"></div>
+
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                    <i data-lucide="download" style="width: 12px; height: 12px;"></i>
+                    <span>Export</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-toolbar-action btn-danger-action" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    <span>Bulk Delete</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Key Browser Data Grid Card -->
+              <div class="grid-card" id="gridCard">
+                <div id="emptyWorkspaceState" class="empty-workspace-state" style="display: none;">
+                  <div class="empty-state-icon">
+                    <i data-lucide="database" style="width: 36px; height: 36px; color: var(--accent-primary);"></i>
+                  </div>
+                  <h3>No Redis Cluster Connected</h3>
+                  <p>Select a cluster from the left panel to review its configuration and connect.</p>
+                  <div style="margin-top: 1rem;">
+                    <button type="button" class="btn btn-secondary" id="btnConnectFirstAvailable" style="font-size: 0.8rem;">
+                      <i data-lucide="server" style="width: 14px; height: 14px;"></i>
+                      View Available Clusters
+                    </button>
+                  </div>
+                </div>
+                <div id="gridViewerContainer" style="width: 100%; height: 100%;"></div>
+              </div>
             </div>
           </div>
 
-          <!-- Panel 1: Safe SCAN Status & Live Auto-Refresh Watcher -->
-          <div class="chunk-status-bar">
-            <div class="status-left">
-              <span class="safety-badge">
-                <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
-                <span id="scanChunkLabel">Safe SCAN (Chunk 50)</span>
-              </span>
-              <span id="scanStatusText" class="scan-status-text">Scanning keys...</span>
-            </div>
-
-            <div class="status-right">
-              <div class="auto-refresh-control-group" id="autoRefreshGroup" title="Auto-refresh keys matching current pattern & type filter">
-                <button type="button" class="btn btn-secondary btn-auto-refresh" id="btnToggleAutoRefresh" title="Click to start auto-refreshing keys for this pattern">
-                  <span class="auto-refresh-dot" id="autoRefreshDot"></span>
-                  <i data-lucide="timer" style="width: 12px; height: 12px;"></i>
-                  <span id="autoRefreshStatusText">Auto: Off</span>
-                </button>
-                <select id="autoRefreshIntervalSelect" class="auto-refresh-select" title="Auto-refresh interval (5s to 5m)">
-                  <option value="5">5s</option>
-                  <option value="10" selected>10s</option>
-                  <option value="15">15s</option>
-                  <option value="30">30s</option>
-                  <option value="60">1m</option>
-                  <option value="120">2m</option>
-                  <option value="300">5m</option>
-                </select>
+          <!-- 2. Benchmark Studio Tab Pane (Full Width) -->
+          <div class="ws-tab-pane ws-dashboard-pane modal-backdrop" id="benchmarkModal">
+            <div class="benchmark-modal-card">
+              <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                  <i data-lucide="zap" style="width: 22px; height: 22px; color: #f59e0b;"></i>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <h3 class="modal-title">Benchmark & Latency Studio</h3>
+                      <span id="benchmarkReadOnlyBadge" class="badge-db" style="display: none; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4);">
+                        <i data-lucide="lock" style="width: 11px; height: 11px; vertical-align: middle;"></i> READ ONLY
+                      </span>
+                    </div>
+                    <p class="modal-subtitle" id="benchmarkTargetSubtitle">
+                      Target: Connecting... | Ephemeral Namespace: __ri_bench__
+                    </p>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="ws-tab-return-btn" id="btnCloseBenchmarkModal" title="Close view & return to Keys (Esc)">
+                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+                    <kbd class="kbd-esc">Esc</kbd>
+                  </button>
+                </div>
               </div>
 
-              <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnResetScan" title="Reload keys matching pattern immediately" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
-                <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
-                <span>Refresh</span>
-              </button>
+              <div class="benchmark-modal-body">
+                <div class="benchmark-nav-tabs">
+                  <button type="button" class="benchmark-tab-btn active" data-tab="probe" id="tabBtnProbe">
+                    <i data-lucide="activity" style="width: 14px; height: 14px;"></i>
+                    <span>1. Network & RTT Probe</span>
+                  </button>
+                  <button type="button" class="benchmark-tab-btn" data-tab="commands" id="tabBtnCommands">
+                    <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
+                    <span>2. Core Command Suite</span>
+                  </button>
+                  <button type="button" class="benchmark-tab-btn" data-tab="lua" id="tabBtnLua">
+                    <i data-lucide="code" style="width: 14px; height: 14px;"></i>
+                    <span>3. Lua Script Profiler</span>
+                  </button>
+                  <button type="button" class="benchmark-tab-btn" data-tab="cluster" id="tabBtnCluster">
+                    <i data-lucide="network" style="width: 14px; height: 14px;"></i>
+                    <span>4. Cluster Matrix</span>
+                  </button>
+                </div>
+
+                <!-- Tab 1: Probe Pane -->
+                <div class="benchmark-content-pane" id="benchmarkPaneProbe">
+                  <div class="benchmark-controls-card">
+                    <div class="benchmark-controls-row">
+                      <div class="benchmark-control-group">
+                        <span class="benchmark-control-label">Probe Count:</span>
+                        <select class="benchmark-select" id="selProbeCount">
+                          <option value="50">50 Probes (Fast)</option>
+                          <option value="100" selected>100 Probes (Recommended)</option>
+                          <option value="250">250 Probes (High Precision)</option>
+                          <option value="500">500 Probes (Deep Sample)</option>
+                        </select>
+                      </div>
+                      <button type="button" class="btn btn-primary" id="btnRunProbe" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; font-weight: 600;">
+                        <i data-lucide="play" style="width: 14px; height: 14px;"></i>
+                        <span>Run Latency Probe</span>
+                      </button>
+                      <div style="font-size: 0.74rem; color: var(--text-muted); margin-left: auto;">
+                        Isolates client network RTT from server CPU execution using rapid PING sampling.
+                      </div>
+                    </div>
+                  </div>
+                  <div id="benchmarkProbeResults" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
+                      Click <strong>Run Latency Probe</strong> to analyze network round-trip time vs Redis server processing delay.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tab 2: Commands Pane -->
+                <div class="benchmark-content-pane" id="benchmarkPaneCommands" style="display: none;">
+                  <div class="benchmark-controls-card">
+                    <div class="benchmark-controls-row">
+                      <div class="benchmark-control-group">
+                        <span class="benchmark-control-label">Workload Preset:</span>
+                        <select class="benchmark-select" id="selCommandPreset">
+                          <option value="read" selected>Read-Heavy (100% GET)</option>
+                          <option value="write" id="optCommandPresetWrite">Write / Set (100% SET)</option>
+                          <option value="balanced">Balanced Mix (80% GET, 20% SET)</option>
+                          <option value="structures" id="optCommandPresetStruct">Data Structures (HSET / HGET)</option>
+                        </select>
+                      </div>
+                      <div class="benchmark-control-group">
+                        <span class="benchmark-control-label">Requests:</span>
+                        <select class="benchmark-select" id="selCommandRequests">
+                          <option value="500">500 ops</option>
+                          <option value="1000" selected>1,000 ops</option>
+                          <option value="2500">2,500 ops</option>
+                          <option value="5000">5,000 ops</option>
+                        </select>
+                      </div>
+                      <div class="benchmark-control-group">
+                        <span class="benchmark-control-label">Concurrency:</span>
+                        <select class="benchmark-select" id="selCommandConcurrency">
+                          <option value="1">1 Worker (Sequential)</option>
+                          <option value="5" selected>5 Workers (Balanced)</option>
+                          <option value="10">10 Workers (Concurrent)</option>
+                          <option value="20">20 Workers (High Load)</option>
+                        </select>
+                      </div>
+                      <div class="benchmark-control-group">
+                        <span class="benchmark-control-label">Pipeline:</span>
+                        <select class="benchmark-select" id="selCommandPipeline">
+                          <option value="1" selected>1 (No Pipeline)</option>
+                          <option value="5">5 Batch</option>
+                          <option value="10">10 Batch</option>
+                        </select>
+                      </div>
+                      <button type="button" class="btn btn-primary" id="btnRunCommandBench" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; font-weight: 600;">
+                        <i data-lucide="play" style="width: 14px; height: 14px;"></i>
+                        <span>Start Benchmark</span>
+                      </button>
+                    </div>
+                    <div style="font-size: 0.73rem; color: #6ee7b7; display: flex; align-items: center; gap: 0.35rem;">
+                      <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
+                      Safe & Ephemeral: Benchmark keys are generated in isolated prefix <code>__ri_bench__:*</code> and automatically cleaned up via <code>UNLINK</code> on completion.
+                    </div>
+                  </div>
+                  <div id="benchmarkCommandResults" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
+                      Configure parameters and click <strong>Start Benchmark</strong> to evaluate synthetic command throughput & latency distribution.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tab 3: Lua Script Pane -->
+                <div class="benchmark-content-pane" id="benchmarkPaneLua" style="display: none;">
+                  <div class="benchmark-controls-card">
+                    <div class="benchmark-controls-row">
+                      <div class="benchmark-control-group">
+                        <span class="benchmark-control-label">Sample Preset:</span>
+                        <select class="benchmark-select" id="selLuaPreset">
+                          <option value="counter" selected>Atomic Counter & Dynamic TTL (INCR + EXPIRE)</option>
+                          <option value="hash">Batch Hash Field Lookup (Loop & Filter)</option>
+                          <option value="lock">Distributed Lock Simulation (SET NX PX)</option>
+                          <option value="custom">Custom Lua Script...</option>
+                        </select>
+                      </div>
+                      <div class="benchmark-control-group">
+                        <span class="benchmark-control-label">Mode:</span>
+                        <select class="benchmark-select" id="selLuaMode">
+                          <option value="profile" selected>🔍 Single Run Profiler (Deep Inspect)</option>
+                          <option value="benchmark">⚡ Concurrency Benchmark (N Runs)</option>
+                        </select>
+                      </div>
+                      <div class="benchmark-control-group" id="groupLuaBenchmarkControls" style="display: none;">
+                        <span class="benchmark-control-label">Iterations:</span>
+                        <select class="benchmark-select" id="selLuaIterations">
+                          <option value="50">50 runs</option>
+                          <option value="100" selected>100 runs</option>
+                          <option value="250">250 runs</option>
+                          <option value="500">500 runs</option>
+                        </select>
+                      </div>
+                      <button type="button" class="btn btn-primary" id="btnRunLuaBench" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; font-weight: 600;">
+                        <i data-lucide="play" style="width: 14px; height: 14px;"></i>
+                        <span>Execute & Profile</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="lua-editor-wrapper">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="font-size: 0.74rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Lua Script (Executes on Redis Server)</span>
+                      <span style="font-size: 0.72rem; color: #38bdf8; font-family: var(--font-mono);">Preloaded via SCRIPT LOAD + EVALSHA</span>
+                    </div>
+                    <textarea id="txtLuaScript" class="lua-textarea" spellcheck="false"></textarea>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                      <div>
+                        <label style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.2rem;">KEYS (comma-separated)</label>
+                        <input type="text" id="txtLuaKeys" class="benchmark-input" style="width: 100%;" placeholder="e.g. key1, key2" value="bench_counter">
+                      </div>
+                      <div>
+                        <label style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.2rem;">ARGV (comma-separated)</label>
+                        <input type="text" id="txtLuaArgs" class="benchmark-input" style="width: 100%;" placeholder="e.g. 60, val1" value="60">
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="benchmarkLuaResults" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="text-align: center; color: var(--text-muted); padding: 2rem 1rem; font-size: 0.85rem;">
+                      Click <strong>Execute & Profile</strong> to measure the script's exact server microsecond execution time and check for atomicity bottlenecks.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tab 4: Cluster Matrix Pane -->
+                <div class="benchmark-content-pane" id="benchmarkPaneCluster" style="display: none;">
+                  <div class="benchmark-controls-card">
+                    <div class="benchmark-controls-row" style="display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
+                      <button type="button" class="btn btn-primary" id="btnRunClusterMatrix" style="padding: 0.42rem 0.95rem; font-size: 0.8rem; font-weight: 600;">
+                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                        <span>Evaluate Cluster Latency Matrix</span>
+                      </button>
+                      <span style="font-size: 0.76rem; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 0.35rem;">
+                        <i data-lucide="info" style="width: 13px; height: 13px; color: #38bdf8; flex-shrink: 0;"></i>
+                        Probes each cluster master node individually to spot uneven slot distribution or CPU-throttled hot shards.
+                      </span>
+                    </div>
+                  </div>
+                  <div id="benchmarkClusterResults" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
+                      Click <strong>Evaluate Cluster Latency Matrix</strong> to probe all primary master nodes side-by-side.
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Panel 2: Key Browsing Pagination & Action Operations -->
-          <div class="keys-actions-bar">
-            <div class="actions-left" id="scanActionsGroup">
-              <div class="view-mode-toggle-group" id="viewModeToggleGroup">
-                <button type="button" class="view-mode-tab ${currentViewMode === 'table' ? 'active' : ''}" id="btnViewTable" data-mode="table" title="Flat Table View">
-                  <i data-lucide="table" style="width: 13px; height: 13px;"></i>
-                  <span>Table</span>
-                </button>
-                <button type="button" class="view-mode-tab ${currentViewMode === 'tree' ? 'active' : ''}" id="btnViewTree" data-mode="tree" title="Virtual Tree / Namespace Folder View">
-                  <i data-lucide="folder-tree" style="width: 13px; height: 13px;"></i>
-                  <span>Tree</span>
-                </button>
+          <!-- 3. Memory & BigKeys Tab Pane (Full Width) -->
+          <div class="ws-tab-pane ws-dashboard-pane modal-backdrop" id="memoryModal">
+            <div class="memory-modal-card">
+              <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                  <i data-lucide="pie-chart" style="width: 20px; height: 20px; color: #a78bfa;"></i>
+                  <div>
+                    <h3 class="modal-title" style="margin: 0; line-height: 1.2;">Memory Analysis & BigKeys Profiler</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Real-time memory diagnostics, data type allocation, and safe key profiling.</p>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="btn btn-secondary" id="btnRefreshMemoryModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                    Refresh Overview
+                  </button>
+                  <button type="button" class="ws-tab-return-btn" id="btnCloseMemoryModal" title="Close view & return to Keys (Esc)">
+                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+                    <kbd class="kbd-esc">Esc</kbd>
+                  </button>
+                </div>
               </div>
-              <div class="actions-divider"></div>
-              <label for="scanBatchSizeSelect" class="batch-size-label">Keys per scan</label>
-              <select id="scanBatchSizeSelect" class="batch-size-select" title="Keys requested per SCAN batch (applies to the next Load More)">
-                ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n.toLocaleString()}</option>`).join("")}
-              </select>
-              <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext" style="font-size: 0.75rem; padding: 0.32rem 0.75rem;">
-                <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
-                <span>Load More</span>
-              </button>
-            </div>
 
-            <div class="actions-right">
-              <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
-                <i data-lucide="download" style="width: 12px; height: 12px;"></i>
-                <span>Export</span>
-              </button>
-              <button type="button" class="btn btn-secondary btn-toolbar-action btn-danger-action" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
-                <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
-                <span>Bulk Delete</span>
-              </button>
+              <div style="flex: 1; overflow-y: auto; padding: 1.25rem;" id="memoryModalBody">
+                <div id="memoryOverviewContainer">
+                  <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Fetching memory metrics...</div>
+                </div>
+                <div id="memoryProfilingContainer" style="margin-top: 1rem;"></div>
+              </div>
             </div>
           </div>
 
-          <!-- Key Browser Data Grid Card -->
-          <div class="grid-card" id="gridCard">
-            <div id="emptyWorkspaceState" class="empty-workspace-state" style="display: none;">
-              <div class="empty-state-icon">
-                <i data-lucide="database" style="width: 36px; height: 36px; color: var(--accent-primary);"></i>
+          <!-- 4. Slowlog Tab Pane (Full Width) -->
+          <div class="ws-tab-pane ws-dashboard-pane modal-backdrop" id="slowlogModal">
+            <div class="slowlog-modal-card">
+              <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                  <i data-lucide="activity" style="width: 20px; height: 20px; color: #38bdf8;"></i>
+                  <h3 class="modal-title">Real-Time Slowlog & Latency Profiler</h3>
+                  <span class="badge-db" id="slowlogCountBadge">0</span>
+                  <span class="badge-duration badge-duration-warning" id="slowlogThresholdBadge" style="font-size: 0.7rem; font-weight: 500;">
+                    Threshold: &gt; 10ms
+                  </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="btn btn-secondary" id="btnRefreshSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                    Refresh
+                  </button>
+                  <button type="button" class="btn btn-danger" id="btnClearSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+                    Reset Slowlog
+                  </button>
+                  <button type="button" class="ws-tab-return-btn" id="btnCloseSlowlogModal" title="Close view & return to Keys (Esc)">
+                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+                    <kbd class="kbd-esc">Esc</kbd>
+                  </button>
+                </div>
               </div>
-              <h3>No Redis Cluster Connected</h3>
-              <p>Select a cluster from the left panel to review its configuration and connect.</p>
-              <div style="margin-top: 1rem;">
-                <button type="button" class="btn btn-secondary" id="btnConnectFirstAvailable" style="font-size: 0.8rem;">
-                  <i data-lucide="server" style="width: 14px; height: 14px;"></i>
-                  View Available Clusters
-                </button>
+
+              <div style="padding: 0.75rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                <div class="search-group" style="flex: 1; min-width: 260px; max-width: 420px;">
+                  <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+                  <input type="text" id="slowlogSearchInput" class="search-input" placeholder="Search by command, arguments, or client IP..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Min Latency:</span>
+                  <button type="button" class="env-pill-btn slowlog-filter-btn active" data-min-duration="0">All</button>
+                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="1">&gt; 1ms</button>
+                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="5">&gt; 5ms</button>
+                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="10">&gt; 10ms</button>
+                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="50">&gt; 50ms</button>
+                  <div id="slowlogNodeFilterContainer" style="display: inline-flex; align-items: center; margin-left: 0.5rem;"></div>
+                </div>
+              </div>
+
+              <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="slowlogTableContainer">
+                <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Loading slowlog records...</div>
+              </div>
+
+              <div style="padding: 0.6rem 1.25rem; background: rgba(15,23,42,0.6); border-top: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted);">
+                <span><i data-lucide="alert-circle" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Slowlog only measures command execution time on Redis CPU, excluding network I/O latency.</span>
+                <span id="slowlogFooterStats">Buffer size: 128</span>
               </div>
             </div>
-            <div id="gridViewerContainer" style="width: 100%; height: 100%;"></div>
+          </div>
+
+          <!-- 5. Cluster Topology Tab Pane (Full Width) -->
+          <div class="ws-tab-pane ws-dashboard-pane modal-backdrop" id="clusterTopologyModal">
+            <div class="topology-modal-card">
+              <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <i data-lucide="layers" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
+                  <h3 class="modal-title">Cluster Topology & Nodes</h3>
+                  <span class="badge-env badge-env-dev" id="topologyEnvBadge">DEV</span>
+                  <span class="badge-db" id="topologyNodesCountBadge">0 Nodes</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="btn btn-secondary" id="btnRefreshTopologyModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                    Refresh
+                  </button>
+                  <button type="button" class="ws-tab-return-btn" id="btnCloseTopologyModal" title="Close view & return to Keys (Esc)">
+                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+                    <kbd class="kbd-esc">Esc</kbd>
+                  </button>
+                </div>
+              </div>
+
+              <div class="topology-stats-grid" id="topologyStatsGrid"></div>
+
+              <div style="padding: 0.75rem 1.5rem; background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                <div class="search-group" style="flex: 1; min-width: 260px; max-width: 450px;">
+                  <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+                  <input type="text" id="topologySearchInput" class="search-input" placeholder="Filter nodes by IP, port, node ID, or slot..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+                </div>
+                <div class="type-filter-group" id="topologyRoleFilter">
+                  <button type="button" class="type-tab active" data-role="all">All Nodes</button>
+                  <button type="button" class="type-tab" data-role="master">Masters</button>
+                  <button type="button" class="type-tab" data-role="replica">Replicas</button>
+                </div>
+              </div>
+
+              <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="topologyTableContainer">
+                <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching cluster nodes...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Connected Clients Tab Pane (Full Width) -->
+          <div class="ws-tab-pane ws-dashboard-pane modal-backdrop" id="clientsListModal">
+            <div class="clients-modal-card">
+              <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <i data-lucide="users" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
+                  <h3 class="modal-title">Connected Clients</h3>
+                  <span class="badge-db" id="clientsCountBadge" style="margin-left: 4px;">0</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="btn btn-secondary" id="btnRefreshClientsModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                    Refresh
+                  </button>
+                  <button type="button" class="ws-tab-return-btn" id="btnCloseClientsModal" title="Close view & return to Keys (Esc)">
+                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+                    <kbd class="kbd-esc">Esc</kbd>
+                  </button>
+                </div>
+              </div>
+
+              <div style="padding: 0.85rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                <div class="search-group" style="flex: 1; max-width: 450px;">
+                  <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+                  <input type="text" id="clientsSearchInput" class="search-input" placeholder="Search by IP, port, client name, user, or cmd..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+                </div>
+                <div id="clientsQuickStats" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+                  Loading...
+                </div>
+              </div>
+
+              <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="clientsTableContainer">
+                <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching connected clients...</div>
+              </div>
+            </div>
           </div>
         </div>
       </main>
     </div>
 
-    <!-- Cluster Configuration & Connect Modal -->
+    <!-- Cluster Configuration & Connect Modal (Dialog) -->
     <div class="modal-backdrop" id="clusterConfigModal">
       <div class="config-modal-card">
         <div class="modal-header">
@@ -411,22 +725,17 @@ function renderAppShell() {
               <div style="font-size: 0.72rem; color: var(--text-muted);" id="cfgModalSubtitle">Review configuration before connecting</div>
             </div>
           </div>
-          <button type="button" class="btn-icon" id="btnCloseConfigModal">
+          <button type="button" class="btn-icon" id="btnCloseConfigModalHeader">
             <i data-lucide="x"></i>
           </button>
         </div>
 
-        <div class="modal-body" id="cfgModalBody">
-          <!-- Populated dynamically -->
-        </div>
-
-        <div class="modal-footer" id="cfgModalFooter">
-          <!-- Populated dynamically -->
-        </div>
+        <div class="modal-body" id="cfgModalBody"></div>
+        <div class="modal-footer" id="cfgModalFooter"></div>
       </div>
     </div>
 
-    <!-- Connection Modal -->
+    <!-- Connection Modal (Dialog) -->
     <div class="modal-backdrop" id="connectionModal">
       <div class="modal-card">
         <div class="modal-header">
@@ -477,7 +786,6 @@ function renderAppShell() {
               </div>
             </div>
 
-            <!-- Cluster Multi-Node Builder & Auto-Discovery Panel -->
             <div class="form-group" id="clusterNodesGroup" style="display: none;">
               <div class="cluster-nodes-panel">
                 <div class="cluster-discover-header">
@@ -557,50 +865,7 @@ function renderAppShell() {
       </div>
     </div>
 
-    <!-- Cluster Topology & Node Details Modal -->
-    <div class="modal-backdrop" id="clusterTopologyModal">
-      <div class="topology-modal-card">
-        <div class="modal-header">
-          <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <i data-lucide="layers" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
-            <h3 class="modal-title">Cluster Topology & Nodes</h3>
-            <span class="badge-env badge-env-dev" id="topologyEnvBadge">DEV</span>
-            <span class="badge-db" id="topologyNodesCountBadge">0 Nodes</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button type="button" class="btn btn-secondary" id="btnRefreshTopologyModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-              Refresh
-            </button>
-            <button type="button" class="btn-icon" id="btnCloseTopologyModal">
-              <i data-lucide="x"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="topology-stats-grid" id="topologyStatsGrid">
-          <!-- Rendered dynamically: State, Masters, Replicas, Slots, Epoch -->
-        </div>
-
-        <div style="padding: 0.75rem 1.5rem; background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
-          <div class="search-group" style="flex: 1; min-width: 260px; max-width: 450px;">
-            <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
-            <input type="text" id="topologySearchInput" class="search-input" placeholder="Filter nodes by IP, port, node ID, or slot..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
-          </div>
-          <div class="type-filter-group" id="topologyRoleFilter">
-            <button type="button" class="type-tab active" data-role="all">All Nodes</button>
-            <button type="button" class="type-tab" data-role="master">Masters</button>
-            <button type="button" class="type-tab" data-role="replica">Replicas</button>
-          </div>
-        </div>
-
-        <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="topologyTableContainer">
-          <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching cluster nodes...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Phase 2: Key Inspector Detail Modal -->
+    <!-- Phase 2: Key Inspector Detail Modal (Dialog) -->
     <div class="modal-backdrop" id="keyDetailModal">
       <div class="detail-modal-card">
         <div class="modal-header">
@@ -626,17 +891,12 @@ function renderAppShell() {
           </div>
         </div>
 
-        <div class="detail-header-meta" id="detailHeaderMeta">
-          <!-- Populated dynamically -->
-        </div>
-
-        <div class="detail-body-content" id="detailBodyContent">
-          <!-- Populated dynamically -->
-        </div>
+        <div class="detail-header-meta" id="detailHeaderMeta"></div>
+        <div class="detail-body-content" id="detailBodyContent"></div>
       </div>
     </div>
 
-    <!-- Safe Delete Confirmation Modal (Requires typing CONFIRM) -->
+    <!-- Safe Delete Confirmation Modal (Dialog) -->
     <div class="modal-backdrop" id="deleteKeyConfirmModal">
       <div class="danger-confirm-card">
         <div class="danger-header">
@@ -673,7 +933,7 @@ function renderAppShell() {
       </div>
     </div>
 
-    <!-- Keyspace by Node Modal -->
+    <!-- Keyspace by Node Modal (Dialog) -->
     <div class="modal-backdrop" id="keyspaceNodesModal">
       <div class="clients-modal-card" style="max-width: 820px;">
         <div class="modal-header">
@@ -702,133 +962,7 @@ function renderAppShell() {
       </div>
     </div>
 
-    <!-- Connected Clients Modal -->
-    <div class="modal-backdrop" id="clientsListModal">
-      <div class="clients-modal-card">
-        <div class="modal-header">
-          <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <i data-lucide="users" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
-            <h3 class="modal-title">Connected Clients</h3>
-            <span class="badge-db" id="clientsCountBadge" style="margin-left: 4px;">0</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button type="button" class="btn btn-secondary" id="btnRefreshClientsModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-              Refresh
-            </button>
-            <button type="button" class="btn-icon" id="btnCloseClientsModal">
-              <i data-lucide="x"></i>
-            </button>
-          </div>
-        </div>
-
-        <div style="padding: 0.85rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-          <div class="search-group" style="flex: 1; max-width: 450px;">
-            <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
-            <input type="text" id="clientsSearchInput" class="search-input" placeholder="Search by IP, port, client name, user, or cmd..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
-          </div>
-          <div id="clientsQuickStats" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
-            Loading...
-          </div>
-        </div>
-
-        <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="clientsTableContainer">
-          <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching connected clients...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Real-Time Slowlog & Latency Profiler Modal -->
-    <div class="modal-backdrop" id="slowlogModal">
-      <div class="slowlog-modal-card">
-        <div class="modal-header">
-          <div style="display: flex; align-items: center; gap: 0.65rem;">
-            <i data-lucide="activity" style="width: 20px; height: 20px; color: #38bdf8;"></i>
-            <h3 class="modal-title">Real-Time Slowlog & Latency Profiler</h3>
-            <span class="badge-db" id="slowlogCountBadge">0</span>
-            <span class="badge-duration badge-duration-warning" id="slowlogThresholdBadge" style="font-size: 0.7rem; font-weight: 500;">
-              Threshold: &gt; 10ms
-            </span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button type="button" class="btn btn-secondary" id="btnRefreshSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-              Refresh
-            </button>
-            <button type="button" class="btn btn-danger" id="btnClearSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-              <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
-              Reset Slowlog
-            </button>
-            <button type="button" class="btn-icon" id="btnCloseSlowlogModal">
-              <i data-lucide="x"></i>
-            </button>
-          </div>
-        </div>
-
-        <div style="padding: 0.75rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
-          <div class="search-group" style="flex: 1; min-width: 260px; max-width: 420px;">
-            <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
-            <input type="text" id="slowlogSearchInput" class="search-input" placeholder="Search by command, arguments, or client IP..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Min Latency:</span>
-            <button type="button" class="env-pill-btn slowlog-filter-btn active" data-min-duration="0">All</button>
-            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="1">&gt; 1ms</button>
-            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="5">&gt; 5ms</button>
-            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="10">&gt; 10ms</button>
-            <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="50">&gt; 50ms</button>
-            <div id="slowlogNodeFilterContainer" style="display: inline-flex; align-items: center; margin-left: 0.5rem;"></div>
-          </div>
-        </div>
-
-        <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="slowlogTableContainer">
-          <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Loading slowlog records...</div>
-        </div>
-
-        <div style="padding: 0.6rem 1.25rem; background: rgba(15,23,42,0.6); border-top: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted);">
-          <span><i data-lucide="alert-circle" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Slowlog only measures command execution time on Redis CPU, excluding network I/O latency.</span>
-          <span id="slowlogFooterStats">Buffer size: 128</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Memory Analysis & BigKeys Profiler Modal -->
-    <div class="modal-backdrop" id="memoryModal">
-      <div class="memory-modal-card">
-        <div class="modal-header">
-          <div style="display: flex; align-items: center; gap: 0.65rem;">
-            <i data-lucide="pie-chart" style="width: 20px; height: 20px; color: #a78bfa;"></i>
-            <div>
-              <h3 class="modal-title" style="margin: 0; line-height: 1.2;">Memory Analysis & BigKeys Profiler</h3>
-              <p style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Real-time memory diagnostics, data type allocation, and safe key profiling.</p>
-            </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button type="button" class="btn btn-secondary" id="btnRefreshMemoryModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
-              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-              Refresh Overview
-            </button>
-            <button type="button" class="btn-icon" id="btnCloseMemoryModal">
-              <i data-lucide="x"></i>
-            </button>
-          </div>
-        </div>
-
-        <div style="flex: 1; overflow-y: auto; padding: 1.25rem;" id="memoryModalBody">
-          <!-- Live High-Level Overview Grid -->
-          <div id="memoryOverviewContainer">
-            <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Fetching memory metrics...</div>
-          </div>
-
-          <!-- Profiling Section (Safeguarded / On-Demand) -->
-          <div id="memoryProfilingContainer" style="margin-top: 1rem;">
-            <!-- Dynamically populated: either safeguard notice, loading state, or results -->
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Export Keys Modal -->
+    <!-- Export Keys Modal (Dialog) -->
     <div class="modal-backdrop" id="exportKeysModal">
       <div class="config-modal-card" style="max-width: 480px;">
         <div class="modal-header">
@@ -897,7 +1031,7 @@ function renderAppShell() {
       </div>
     </div>
 
-    <!-- Bulk Delete Modal -->
+    <!-- Bulk Delete Modal (Dialog) -->
     <div class="modal-backdrop" id="bulkDeleteModal">
       <div class="config-modal-card" style="max-width: 520px; border-top: 3px solid var(--accent-danger);">
         <div class="modal-header">
@@ -946,13 +1080,11 @@ function renderAppShell() {
               <div id="bdPerNodeBreakdown" style="margin-top: 0.5rem; font-size: 0.73rem; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 0.35rem;"></div>
             </div>
 
-            <!-- Sample keys -->
             <div id="bdSampleKeysSection" style="font-size: 0.75rem;">
               <div style="color: var(--text-muted); margin-bottom: 0.25rem;">Sample keys to be unlinked:</div>
               <div id="bdSampleKeysList" style="font-family: var(--font-mono); font-size: 0.72rem; background: rgba(0,0,0,0.25); padding: 0.5rem; border-radius: 4px; max-height: 80px; overflow-y: auto;"></div>
             </div>
 
-            <!-- Confirmation Input 1: Exact count -->
             <div>
               <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">
                 Type <strong id="bdRequiredCountText" style="color: var(--accent-danger); font-family: var(--font-mono);">0</strong> to confirm count:
@@ -960,7 +1092,6 @@ function renderAppShell() {
               <input type="text" id="bdCountConfirmInput" class="confirm-input-field" placeholder="Type key count here..." autocomplete="off">
             </div>
 
-            <!-- Confirmation Input 2: PROD environment only -->
             <div id="bdProdConfirmGroup" style="display: none;">
               <label style="font-size: 0.78rem; font-weight: 600; color: var(--accent-danger); display: block; margin-bottom: 0.25rem;">
                 Type <strong>PROD</strong> to confirm production deletion:
@@ -979,4096 +1110,11 @@ function renderAppShell() {
         </div>
       </div>
     </div>
-
-    <!-- Redis Benchmark & Latency Profiler Studio Modal -->
-    <div class="modal-backdrop" id="benchmarkModal">
-      <div class="benchmark-modal-card">
-        <div class="modal-header">
-          <div style="display: flex; align-items: center; gap: 0.65rem;">
-            <i data-lucide="zap" style="width: 22px; height: 22px; color: #f59e0b;"></i>
-            <div>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <h3 class="modal-title">Benchmark & Latency Studio</h3>
-                <span id="benchmarkReadOnlyBadge" class="badge-db" style="display: none; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4);">
-                  <i data-lucide="lock" style="width: 11px; height: 11px; vertical-align: middle;"></i> READ ONLY
-                </span>
-              </div>
-              <p class="modal-subtitle" id="benchmarkTargetSubtitle">
-                Target: Connecting... | Ephemeral Namespace: __ri_bench__
-              </p>
-            </div>
-          </div>
-          <button type="button" class="btn-icon" id="btnCloseBenchmarkModal" title="Close Studio">
-            <i data-lucide="x" style="width: 18px; height: 18px;"></i>
-          </button>
-        </div>
-
-        <div class="benchmark-modal-body">
-          <!-- Segmented Navigation Tabs -->
-          <div class="benchmark-nav-tabs">
-            <button type="button" class="benchmark-tab-btn active" data-tab="probe" id="tabBtnProbe">
-              <i data-lucide="activity" style="width: 14px; height: 14px;"></i>
-              <span>1. Network & RTT Probe</span>
-            </button>
-            <button type="button" class="benchmark-tab-btn" data-tab="commands" id="tabBtnCommands">
-              <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
-              <span>2. Core Command Suite</span>
-            </button>
-            <button type="button" class="benchmark-tab-btn" data-tab="lua" id="tabBtnLua">
-              <i data-lucide="code" style="width: 14px; height: 14px;"></i>
-              <span>3. Lua Script Profiler</span>
-            </button>
-            <button type="button" class="benchmark-tab-btn" data-tab="cluster" id="tabBtnCluster">
-              <i data-lucide="network" style="width: 14px; height: 14px;"></i>
-              <span>4. Cluster Matrix</span>
-            </button>
-          </div>
-
-          <!-- Tab 1: Probe Pane -->
-          <div class="benchmark-content-pane" id="benchmarkPaneProbe">
-            <div class="benchmark-controls-card">
-              <div class="benchmark-controls-row">
-                <div class="benchmark-control-group">
-                  <span class="benchmark-control-label">Probe Count:</span>
-                  <select class="benchmark-select" id="selProbeCount">
-                    <option value="50">50 Probes (Fast)</option>
-                    <option value="100" selected>100 Probes (Recommended)</option>
-                    <option value="250">250 Probes (High Precision)</option>
-                    <option value="500">500 Probes (Deep Sample)</option>
-                  </select>
-                </div>
-                <button type="button" class="btn btn-primary" id="btnRunProbe" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; font-weight: 600;">
-                  <i data-lucide="play" style="width: 14px; height: 14px;"></i>
-                  <span>Run Latency Probe</span>
-                </button>
-                <div style="font-size: 0.74rem; color: var(--text-muted); margin-left: auto;">
-                  Isolates client network RTT from server CPU execution using rapid PING sampling.
-                </div>
-              </div>
-            </div>
-            <div id="benchmarkProbeResults" style="display: flex; flex-direction: column; gap: 1rem;">
-              <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
-                Click <strong>Run Latency Probe</strong> to analyze network round-trip time vs Redis server processing delay.
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab 2: Commands Pane -->
-          <div class="benchmark-content-pane" id="benchmarkPaneCommands" style="display: none;">
-            <div class="benchmark-controls-card">
-              <div class="benchmark-controls-row">
-                <div class="benchmark-control-group">
-                  <span class="benchmark-control-label">Workload Preset:</span>
-                  <select class="benchmark-select" id="selCommandPreset">
-                    <option value="read" selected>Read-Heavy (100% GET)</option>
-                    <option value="write" id="optCommandPresetWrite">Write / Set (100% SET)</option>
-                    <option value="balanced">Balanced Mix (80% GET, 20% SET)</option>
-                    <option value="structures" id="optCommandPresetStruct">Data Structures (HSET / HGET)</option>
-                  </select>
-                </div>
-                <div class="benchmark-control-group">
-                  <span class="benchmark-control-label">Requests:</span>
-                  <select class="benchmark-select" id="selCommandRequests">
-                    <option value="500">500 ops</option>
-                    <option value="1000" selected>1,000 ops</option>
-                    <option value="2500">2,500 ops</option>
-                    <option value="5000">5,000 ops</option>
-                  </select>
-                </div>
-                <div class="benchmark-control-group">
-                  <span class="benchmark-control-label">Concurrency:</span>
-                  <select class="benchmark-select" id="selCommandConcurrency">
-                    <option value="1">1 Worker (Sequential)</option>
-                    <option value="5" selected>5 Workers (Balanced)</option>
-                    <option value="10">10 Workers (Concurrent)</option>
-                    <option value="20">20 Workers (High Load)</option>
-                  </select>
-                </div>
-                <div class="benchmark-control-group">
-                  <span class="benchmark-control-label">Pipeline:</span>
-                  <select class="benchmark-select" id="selCommandPipeline">
-                    <option value="1" selected>1 (No Pipeline)</option>
-                    <option value="5">5 Batch</option>
-                    <option value="10">10 Batch</option>
-                  </select>
-                </div>
-                <button type="button" class="btn btn-primary" id="btnRunCommandBench" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; font-weight: 600;">
-                  <i data-lucide="play" style="width: 14px; height: 14px;"></i>
-                  <span>Start Benchmark</span>
-                </button>
-              </div>
-              <div style="font-size: 0.73rem; color: #6ee7b7; display: flex; align-items: center; gap: 0.35rem;">
-                <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
-                Safe & Ephemeral: Benchmark keys are generated in isolated prefix <code>__ri_bench__:*</code> and automatically cleaned up via <code>UNLINK</code> on completion.
-              </div>
-            </div>
-            <div id="benchmarkCommandResults" style="display: flex; flex-direction: column; gap: 1rem;">
-              <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
-                Configure parameters and click <strong>Start Benchmark</strong> to evaluate synthetic command throughput & latency distribution.
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab 3: Lua Script Pane -->
-          <div class="benchmark-content-pane" id="benchmarkPaneLua" style="display: none;">
-            <div class="benchmark-controls-card">
-              <div class="benchmark-controls-row">
-                <div class="benchmark-control-group">
-                  <span class="benchmark-control-label">Sample Preset:</span>
-                  <select class="benchmark-select" id="selLuaPreset">
-                    <option value="counter" selected>Atomic Counter & Dynamic TTL (INCR + EXPIRE)</option>
-                    <option value="hash">Batch Hash Field Lookup (Loop & Filter)</option>
-                    <option value="lock">Distributed Lock Simulation (SET NX PX)</option>
-                    <option value="custom">Custom Lua Script...</option>
-                  </select>
-                </div>
-                <div class="benchmark-control-group">
-                  <span class="benchmark-control-label">Mode:</span>
-                  <select class="benchmark-select" id="selLuaMode">
-                    <option value="profile" selected>🔍 Single Run Profiler (Deep Inspect)</option>
-                    <option value="benchmark">⚡ Concurrency Benchmark (N Runs)</option>
-                  </select>
-                </div>
-                <div class="benchmark-control-group" id="groupLuaBenchmarkControls" style="display: none;">
-                  <span class="benchmark-control-label">Iterations:</span>
-                  <select class="benchmark-select" id="selLuaIterations">
-                    <option value="50">50 runs</option>
-                    <option value="100" selected>100 runs</option>
-                    <option value="250">250 runs</option>
-                    <option value="500">500 runs</option>
-                  </select>
-                </div>
-                <button type="button" class="btn btn-primary" id="btnRunLuaBench" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; font-weight: 600;">
-                  <i data-lucide="play" style="width: 14px; height: 14px;"></i>
-                  <span>Execute & Profile</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="lua-editor-wrapper">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 0.74rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Lua Script (Executes on Redis Server)</span>
-                <span style="font-size: 0.72rem; color: #38bdf8; font-family: var(--font-mono);">Preloaded via SCRIPT LOAD + EVALSHA</span>
-              </div>
-              <textarea id="txtLuaScript" class="lua-textarea" spellcheck="false"></textarea>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                <div>
-                  <label style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.2rem;">KEYS (comma-separated)</label>
-                  <input type="text" id="txtLuaKeys" class="benchmark-input" style="width: 100%;" placeholder="e.g. key1, key2" value="bench_counter">
-                </div>
-                <div>
-                  <label style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.2rem;">ARGV (comma-separated)</label>
-                  <input type="text" id="txtLuaArgs" class="benchmark-input" style="width: 100%;" placeholder="e.g. 60, val1" value="60">
-                </div>
-              </div>
-            </div>
-
-            <div id="benchmarkLuaResults" style="display: flex; flex-direction: column; gap: 1rem;">
-              <div style="text-align: center; color: var(--text-muted); padding: 2rem 1rem; font-size: 0.85rem;">
-                Click <strong>Execute & Profile</strong> to measure the script's exact server microsecond execution time and check for atomicity bottlenecks.
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab 4: Cluster Matrix Pane -->
-          <div class="benchmark-content-pane" id="benchmarkPaneCluster" style="display: none;">
-            <div class="benchmark-controls-card">
-              <div class="benchmark-controls-row">
-                <button type="button" class="btn btn-primary" id="btnRunClusterMatrix" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; font-weight: 600;">
-                  <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
-                  <span>Evaluate Cluster Latency Matrix</span>
-                </button>
-                <div style="font-size: 0.74rem; color: var(--text-muted); margin-left: auto;">
-                  Probes each cluster master node individually to spot uneven slot distribution or CPU-throttled hot shards.
-                </div>
-              </div>
-            </div>
-            <div id="benchmarkClusterResults" style="display: flex; flex-direction: column; gap: 1rem;">
-              <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
-                Click <strong>Evaluate Cluster Latency Matrix</strong> to probe all primary master nodes side-by-side.
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
   `;
 }
 
-// Safe Scan: Reset and Scan from cursor 0
-async function resetAndScan() {
-  isScanning = false;
-  currentScanEpoch++;
-  const epoch = currentScanEpoch;
-
-  currentCursor = 0;
-  scanComplete = false;
-  totalScanned = 0;
-  keysTableRows = [];
-  loadedKeysSet.clear();
-  treeInitialized = false;
-  treeExpandedPaths.clear();
-
-  const emptyEl = document.getElementById("emptyWorkspaceState");
-  const gridContainer = document.getElementById("gridViewerContainer");
-  if (emptyEl) emptyEl.style.display = "none";
-  if (gridContainer) gridContainer.style.display = "block";
-
-  renderKeysTable();
-  await scanNextBatch(epoch);
-}
-
-// ==========================================
-// Auto-Refresh Watcher for Keys Browser
-// ==========================================
-
-function updateAutoRefreshUI() {
-  const btn = document.getElementById("btnToggleAutoRefresh");
-  const text = document.getElementById("autoRefreshStatusText");
-  const select = document.getElementById("autoRefreshIntervalSelect");
-  if (!btn || !text) return;
-
-  if (isAutoRefreshActive) {
-    btn.classList.add("active");
-    const timeFormatted = autoRefreshRemainingSec >= 60
-      ? `${Math.floor(autoRefreshRemainingSec / 60)}m ${autoRefreshRemainingSec % 60}s`
-      : `${autoRefreshRemainingSec}s`;
-    btn.title = `Auto-refresh active (Pattern: "${currentPattern || "*"}"). Refreshing in ${timeFormatted}. Click to pause.`;
-    text.textContent = `Auto: ${timeFormatted}`;
-    if (select) select.value = String(autoRefreshIntervalSec);
-  } else {
-    btn.classList.remove("active");
-    const intervalFormatted = autoRefreshIntervalSec >= 60
-      ? `${Math.floor(autoRefreshIntervalSec / 60)}m`
-      : `${autoRefreshIntervalSec}s`;
-    btn.title = `Click to watch keys matching pattern "${currentPattern || "*"}" every ${intervalFormatted}`;
-    text.textContent = "Auto: Off";
-    if (select) select.value = String(autoRefreshIntervalSec);
-  }
-}
-
-function resetAutoRefreshTimer() {
-  autoRefreshRemainingSec = autoRefreshIntervalSec;
-  updateAutoRefreshUI();
-}
-
-function startAutoRefresh() {
-  isAutoRefreshActive = true;
-  autoRefreshRemainingSec = autoRefreshIntervalSec;
-  updateAutoRefreshUI();
-
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  autoRefreshTimer = setInterval(async () => {
-    if (!isAutoRefreshActive) return;
-
-    // Pause countdown if user has any modal open or browser tab is hidden
-    const hasOpenModal = document.querySelector(".modal-backdrop.active");
-    if (document.hidden || hasOpenModal) {
-      return;
-    }
-
-    autoRefreshRemainingSec--;
-    if (autoRefreshRemainingSec <= 0) {
-      autoRefreshRemainingSec = autoRefreshIntervalSec;
-      updateAutoRefreshUI();
-
-      const hasConnected = cachedConnections.some(c => c.is_connected);
-      if (hasConnected && !isScanning) {
-        await resetAndScan();
-      }
-    } else {
-      updateAutoRefreshUI();
-    }
-  }, 1000);
-}
-
-function stopAutoRefresh() {
-  isAutoRefreshActive = false;
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  }
-  autoRefreshRemainingSec = autoRefreshIntervalSec;
-  updateAutoRefreshUI();
-}
-
-function toggleAutoRefresh() {
-  if (isAutoRefreshActive) {
-    stopAutoRefresh();
-  } else {
-    startAutoRefresh();
-  }
-}
-
-// SCAN cursor is an int (standalone) or a JSON string of per-node cursors (cluster)
-function isScanCursorComplete(cursor) {
-  if (cursor === null || cursor === undefined) return true;
-  const text = String(cursor).trim();
-  if (text === "" || text === "0") return true;
-  if (text.startsWith("{")) {
-    try {
-      return Object.values(JSON.parse(text)).every(v => Number(v) === 0);
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-// Human-readable scan progress; never expose the raw (per-node JSON) cursor
-function describeScanProgress(cursor) {
-  const text = String(cursor ?? "").trim();
-  if (text.startsWith("{")) {
-    try {
-      const values = Object.values(JSON.parse(text));
-      const pending = values.filter(v => Number(v) !== 0).length;
-      return `${pending} of ${values.length} nodes still scanning`;
-    } catch {
-      return "more keys available";
-    }
-  }
-  return "more keys available";
-}
-
-function isClusterView() {
-  return Boolean(lastStatus && lastStatus.is_cluster) || String(currentCursor ?? "").trim().startsWith("{");
-}
-
-// Fetch next batch of keys without blocking Redis
-async function scanNextBatch(expectedEpoch = null) {
-  if (isScanning) return;
-  if (scanComplete) return;
-
-  const targetEpoch = expectedEpoch !== null ? expectedEpoch : currentScanEpoch;
-  isScanning = true;
-  updateScanUI();
-
-  try {
-    const url = `/api/keys?pattern=${encodeURIComponent(currentPattern)}&cursor=${encodeURIComponent(String(currentCursor ?? "0"))}&count=${scanBatchSize}${currentType !== "all" ? `&type=${encodeURIComponent(currentType)}` : ""}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to scan keys");
-    const data = await res.json();
-
-    // If connection was switched or reset triggered while fetch was pending, drop stale result
-    if (targetEpoch !== currentScanEpoch) {
-      return;
-    }
-
-    currentCursor = data.cursor;
-    scanComplete = isScanCursorComplete(currentCursor);
-    dbTotalKeys = data.total_in_db;
-
-    // Deduplicate keys against loadedKeysSet
-    const newKeys = (data.keys || []).filter(k => {
-      if (loadedKeysSet.has(k.name)) return false;
-      loadedKeysSet.add(k.name);
-      return true;
-    });
-
-    const rows = newKeys.map(k => ({
-      key: k.name,
-      type: k.type,
-      ttl_seconds: k.ttl,
-      status: k.ttl === -1 ? "Persistent" : k.ttl === -2 ? "Expired" : `Expires in ${k.ttl}s`
-    }));
-
-    if (rows.length > 0) {
-      keysTableRows.push(...rows);
-    }
-    renderKeysTable();
-    totalScanned = loadedKeysSet.size;
-  } catch (err) {
-    console.error("Scan error:", err);
-  } finally {
-    if (targetEpoch === currentScanEpoch) {
-      isScanning = false;
-      updateScanUI();
-    }
-  }
-}
-
-// Delimiter helper: finds delimiter in key based on preference
-function getDelimiterForKey(key, delimiterPreference = "auto") {
-  if (!key) return null;
-  if (delimiterPreference && delimiterPreference !== "auto") {
-    return key.includes(delimiterPreference) ? delimiterPreference : null;
-  }
-  // Auto mode: priority :, /, ., -
-  if (key.includes(":")) return ":";
-  if (key.includes("/")) return "/";
-  if (key.includes(".")) return ".";
-  if (key.includes("-")) return "-";
-  return null;
-}
-
-// Builds hierarchical tree of folders and leaf keys
-function buildNamespaceTree(rows, delimiterPreference = "auto") {
-  const root = {
-    id: "__root__",
-    name: "Root",
-    fullPrefix: "",
-    delimiter: "",
-    depth: -1,
-    folders: new Map(),
-    keys: [],
-    totalKeyCount: 0
-  };
-
-  for (const row of rows) {
-    const key = row.key || "";
-    const delim = getDelimiterForKey(key, delimiterPreference);
-
-    if (!delim) {
-      root.keys.push({ ...row, leafName: key });
-      continue;
-    }
-
-    const rawParts = key.split(delim);
-    let parts = rawParts;
-    // Strip trailing empty segment if key ends with delimiter
-    if (parts.length > 1 && parts[parts.length - 1] === "") {
-      parts = parts.slice(0, -1);
-    }
-
-    if (parts.length <= 1) {
-      root.keys.push({ ...row, leafName: key });
-      continue;
-    }
-
-    let currentNode = root;
-    let currentPrefix = "";
-
-    // Walk folder segments
-    for (let i = 0; i < parts.length - 1; i++) {
-      const seg = parts[i];
-      currentPrefix += (i > 0 ? delim : "") + seg;
-      const fullFolderPrefix = currentPrefix + delim;
-
-      if (!currentNode.folders.has(seg)) {
-        currentNode.folders.set(seg, {
-          id: fullFolderPrefix,
-          name: seg,
-          fullPrefix: fullFolderPrefix,
-          delimiter: delim,
-          depth: i,
-          folders: new Map(),
-          keys: [],
-          totalKeyCount: 0
-        });
-      }
-      currentNode = currentNode.folders.get(seg);
-    }
-
-    // Leaf key
-    const leafName = parts[parts.length - 1] || "(empty)";
-    currentNode.keys.push({ ...row, leafName });
-  }
-
-  function finalizeNode(node) {
-    let count = node.keys.length;
-    node.keys.sort((a, b) => (a.leafName || a.key).localeCompare(b.leafName || b.key));
-
-    const sortedFolders = new Map([...node.folders.entries()].sort((a, b) => a[0].localeCompare(b[0])));
-    node.folders = sortedFolders;
-
-    for (const child of node.folders.values()) {
-      finalizeNode(child);
-      count += child.totalKeyCount;
-    }
-    node.totalKeyCount = count;
-  }
-
-  finalizeNode(root);
-  return root;
-}
-
-function folderMatchesQuery(folder, q) {
-  if (folder.name.toLowerCase().includes(q) || folder.fullPrefix.toLowerCase().includes(q)) {
-    return true;
-  }
-  for (const k of folder.keys) {
-    if (k.key.toLowerCase().includes(q) || (k.leafName && k.leafName.toLowerCase().includes(q))) {
-      return true;
-    }
-  }
-  for (const child of folder.folders.values()) {
-    if (folderMatchesQuery(child, q)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function renderKeysFlatTable() {
-  const container = document.getElementById("gridViewerContainer");
-  if (!container) return;
-  if (keysTableRows.length === 0) {
-    const notStarted = !scanComplete && isScanCursorComplete(currentCursor);
-    container.innerHTML = scanComplete
-      ? `
-      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No keys found matching pattern "<code>${escapeHtml(currentPattern)}</code>".
-      </div>
-    `
-      : notStarted
-      ? `
-      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        Scanning keys matching "<code>${escapeHtml(currentPattern)}</code>"...
-      </div>
-    `
-      : `
-      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No matches yet for "<code>${escapeHtml(currentPattern)}</code>" in the part of the keyspace scanned so far.<br>
-        The scan is not finished — click <strong>Load More</strong> to keep scanning.
-      </div>
-    `;
-    return;
-  }
-  container.innerHTML = `
-    <div style="overflow-y: auto; height: 100%; width: 100%; padding: 0.5rem;">
-      <table class="data-table" style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL (SEC)</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">STATUS</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${keysTableRows.map(r => `
-            <tr class="key-row" data-key="${encodeURIComponent(r.key)}" style="border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;">
-              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
-                <span class="btn-inspect-key" data-key="${encodeURIComponent(r.key)}">${escapeHtml(r.key)}</span>
-              </td>
-              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase;">
-                <span class="badge-db">${r.type}</span>
-              </td>
-              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary);">${r.ttl_seconds}</td>
-              <td style="padding: 0.65rem 1rem; font-size: 0.8rem; color: ${r.ttl_seconds === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};">${r.status}</td>
-              <td style="padding: 0.65rem 1rem; text-align: right;" onclick="event.stopPropagation()">
-                ${lastStatus?.read_only ? `
-                  <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
-                    <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
-                  </span>
-                ` : `
-                  <button type="button" class="btn-icon danger btn-delete-key-table" data-key="${encodeURIComponent(r.key)}" title="Delete key">
-                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                  </button>
-                `}
-              </td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-
-  setupIcons();
-
-  container.querySelectorAll(".key-row").forEach(row => {
-    row.addEventListener("click", () => {
-      const k = decodeURIComponent(row.getAttribute("data-key"));
-      openKeyDetail(k);
-    });
-  });
-
-  container.querySelectorAll(".btn-delete-key-table").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const k = decodeURIComponent(btn.getAttribute("data-key"));
-      triggerDeleteConfirmation(k, () => {
-        resetAndScan();
-      });
-    });
-  });
-}
-
-function renderKeysTreeView() {
-  const container = document.getElementById("gridViewerContainer");
-  if (!container) return;
-  if (keysTableRows.length === 0) {
-    const notStarted = !scanComplete && isScanCursorComplete(currentCursor);
-    container.innerHTML = scanComplete
-      ? `
-      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No keys found matching pattern "<code>${escapeHtml(currentPattern)}</code>".
-      </div>
-    `
-      : notStarted
-      ? `
-      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        Scanning keys matching "<code>${escapeHtml(currentPattern)}</code>"...
-      </div>
-    `
-      : `
-      <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No matches yet for "<code>${escapeHtml(currentPattern)}</code>" in the part of the keyspace scanned so far.<br>
-        The scan is not finished — click <strong>Load More</strong> to keep scanning.
-      </div>
-    `;
-    return;
-  }
-
-  const treeRoot = buildNamespaceTree(keysTableRows, currentTreeDelimiter);
-
-  // Auto-expand top-level folders on first load
-  if (!treeInitialized && treeExpandedPaths.size === 0) {
-    for (const f of treeRoot.folders.values()) {
-      treeExpandedPaths.add(f.id);
-    }
-    treeInitialized = true;
-  }
-
-  function countAllFolders(node) {
-    let c = node.folders.size;
-    for (const child of node.folders.values()) {
-      c += countAllFolders(child);
-    }
-    return c;
-  }
-  const totalFolders = countAllFolders(treeRoot);
-
-  const isFiltered = Boolean(currentTreeFilterQuery.trim());
-  const q = currentTreeFilterQuery.trim().toLowerCase();
-
-  function renderTreeKeyRow(r, depth) {
-    const encodedKey = encodeURIComponent(r.key);
-    return `
-      <div class="tree-node tree-leaf key-row" data-key="${encodedKey}" style="padding-left: ${depth * 20 + 26}px;">
-        <div class="tree-node-content">
-          <div class="tree-key-icon">
-            <i data-lucide="key" style="width: 13px; height: 13px;"></i>
-          </div>
-          <span class="tree-key-name btn-inspect-key" data-key="${encodedKey}" title="${escapeHtml(r.key)}">
-            ${escapeHtml(r.leafName || r.key)}
-          </span>
-          <span class="badge-db" style="margin-left: 0.35rem; font-size: 0.68rem; text-transform: uppercase;">${escapeHtml(r.type)}</span>
-          <span class="tree-key-ttl" title="TTL in seconds">${r.ttl_seconds}s</span>
-          <span class="tree-key-status" style="color: ${r.ttl_seconds === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};">${escapeHtml(r.status)}</span>
-          <div class="tree-key-actions" onclick="event.stopPropagation()">
-            ${lastStatus?.read_only ? `
-              <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
-                <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
-              </span>
-            ` : `
-              <button type="button" class="btn-icon danger btn-delete-key-table" data-key="${encodedKey}" title="Delete key">
-                <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
-              </button>
-            `}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderFolderNode(folder, depth) {
-    if (isFiltered && !folderMatchesQuery(folder, q)) {
-      return "";
-    }
-
-    const isExpanded = isFiltered ? true : treeExpandedPaths.has(folder.id);
-    const encodedId = encodeURIComponent(folder.id);
-
-    let innerChildren = "";
-    for (const sub of folder.folders.values()) {
-      innerChildren += renderFolderNode(sub, depth + 1);
-    }
-    for (const k of folder.keys) {
-      if (isFiltered) {
-        if (!k.key.toLowerCase().includes(q) && !(k.leafName && k.leafName.toLowerCase().includes(q))) {
-          continue;
-        }
-      }
-      innerChildren += renderTreeKeyRow(k, depth + 1);
-    }
-
-    return `
-      <div class="tree-folder-group" data-folder-id="${encodedId}">
-        <div class="tree-node tree-folder" data-folder-id="${encodedId}" style="padding-left: ${depth * 20 + 8}px;">
-          <div class="tree-node-content">
-            <button type="button" class="tree-toggle-btn" title="${isExpanded ? 'Collapse' : 'Expand'}">
-              <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" style="width: 14px; height: 14px;"></i>
-            </button>
-            <div class="tree-folder-icon">
-              <i data-lucide="${isExpanded ? 'folder-open' : 'folder'}" style="width: 15px; height: 15px;"></i>
-            </div>
-            <span class="tree-folder-name" title="${escapeHtml(folder.fullPrefix)}">
-              ${escapeHtml(folder.name)}<span class="tree-folder-delim">${escapeHtml(folder.delimiter)}</span>
-            </span>
-            <span class="tree-count-badge" title="${folder.totalKeyCount} keys in this namespace">
-              ${folder.totalKeyCount.toLocaleString()} ${folder.totalKeyCount === 1 ? 'key' : 'keys'}
-            </span>
-            <button type="button" class="tree-filter-prefix-btn" data-prefix="${escapeHtml(folder.fullPrefix)}" title="Filter keys matching '${escapeHtml(folder.fullPrefix)}*'">
-              <i data-lucide="filter" style="width: 11px; height: 11px;"></i>
-              <span>Filter</span>
-            </button>
-          </div>
-        </div>
-        <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'};">
-          ${innerChildren}
-        </div>
-      </div>
-    `;
-  }
-
-  let rootKeysHtml = "";
-  if (treeRoot.keys.length > 0) {
-    const filteredRootKeys = isFiltered
-      ? treeRoot.keys.filter(k => k.key.toLowerCase().includes(q) || (k.leafName && k.leafName.toLowerCase().includes(q)))
-      : treeRoot.keys;
-    if (filteredRootKeys.length > 0) {
-      rootKeysHtml = `
-        <div class="tree-root-keys-section">
-          <div class="tree-root-keys-header" style="padding-left: 10px;">
-            <span class="tree-root-keys-title">ROOT KEYS (NO DELIMITER)</span>
-            <span class="tree-count-badge">${filteredRootKeys.length.toLocaleString()} ${filteredRootKeys.length === 1 ? 'key' : 'keys'}</span>
-          </div>
-          <div class="tree-root-keys-list">
-            ${filteredRootKeys.map(k => renderTreeKeyRow(k, 0)).join("")}
-          </div>
-        </div>
-      `;
-    }
-  }
-
-  container.innerHTML = `
-    <div class="tree-view-wrapper">
-      <div class="tree-toolbar">
-        <div class="tree-toolbar-left">
-          <div class="tree-delimiter-control">
-            <label for="treeDelimiterSelect" class="tree-control-label">Delimiter:</label>
-            <select id="treeDelimiterSelect" class="tree-select" title="Grouping delimiter convention">
-              <option value="auto"${currentTreeDelimiter === "auto" ? " selected" : ""}>Auto (:, /, .)</option>
-              <option value=":"${currentTreeDelimiter === ":" ? " selected" : ""}>: (Colon)</option>
-              <option value="/"${currentTreeDelimiter === "/" ? " selected" : ""}>/ (Slash)</option>
-              <option value="."${currentTreeDelimiter === "." ? " selected" : ""}>. (Dot)</option>
-              <option value="-"${currentTreeDelimiter === "-" ? " selected" : ""}>- (Dash)</option>
-            </select>
-          </div>
-          <div class="tree-summary-pill" id="treeSummaryPill">
-            ${totalFolders.toLocaleString()} ${totalFolders === 1 ? 'Namespace' : 'Namespaces'} &bull; ${keysTableRows.length.toLocaleString()} ${keysTableRows.length === 1 ? 'Key' : 'Keys'}
-          </div>
-        </div>
-        <div class="tree-toolbar-right">
-          <div class="tree-filter-box">
-            <i data-lucide="search" style="width: 12px; height: 12px; color: var(--text-muted); flex-shrink: 0;"></i>
-            <input type="text" id="treeFilterInput" class="tree-filter-input" placeholder="Filter loaded tree..." value="${escapeHtml(currentTreeFilterQuery)}">
-            ${currentTreeFilterQuery ? `
-              <button type="button" class="btn-clear-tree-filter" id="btnClearTreeFilter" title="Clear filter">
-                <i data-lucide="x" style="width: 11px; height: 11px;"></i>
-              </button>
-            ` : ''}
-          </div>
-          <div class="tree-btn-group">
-            <button type="button" class="btn btn-secondary tree-btn" id="btnExpandAllTree" title="Expand all namespace folders">
-              <i data-lucide="folder-open" style="width: 12px; height: 12px;"></i>
-              <span>Expand All</span>
-            </button>
-            <button type="button" class="btn btn-secondary tree-btn" id="btnCollapseAllTree" title="Collapse all namespace folders">
-              <i data-lucide="folder" style="width: 12px; height: 12px;"></i>
-              <span>Collapse All</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="tree-view-body" id="treeViewBody">
-        ${[...treeRoot.folders.values()].map(f => renderFolderNode(f, 0)).join("")}
-        ${rootKeysHtml}
-      </div>
-    </div>
-  `;
-
-  setupIcons();
-
-  // Attach folder toggle listeners
-  container.querySelectorAll(".tree-folder").forEach(folderEl => {
-    folderEl.addEventListener("click", (e) => {
-      if (e.target.closest(".tree-filter-prefix-btn")) return;
-      const folderId = decodeURIComponent(folderEl.getAttribute("data-folder-id"));
-      if (treeExpandedPaths.has(folderId)) {
-        treeExpandedPaths.delete(folderId);
-      } else {
-        treeExpandedPaths.add(folderId);
-      }
-      renderKeysTreeView();
-    });
-  });
-
-  // Attach prefix filter button listeners
-  container.querySelectorAll(".tree-filter-prefix-btn").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const prefix = btn.getAttribute("data-prefix");
-      const searchInput = document.getElementById("keySearchInput");
-      if (searchInput && prefix) {
-        searchInput.value = prefix + "*";
-        currentPattern = prefix + "*";
-        resetAndScan();
-      }
-    });
-  });
-
-  // Attach key row inspect listeners
-  container.querySelectorAll(".tree-leaf").forEach(row => {
-    row.addEventListener("click", () => {
-      const k = decodeURIComponent(row.getAttribute("data-key"));
-      openKeyDetail(k);
-    });
-  });
-
-  // Attach key delete listeners
-  container.querySelectorAll(".btn-delete-key-table").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const k = decodeURIComponent(btn.getAttribute("data-key"));
-      triggerDeleteConfirmation(k, () => {
-        resetAndScan();
-      });
-    });
-  });
-
-  // Delimiter select listener
-  const delimSelect = document.getElementById("treeDelimiterSelect");
-  if (delimSelect) {
-    delimSelect.addEventListener("change", (e) => {
-      currentTreeDelimiter = e.target.value;
-      localStorage.setItem("redis_insight_tree_delimiter", currentTreeDelimiter);
-      treeExpandedPaths.clear();
-      treeInitialized = false;
-      renderKeysTreeView();
-    });
-  }
-
-  // Expand All / Collapse All listeners
-  const btnExpandAll = document.getElementById("btnExpandAllTree");
-  if (btnExpandAll) {
-    btnExpandAll.addEventListener("click", () => {
-      function collectAll(node) {
-        for (const f of node.folders.values()) {
-          treeExpandedPaths.add(f.id);
-          collectAll(f);
-        }
-      }
-      collectAll(treeRoot);
-      renderKeysTreeView();
-    });
-  }
-
-  const btnCollapseAll = document.getElementById("btnCollapseAllTree");
-  if (btnCollapseAll) {
-    btnCollapseAll.addEventListener("click", () => {
-      treeExpandedPaths.clear();
-      renderKeysTreeView();
-    });
-  }
-
-  // In-tree filter search
-  const filterInput = document.getElementById("treeFilterInput");
-  if (filterInput) {
-    filterInput.addEventListener("input", (e) => {
-      currentTreeFilterQuery = e.target.value;
-      renderKeysTreeView();
-      const inp = document.getElementById("treeFilterInput");
-      if (inp) {
-        inp.focus();
-        inp.setSelectionRange(inp.value.length, inp.value.length);
-      }
-    });
-  }
-
-  const btnClearFilter = document.getElementById("btnClearTreeFilter");
-  if (btnClearFilter) {
-    btnClearFilter.addEventListener("click", () => {
-      currentTreeFilterQuery = "";
-      renderKeysTreeView();
-    });
-  }
-}
-
-function renderKeysView() {
-  if (currentViewMode === "tree") {
-    renderKeysTreeView();
-  } else {
-    renderKeysFlatTable();
-  }
-}
-
-function renderKeysTable() {
-  renderKeysView();
-}
-
-function updateScanChunkLabel() {
-  const label = document.getElementById("scanChunkLabel");
-  if (label) label.textContent = `Safe SCAN (Chunk ${scanBatchSize.toLocaleString()})`;
-}
-
-function updateScanUI() {
-  const statusText = document.getElementById("scanStatusText");
-  const btnScanNext = document.getElementById("btnScanNext");
-
-  const isComplete = scanComplete;
-
-  if (statusText) {
-    statusText.innerHTML = `
-      Loaded <strong>${totalScanned.toLocaleString()}</strong> keys
-      ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(currentCursor))})</span>`}
-      | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(dbTotalKeys || 0).toLocaleString()}</strong>
-    `;
-  }
-
-  if (btnScanNext) {
-    btnScanNext.disabled = isScanning || isComplete;
-    btnScanNext.innerHTML = isScanning
-      ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...`
-      : isComplete
-      ? `<i data-lucide="check-circle-2" style="width: 13px; height: 13px;"></i> All Keys Loaded`
-      : `<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Load More`;
-    setupIcons();
-  }
-}
-
-// ==========================================
-// Phase 2: Key Inspector & Detail View
-// ==========================================
-
-async function openKeyDetail(keyName) {
-  activeDetailKey = keyName;
-  const modal = document.getElementById("keyDetailModal");
-  const titleEl = document.getElementById("detailKeyTitle");
-  const metaEl = document.getElementById("detailHeaderMeta");
-  const bodyEl = document.getElementById("detailBodyContent");
-
-  const btnDeleteDetail = document.getElementById("btnDeleteKeyFromDetail");
-  if (btnDeleteDetail) {
-    btnDeleteDetail.style.display = lastStatus?.read_only ? "none" : "";
-  }
-
-  titleEl.textContent = keyName;
-  titleEl.title = keyName;
-  metaEl.innerHTML = `<span style="color: var(--text-muted);">Loading key details...</span>`;
-  bodyEl.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Fetching value from Redis...</div>`;
-  modal.classList.add("active");
-
-  try {
-    let res = await fetch(`/api/keys/detail?key=${encodeURIComponent(keyName)}`);
-    if (!res.ok) {
-      res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/detail`);
-    }
-
-    if (!res.ok) {
-      let errMsg = "Key not found or could not be read";
-      try {
-        const errJson = await res.json();
-        if (errJson && errJson.detail) errMsg = errJson.detail;
-      } catch (e) {}
-      throw new Error(errMsg);
-    }
-    const data = await res.json();
-    activeDetailData = data;
-
-    renderKeyDetailMeta(data);
-    renderKeyDetailValue(data);
-  } catch (err) {
-    metaEl.innerHTML = `<span style="color: var(--accent-danger);">Error</span>`;
-    bodyEl.innerHTML = `
-      <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
-        <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
-        <h4>Failed to inspect key</h4>
-        <p style="font-size: 0.85rem; margin-top: 0.5rem;">${escapeHtml(err.message)}</p>
-      </div>
-    `;
-    setupIcons();
-  }
-}
-
-function renderKeyDetailMeta(data) {
-  const metaEl = document.getElementById("detailHeaderMeta");
-  const memFormatted = data.memory_bytes ? (data.memory_bytes > 1024 ? `${(data.memory_bytes / 1024).toFixed(1)} KB` : `${data.memory_bytes} B`) : "N/A";
-  const ttlText = data.ttl === -1 ? "No expiration" : data.ttl === -2 ? "Expired" : `${data.ttl}s`;
-
-  metaEl.innerHTML = `
-    <div style="display: flex; align-items: center; gap: 0.4rem;">
-      <span style="color: var(--text-muted);">Type:</span>
-      <span class="badge-db" style="color: var(--accent-primary); font-weight: 600;">${data.type.toUpperCase()}</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 0.4rem;">
-      <span style="color: var(--text-muted);">Size:</span>
-      <span style="font-family: var(--font-mono);">${data.length} items / ${memFormatted}</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 0.4rem;">
-      <span style="color: var(--text-muted);">Encoding:</span>
-      <span style="font-family: var(--font-mono);">${data.encoding}</span>
-    </div>
-    ${data.slot !== undefined && data.slot !== null ? `
-      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Cluster Hash Slot: slot ${data.slot} of 16384">
-        <span style="color: var(--text-muted);">Slot:</span>
-        <span class="badge-db" style="color: #c084fc; font-family: var(--font-mono); font-weight: 600;">#${data.slot}</span>
-      </div>
-    ` : ''}
-    ${data.node ? `
-      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Owning Cluster Node">
-        <span style="color: var(--text-muted);">Node:</span>
-        <span class="badge-db" style="color: #38bdf8; font-family: var(--font-mono); font-size: 0.72rem;">${escapeHtml(data.node)}</span>
-      </div>
-    ` : ''}
-    <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: auto;">
-      <i data-lucide="clock" style="width: 13px; height: 13px; color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};"></i>
-      <span style="font-family: var(--font-mono); color: ${data.ttl === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'}; font-weight: 600;">${ttlText}</span>
-      ${lastStatus?.read_only ? `
-        <span title="Read-Only Mode: TTL modification locked" style="font-size: 0.72rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; margin-left: 0.25rem;">
-          <i data-lucide="lock" style="width: 11px; height: 11px;"></i>
-        </span>
-      ` : `
-        <button type="button" class="btn btn-secondary" id="btnEditTtl" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; margin-left: 0.25rem;">
-          Edit TTL
-        </button>
-      `}
-    </div>
-  `;
-  setupIcons();
-
-  const btnEditTtl = document.getElementById("btnEditTtl");
-  if (btnEditTtl) {
-    btnEditTtl.addEventListener("click", () => {
-      promptUpdateTTL(data.name, data.ttl);
-    });
-  }
-}
-
-async function promptUpdateTTL(keyName, currentTtl) {
-  if (lastStatus?.read_only) {
-    alert("TTL modification is disabled in Read-Only mode.");
-    return;
-  }
-  const input = prompt(`Enter new TTL in seconds for '${keyName}':\n(-1 to persist with no expiration, or number of seconds)`, currentTtl > 0 ? currentTtl : "3600");
-  if (input === null) return;
-  const seconds = parseInt(input.trim(), 10);
-  if (isNaN(seconds)) {
-    alert("Please enter a valid integer.");
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/ttl`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seconds })
-    });
-    if (!res.ok) throw new Error("Failed to update TTL");
-    openKeyDetail(keyName);
-  } catch (err) {
-    alert("Error updating TTL: " + err.message);
-  }
-}
-
-function renderKeyDetailValue(data) {
-  const bodyEl = document.getElementById("detailBodyContent");
-  const lowerType = data.type.toLowerCase();
-
-  // 1. HASH VIEW
-  if (lowerType === "hash") {
-    const fields = data.fields || [];
-    const cursor = data.has_more_fields ? Number(data.fields_cursor || 0) : 0;
-    hashFieldsState = { key: data.name, cursor, fields: [...fields], total: Number(data.length || fields.length), match: null, loading: false };
-    bodyEl.innerHTML = `
-      <div class="fields-toolbar">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <input type="text" id="hashFieldSearchInput" class="field-search-input" placeholder="Filter fields (Enter: search all)" title="Filters loaded fields instantly; press Enter to search the whole hash on the server (HSCAN MATCH)">
-          <span style="font-size: 0.75rem; color: var(--text-muted);" id="hashFieldCountText">${describeHashFieldCount(fields.length)}</span>
-        </div>
-        ${lastStatus?.read_only ? '' : `
-          <button type="button" class="btn btn-secondary" id="btnAddHashField" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
-            <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
-            Add Field
-          </button>
-        `}
-      </div>
-
-      <div class="fields-table-container">
-        <table class="data-table" style="width: 100%;">
-          <thead>
-            <tr>
-              <th style="width: 35%;">Field</th>
-              <th style="width: 53%;">Value</th>
-              <th style="width: 12%; text-align: right;">Action</th>
-            </tr>
-          </thead>
-          <tbody id="hashFieldsTableBody">
-            ${renderHashFieldRows(fields)}
-          </tbody>
-        </table>
-      </div>
-      <div id="hashFieldsFooter" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);"></div>
-    `;
-    setupIcons();
-    setupHashEventListeners(data.name);
-    updateHashFieldsFooter();
-    return;
-  }
-
-  // 2. JSON or ReJSON-RL VIEW
-  if (data.is_json || lowerType.includes("json")) {
-    const jsonStr = data.parsed_json ? JSON.stringify(data.parsed_json, null, 2) : (data.value || "");
-    bodyEl.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">JSON Document</span>
-        <button type="button" class="btn btn-secondary" id="btnCopyJsonValue" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
-          <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
-          Copy JSON
-        </button>
-      </div>
-      <div class="json-view-box" id="jsonViewBox">${escapeHtml(jsonStr)}</div>
-    `;
-    setupIcons();
-    document.getElementById("btnCopyJsonValue").addEventListener("click", () => {
-      navigator.clipboard.writeText(jsonStr);
-      alert("JSON copied to clipboard!");
-    });
-    return;
-  }
-
-  // 3. STRING VIEW
-  if (lowerType === "string") {
-    bodyEl.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">String Value (${data.length} bytes)</span>
-        <button type="button" class="btn btn-secondary" id="btnCopyStringValue" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
-          <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
-          Copy Value
-        </button>
-      </div>
-      <div class="json-view-box" style="color: #f8fafc;">${escapeHtml(data.value || "")}</div>
-    `;
-    setupIcons();
-    document.getElementById("btnCopyStringValue").addEventListener("click", () => {
-      navigator.clipboard.writeText(data.value || "");
-      alert("Value copied to clipboard!");
-    });
-    return;
-  }
-
-  // 4. LIST / SET / ZSET
-  if (Array.isArray(data.value)) {
-    const isZset = lowerType === "zset";
-    bodyEl.innerHTML = `
-      <div class="fields-table-container">
-        <table class="data-table" style="width: 100%;">
-          <thead>
-            <tr>
-              <th style="width: 15%;">${isZset ? 'Score' : 'Index'}</th>
-              <th style="width: 85%;">Element / Member</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.value.map((item, idx) => `
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
-                <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); color: var(--text-muted); font-size: 0.8rem;">
-                  ${isZset ? item.score : `[${idx}]`}
-                </td>
-                <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem;">
-                  ${escapeHtml(isZset ? item.member : String(item))}
-                </td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-    return;
-  }
-
-  // Fallback raw display
-  bodyEl.innerHTML = `<div class="json-view-box">${escapeHtml(String(data.value))}</div>`;
-}
-
-function renderHashFieldRows(fields) {
-  if (fields.length === 0) {
-    return `<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No fields found in hash</td></tr>`;
-  }
-  return fields.map(f => `
-    <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
-      <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
-        ${escapeHtml(f.field)}
-      </td>
-      <td style="padding: 0.6rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; word-break: break-all;">
-        ${escapeHtml(f.value)}
-      </td>
-      <td style="padding: 0.6rem 1rem; text-align: right;">
-        ${lastStatus?.read_only ? `
-          <span title="Read-Only Mode: Field deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
-            <i data-lucide="lock" style="width: 12px; height: 12px;"></i>
-          </span>
-        ` : `
-          <button type="button" class="btn-icon danger btn-delete-hash-field" data-field="${encodeURIComponent(f.field)}" title="Delete field">
-            <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
-          </button>
-        `}
-      </td>
-    </tr>
-  `).join("");
-}
-
-function describeHashFieldCount(loaded, shown = null) {
-  const st = hashFieldsState;
-  const total = st ? st.total : loaded;
-  const base = st && st.match
-    ? `${loaded.toLocaleString()} matching fields loaded`
-    : loaded < total
-    ? `${loaded.toLocaleString()} of ${total.toLocaleString()} fields loaded`
-    : `${loaded.toLocaleString()} fields`;
-  return shown !== null ? `${shown.toLocaleString()} shown · ${base}` : base;
-}
-
-function hashGlobForQuery(q) {
-  return `*${q.replace(/[\\*?\[\]]/g, ch => `\\${ch}`)}*`;
-}
-
-function rerenderHashFields() {
-  const st = hashFieldsState;
-  const tbody = document.getElementById("hashFieldsTableBody");
-  const countText = document.getElementById("hashFieldCountText");
-  const searchInput = document.getElementById("hashFieldSearchInput");
-  if (!st || !tbody) return;
-  const q = searchInput ? searchInput.value.trim().toLowerCase() : "";
-  const filtered = q ? st.fields.filter(f => f.field.toLowerCase().includes(q) || f.value.toLowerCase().includes(q)) : st.fields;
-  tbody.innerHTML = renderHashFieldRows(filtered);
-  if (countText) countText.textContent = describeHashFieldCount(st.fields.length, q ? filtered.length : null);
-  setupIcons();
-  attachHashDeleteHandlers(st.key);
-  updateHashFieldsFooter();
-}
-
-function updateHashFieldsFooter() {
-  const footer = document.getElementById("hashFieldsFooter");
-  const st = hashFieldsState;
-  if (!footer || !st) return;
-  const hasMore = st.cursor !== 0;
-  const note = st.match
-    ? `Server-side filter: <code>${escapeHtml(st.match)}</code> · <a href="#" id="btnClearHashMatch" style="color: var(--accent-primary);">clear</a>`
-    : hasMore
-    ? "Search applies to loaded fields. Press Enter to search all fields on the server."
-    : "";
-  footer.innerHTML = `
-    <span>${note}</span>
-    ${hasMore ? `
-      <button type="button" class="btn btn-secondary" id="btnLoadMoreHashFields" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;" ${st.loading ? "disabled" : ""}>
-        <i data-lucide="${st.loading ? "refresh-cw" : "arrow-down-circle"}" ${st.loading ? 'class="spin"' : ""} style="width: 13px; height: 13px;"></i>
-        ${st.loading ? "Loading..." : "Load More Fields"}
-      </button>` : ""}
-  `;
-  setupIcons();
-  const btnMore = document.getElementById("btnLoadMoreHashFields");
-  if (btnMore) btnMore.addEventListener("click", () => loadMoreHashFields());
-  const btnClear = document.getElementById("btnClearHashMatch");
-  if (btnClear) {
-    btnClear.addEventListener("click", (e) => {
-      e.preventDefault();
-      const searchInput = document.getElementById("hashFieldSearchInput");
-      if (searchInput) searchInput.value = "";
-      loadMoreHashFields({ reset: true, match: null });
-    });
-  }
-}
-
-// Fetch the next HSCAN page (or restart with a new MATCH filter when reset=true)
-async function loadMoreHashFields({ reset = false, match } = {}) {
-  const st = hashFieldsState;
-  if (!st || st.loading) return;
-  if (!reset && st.cursor === 0) return;
-  const key = st.key;
-  const nextMatch = reset ? match : st.match;
-  st.loading = true;
-  updateHashFieldsFooter();
-
-  try {
-    const params = new URLSearchParams({ cursor: String(reset ? 0 : st.cursor), count: String(HASH_FIELDS_PAGE_SIZE) });
-    if (nextMatch) params.set("match", nextMatch);
-    const res = await fetch(`/api/keys/${encodeURIComponent(key)}/hash/fields?${params}`);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `Server error: ${res.status}`);
-    }
-    const page = await res.json();
-    if (hashFieldsState !== st || activeDetailKey !== key) return;
-
-    if (reset) st.fields = [];
-    const seen = new Set(st.fields.map(f => f.field));
-    for (const f of page.fields || []) {
-      if (!seen.has(f.field)) {
-        seen.add(f.field);
-        st.fields.push(f);
-      }
-    }
-    st.cursor = Number(page.cursor || 0);
-    st.total = Number(page.total ?? st.total);
-    st.match = nextMatch || null;
-  } catch (err) {
-    alert("Failed to load hash fields: " + err.message);
-  } finally {
-    st.loading = false;
-    if (hashFieldsState === st) rerenderHashFields();
-  }
-}
-
-function setupHashEventListeners(keyName) {
-  const searchInput = document.getElementById("hashFieldSearchInput");
-
-  // Instant filtering over loaded fields; Enter runs a server-side HSCAN MATCH across the whole hash
-  if (searchInput) {
-    searchInput.addEventListener("input", () => rerenderHashFields());
-    searchInput.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" || !hashFieldsState) return;
-      const q = searchInput.value.trim();
-      const st = hashFieldsState;
-      const fullyLoaded = st.cursor === 0 && !st.match;
-      if (fullyLoaded) return;
-      loadMoreHashFields({ reset: true, match: q ? hashGlobForQuery(q) : null });
-    });
-  }
-
-  // Add field button
-  const btnAdd = document.getElementById("btnAddHashField");
-  if (btnAdd) {
-    btnAdd.addEventListener("click", async () => {
-      const field = prompt(`Enter field name for hash '${keyName}':`);
-      if (!field) return;
-      const val = prompt(`Enter value for field '${field}':`);
-      if (val === null) return;
-
-      try {
-        const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ field, value: val })
-        });
-        if (!res.ok) throw new Error("Failed to set field");
-        openKeyDetail(keyName);
-      } catch (err) {
-        alert("Error setting field: " + err.message);
-      }
-    });
-  }
-
-  attachHashDeleteHandlers(keyName);
-}
-
-function attachHashDeleteHandlers(keyName) {
-  document.querySelectorAll(".btn-delete-hash-field").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const field = decodeURIComponent(btn.getAttribute("data-field"));
-      if (confirm(`Delete field '${field}' from hash '${keyName}'?`)) {
-        try {
-          const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field/${encodeURIComponent(field)}`, {
-            method: "DELETE"
-          });
-          if (!res.ok) throw new Error("Failed to delete field");
-          openKeyDetail(keyName);
-        } catch (err) {
-          alert("Error: " + err.message);
-        }
-      }
-    });
-  });
-}
-
-function parseContentDispositionFilename(disposition) {
-  if (!disposition) return null;
-  const extended = disposition.match(/filename\*\s*=\s*([\w-]*)'[^']*'([^;]+)/i);
-  if (extended) {
-    try {
-      return decodeURIComponent(extended[2].trim().replace(/^"|"$/g, ""));
-    } catch (e) {}
-  }
-  const plain = disposition.match(/filename\s*=\s*"([^"]*)"/i) || disposition.match(/filename\s*=\s*([^;]+)/i);
-  return plain && plain[1].trim() ? plain[1].trim() : null;
-}
-
-function saveBlobAsFile(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  // Revoking synchronously can cancel the download in some browsers
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
-}
-
-// Save a fetch() Response as a file, guaranteeing the filename extension matches the content format
-async function downloadResponseAsFile(res, fallbackName, format = null) {
-  let filename = parseContentDispositionFilename(res.headers.get("content-disposition")) || fallbackName;
-  const ext = String(res.headers.get("x-export-format") || format || "").toLowerCase();
-  if (ext && !filename.toLowerCase().endsWith(`.${ext}`)) {
-    filename = `${filename}.${ext}`;
-  }
-  const blob = await res.blob();
-  saveBlobAsFile(blob, filename);
-  return filename;
-}
-
-async function downloadKeyValue(keyName, btn) {
-  if (!keyName) return;
-  const originalHtml = btn ? btn.innerHTML : "";
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Downloading...`;
-    setupIcons();
-  }
-  try {
-    const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/download`);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `Server error: ${res.status}`);
-    }
-    const fallback = keyName.replace(/[^A-Za-z0-9._-]+/g, "_") || "redis_key";
-    await downloadResponseAsFile(res, fallback);
-    if (res.headers.get("x-export-truncated") === "true") {
-      alert(`Download was capped: the key has ${Number(res.headers.get("x-export-total") || 0).toLocaleString()} entries, only the first portion was included.`);
-    }
-  } catch (err) {
-    alert("Download failed: " + err.message);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
-      setupIcons();
-    }
-  }
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-// ==========================================
-// Safe Delete Confirmation Modal (Type CONFIRM)
-// ==========================================
-
-function triggerDeleteConfirmation(keyName, onSuccess) {
-  if (lastStatus?.read_only) {
-    alert("Key deletion is disabled in Read-Only mode.");
-    return;
-  }
-  pendingDeleteKey = keyName;
-  pendingDeleteCallback = onSuccess;
-
-  const modal = document.getElementById("deleteKeyConfirmModal");
-  const targetBadge = document.getElementById("deleteKeyTargetName");
-  const inputConfirm = document.getElementById("inputConfirmDelete");
-  const btnSubmit = document.getElementById("btnSubmitDeleteKey");
-
-  targetBadge.textContent = keyName;
-  inputConfirm.value = "";
-  btnSubmit.disabled = true;
-  modal.classList.add("active");
-  inputConfirm.focus();
-
-  // Validate typing "CONFIRM"
-  inputConfirm.oninput = () => {
-    const val = inputConfirm.value.trim().toUpperCase();
-    btnSubmit.disabled = (val !== "CONFIRM" && inputConfirm.value.trim() !== keyName);
-  };
-
-  btnSubmit.onclick = async () => {
-    btnSubmit.disabled = true;
-    btnSubmit.textContent = "Deleting...";
-
-    try {
-      const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}?confirmed=true`, {
-        method: "DELETE"
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to delete key");
-
-      modal.classList.remove("active");
-      if (pendingDeleteCallback) {
-        pendingDeleteCallback();
-      }
-    } catch (err) {
-      alert("Error deleting key: " + err.message);
-    } finally {
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = "Delete Permanently";
-    }
-  };
-}
-
-// ==========================================
-// Connected Clients Management
-// ==========================================
-
-async function openClientsModal() {
-  const modal = document.getElementById("clientsListModal");
-  modal.classList.add("active");
-  await loadConnectedClients();
-}
-
-function closeClientsModal() {
-  const modal = document.getElementById("clientsListModal");
-  modal.classList.remove("active");
-}
-
-async function loadConnectedClients() {
-  const container = document.getElementById("clientsTableContainer");
-  const countBadge = document.getElementById("clientsCountBadge");
-  const quickStats = document.getElementById("clientsQuickStats");
-  const searchInput = document.getElementById("clientsSearchInput");
-
-  container.innerHTML = `<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);"><i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i><br>Fetching connected clients...</div>`;
-  setupIcons();
-
-  try {
-    const res = await fetch("/api/clients");
-    if (!res.ok) throw new Error("Failed to load connected clients");
-    allConnectedClients = await res.json();
-
-    if (countBadge) countBadge.textContent = allConnectedClients.length;
-    if (quickStats) quickStats.textContent = `${allConnectedClients.length} total connections`;
-
-    if (searchInput) searchInput.value = "";
-    renderClientsTable(allConnectedClients);
-  } catch (err) {
-    container.innerHTML = `
-      <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
-        <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
-        <h4>Error loading clients</h4>
-        <p style="font-size: 0.85rem; margin-top: 0.25rem;">${err.message}</p>
-      </div>
-    `;
-    setupIcons();
-  }
-}
-
-function renderClientsTable(clients) {
-  const container = document.getElementById("clientsTableContainer");
-  if (!clients || clients.length === 0) {
-    container.innerHTML = `
-      <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
-        <i data-lucide="users" style="width: 32px; height: 32px; margin-bottom: 0.5rem; opacity: 0.4;"></i>
-        <p>No matching connected clients found.</p>
-      </div>
-    `;
-    setupIcons();
-    return;
-  }
-
-  container.innerHTML = `
-    <table class="data-table" style="width: 100%;">
-      <thead>
-        <tr>
-          <th style="width: 7%;">ID</th>
-          <th style="width: 25%;">Client Name / Host</th>
-          <th style="width: 22%;">Remote Address (IP:Port)</th>
-          <th style="width: 8%;">DB</th>
-          <th style="width: 12%;">Last CMD</th>
-          <th style="width: 10%;">Age</th>
-          <th style="width: 10%;">Idle</th>
-          <th style="width: 6%; text-align: right;">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${clients.map(c => `
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
-            <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); color: var(--text-muted); font-size: 0.8rem;">
-              #${c.id}
-            </td>
-            <td style="padding: 0.65rem 0.85rem;">
-              <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
-                <span>${escapeHtml(c.name)}</span>
-                ${c.flags && c.flags.includes("O") ? '<span class="badge-db" style="background: rgba(234, 179, 8, 0.15); color: #fde047; font-size: 0.65rem;">MONITOR</span>' : ''}
-              </div>
-              <div class="client-sub-text">User: ${escapeHtml(c.user)} | Flags: ${escapeHtml(c.flags || 'none')}</div>
-            </td>
-            <td style="padding: 0.65rem 0.85rem;">
-              <div class="client-ip-cell">${escapeHtml(c.addr)}</div>
-              <div class="client-sub-text">Target: ${escapeHtml(c.laddr || "localhost")}</div>
-            </td>
-            <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.82rem;">
-              DB${c.db}
-            </td>
-            <td style="padding: 0.65rem 0.85rem;">
-              <span class="client-cmd-badge">${escapeHtml(c.cmd || "idle")}</span>
-            </td>
-            <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">
-              ${c.age_human}
-            </td>
-            <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; color: ${c.idle > 300 ? 'var(--accent-warning)' : 'var(--accent-success)'};">
-              ${c.idle_human}
-            </td>
-            <td style="padding: 0.65rem 0.85rem; text-align: right;">
-              ${lastStatus?.read_only ? `
-                <span title="Read-Only Mode: Disconnecting clients is locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
-                  <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
-                </span>
-              ` : `
-                <button type="button" class="btn-icon danger btn-kill-client" data-id="${c.id}" data-addr="${escapeHtml(c.addr)}" title="Disconnect client">
-                  <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                </button>
-              `}
-            </td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
-  `;
-
-  setupIcons();
-
-  container.querySelectorAll(".btn-kill-client").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-id");
-      const addr = btn.getAttribute("data-addr");
-      killConnectedClient(id, addr);
-    });
-  });
-}
-
-async function killConnectedClient(clientId, clientAddr) {
-  if (lastStatus?.read_only) {
-    alert("Client disconnection is disabled in Read-Only mode.");
-    return;
-  }
-  if (!confirm(`Are you sure you want to disconnect client #${clientId} (${clientAddr})?`)) {
-    return;
-  }
-  try {
-    const res = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Failed to disconnect client");
-    await loadConnectedClients();
-    await refreshStatus();
-  } catch (err) {
-    alert("Error disconnecting client: " + err.message);
-  }
-}
-
-// ==========================================
-// Phase 3: Real-Time Slowlog & Latency Profiler
-// ==========================================
-
-async function openSlowlogModal() {
-  const modal = document.getElementById("slowlogModal");
-  if (!modal) return;
-  modal.classList.add("active");
-  currentSlowlogMinDuration = 0;
-  currentSlowlogSearch = "";
-  currentSlowlogNode = "all";
-
-  const btnClear = document.getElementById("btnClearSlowlogModal");
-  if (btnClear) {
-    btnClear.style.display = lastStatus?.read_only ? "none" : "";
-  }
-
-  // Reset filter buttons
-  document.querySelectorAll(".slowlog-filter-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.getAttribute("data-min-duration") === "0");
-  });
-  const searchInput = document.getElementById("slowlogSearchInput");
-  if (searchInput) searchInput.value = "";
-
-  await loadSlowlog();
-}
-
-function closeSlowlogModal() {
-  const modal = document.getElementById("slowlogModal");
-  if (modal) modal.classList.remove("active");
-}
-
-async function loadSlowlog() {
-  const container = document.getElementById("slowlogTableContainer");
-  const countBadge = document.getElementById("slowlogCountBadge");
-  const thresholdBadge = document.getElementById("slowlogThresholdBadge");
-  const footerStats = document.getElementById("slowlogFooterStats");
-
-  if (container) {
-    container.innerHTML = `
-      <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
-        <i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem; color: #38bdf8;"></i><br>
-        Fetching slowlog entries across Redis nodes...
-      </div>
-    `;
-    setupIcons();
-  }
-
-  try {
-    const res = await fetch("/api/slowlog?limit=250");
-    if (!res.ok) throw new Error("Failed to fetch slowlog");
-    const data = await res.json();
-    allSlowlogEntries = data.entries || [];
-
-    if (countBadge) countBadge.textContent = allSlowlogEntries.length;
-    if (thresholdBadge && data.slower_than_us !== null && data.slower_than_us !== undefined) {
-      const msThreshold = (data.slower_than_us / 1000).toFixed(1);
-      thresholdBadge.textContent = `Threshold: > ${msThreshold}ms (${data.slower_than_us} µs)`;
-    }
-    if (footerStats) {
-      footerStats.textContent = `Total buffer: ${data.total_len || allSlowlogEntries.length} entries | Max buffer: ${data.max_len || 'N/A'}`;
-    }
-
-    buildSlowlogNodeFilter(allSlowlogEntries);
-    filterAndRenderSlowlog();
-  } catch (err) {
-    if (container) {
-      container.innerHTML = `
-        <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
-          <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
-          <h4>Error Loading Slowlog</h4>
-          <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
-        </div>
-      `;
-      setupIcons();
-    }
-  }
-}
-
-function buildSlowlogNodeFilter(entries) {
-  const container = document.getElementById("slowlogNodeFilterContainer");
-  if (!container) return;
-
-  const nodes = Array.from(new Set(entries.map(e => e.node).filter(Boolean)));
-  if (nodes.length <= 1) {
-    container.innerHTML = "";
-    return;
-  }
-
-  container.innerHTML = `
-    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-left: 0.5rem;">Node:</span>
-    <select id="slowlogNodeSelect" class="form-select" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; width: auto; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
-      <option value="all">All Nodes (${nodes.length})</option>
-      ${nodes.map(n => `<option value="${escapeHtml(n)}" ${currentSlowlogNode === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join("")}
-    </select>
-  `;
-
-  const sel = document.getElementById("slowlogNodeSelect");
-  if (sel) {
-    sel.addEventListener("change", () => {
-      currentSlowlogNode = sel.value;
-      filterAndRenderSlowlog();
-    });
-  }
-}
-
-function filterAndRenderSlowlog() {
-  let list = allSlowlogEntries;
-
-  if (currentSlowlogMinDuration > 0) {
-    list = list.filter(e => e.duration_ms >= currentSlowlogMinDuration);
-  }
-
-  if (currentSlowlogNode && currentSlowlogNode !== "all") {
-    list = list.filter(e => e.node === currentSlowlogNode);
-  }
-
-  if (currentSlowlogSearch) {
-    const q = currentSlowlogSearch.toLowerCase();
-    list = list.filter(e => {
-      const cmdStr = (e.command || []).join(" ").toLowerCase();
-      const clientStr = (e.client_ip || "").toLowerCase();
-      const nodeStr = (e.node || "").toLowerCase();
-      return cmdStr.includes(q) || clientStr.includes(q) || nodeStr.includes(q) || String(e.id).includes(q);
-    });
-  }
-
-  renderSlowlogTable(list);
-}
-
-function renderSlowlogTable(entries) {
-  const container = document.getElementById("slowlogTableContainer");
-  if (!container) return;
-
-  if (!entries || entries.length === 0) {
-    container.innerHTML = `
-      <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-muted);">
-        <div style="width: 54px; height: 54px; border-radius: 50%; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
-          <i data-lucide="check-circle-2" style="width: 28px; height: 28px; color: #4ade80;"></i>
-        </div>
-        <h4 style="color: var(--text-primary); margin-bottom: 0.35rem;">No Slow Queries Recorded</h4>
-        <p style="font-size: 0.85rem; max-width: 440px; margin: 0 auto; line-height: 1.5;">
-          ${allSlowlogEntries.length === 0 ? "Redis latency is healthy! All commands executed within the threshold." : "No slowlog entries matched the active filters."}
-        </p>
-      </div>
-    `;
-    setupIcons();
-    return;
-  }
-
-  container.innerHTML = `
-    <table class="keys-table" style="width: 100%;">
-      <thead>
-        <tr>
-          <th style="width: 60px;"># ID</th>
-          <th style="width: 155px;">Timestamp</th>
-          <th style="width: 110px;">Execution Time</th>
-          <th>Command & Arguments</th>
-          <th style="width: 150px;">Target Node</th>
-          <th style="width: 170px;">Client Caller</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${entries.map(e => {
-          let badgeClass = "badge-duration-fast";
-          if (e.duration_ms >= 50) {
-            badgeClass = "badge-duration-critical";
-          } else if (e.duration_ms >= 10) {
-            badgeClass = "badge-duration-warning";
-          }
-
-          const cmdStr = (e.command && e.command.length > 0) ? e.command.join(" ") : "(empty)";
-
-          return `
-            <tr>
-              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">#${e.id}</td>
-              <td style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;">
-                ${escapeHtml(e.time_str || "N/A")}
-              </td>
-              <td>
-                <span class="badge-duration ${badgeClass}">
-                  <i data-lucide="clock" style="width: 11px; height: 11px;"></i>
-                  ${e.duration_ms} ms
-                </span>
-                <span style="font-size: 0.68rem; color: var(--text-muted); display: block; margin-top: 2px; font-family: var(--font-mono);">
-                  ${e.duration_us.toLocaleString()} µs
-                </span>
-              </td>
-              <td>
-                <div style="display: flex; align-items: center; gap: 0.35rem;">
-                  <span class="slowlog-cmd-code" title="${escapeHtml(cmdStr)}">${escapeHtml(cmdStr)}</span>
-                  <button type="button" class="btn-copy-inline btn-copy-slowlog-cmd" data-cmd="${escapeHtml(cmdStr)}" title="Copy full command">
-                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
-                  </button>
-                </div>
-              </td>
-              <td>
-                ${e.node ? `<span class="slowlog-node-pill">${escapeHtml(e.node)}</span>` : '<span style="color: var(--text-muted); font-size: 0.75rem;">Default</span>'}
-              </td>
-              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">
-                ${escapeHtml(e.client_ip || "Unknown")}
-                ${e.client_name ? `<span style="color: var(--text-muted); display: block; font-size: 0.7rem;">(${escapeHtml(e.client_name)})</span>` : ''}
-              </td>
-            </tr>
-          `;
-        }).join("")}
-      </tbody>
-    </table>
-  `;
-
-  setupIcons();
-
-  document.querySelectorAll(".btn-copy-slowlog-cmd").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const c = btn.getAttribute("data-cmd");
-      if (c) {
-        navigator.clipboard.writeText(c).then(() => {
-          btn.classList.add("copied");
-          btn.innerHTML = `<i data-lucide="check" style="width: 12px; height: 12px;"></i>`;
-          setupIcons();
-          setTimeout(() => {
-            btn.classList.remove("copied");
-            btn.innerHTML = `<i data-lucide="copy" style="width: 12px; height: 12px;"></i>`;
-            setupIcons();
-          }, 1500);
-        });
-      }
-    });
-  });
-}
-
-async function clearSlowlog() {
-  if (lastStatus?.read_only) {
-    alert("Slowlog reset is disabled in Read-Only mode.");
-    return;
-  }
-  if (!confirm("Are you sure you want to reset the Redis Slowlog buffer?\n\nThis will clear recorded slow commands across all connected Redis instances.")) {
-    return;
-  }
-
-  try {
-    const res = await fetch("/api/slowlog/reset", { method: "POST" });
-    if (!res.ok) throw new Error("Failed to reset slowlog");
-    await loadSlowlog();
-  } catch (err) {
-    alert("Error resetting slowlog: " + err.message);
-  }
-}
-
-// ==========================================
-// Phase 3: Memory Analysis & BigKeys Profiler
-// ==========================================
-
-async function openMemoryModal() {
-  const modal = document.getElementById("memoryModal");
-  if (!modal) return;
-  modal.classList.add("active");
-
-  await loadMemoryOverview();
-
-  if (!currentMemoryAnalysis) {
-    renderMemoryProfilingSafeguardUI();
-  } else {
-    renderMemoryAnalysisUI(currentMemoryAnalysis);
-  }
-}
-
-function closeMemoryModal() {
-  const modal = document.getElementById("memoryModal");
-  if (modal) modal.classList.remove("active");
-}
-
-async function loadMemoryOverview() {
-  const container = document.getElementById("memoryOverviewContainer");
-  if (!container) return;
-
-  container.innerHTML = `
-    <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
-      <i data-lucide="refresh-cw" class="spin" style="width: 20px; height: 20px; margin-bottom: 0.5rem; color: #a78bfa;"></i><br>
-      Refreshing live memory metrics...
-    </div>
-  `;
-  setupIcons();
-
-  try {
-    const res = await fetch("/api/memory/overview");
-    if (!res.ok) throw new Error("Failed to fetch memory overview");
-    currentMemoryOverview = await res.json();
-    renderMemoryOverviewUI(currentMemoryOverview);
-  } catch (err) {
-    container.innerHTML = `
-      <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
-        <i data-lucide="alert-circle" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i>
-        <p style="font-size: 0.85rem;">Error loading memory overview: ${escapeHtml(err.message)}</p>
-      </div>
-    `;
-    setupIcons();
-  }
-}
-
-function renderMemoryOverviewUI(data) {
-  const container = document.getElementById("memoryOverviewContainer");
-  if (!container || !data) return;
-
-  let fragStatusClass = "mem-status-healthy";
-  let fragStatusLabel = "Optimal (1.0 - 1.5)";
-  if (data.fragmentation_status === "critical") {
-    fragStatusClass = "mem-status-critical";
-    fragStatusLabel = "Critical (> 2.0)";
-  } else if (data.fragmentation_status === "warning") {
-    fragStatusClass = "mem-status-warning";
-    fragStatusLabel = data.fragmentation_ratio < 0.9 ? "Swapping (< 0.9)" : "Warning (> 1.5)";
-  }
-
-  container.innerHTML = `
-    <div class="mem-grid">
-      <!-- Used Memory -->
-      <div class="mem-stat-card" style="--card-border-glow: rgba(56, 189, 248, 0.6);">
-        <div class="mem-stat-label">
-          <span>Used Memory</span>
-          <i data-lucide="database" style="width: 14px; height: 14px; color: #38bdf8;"></i>
-        </div>
-        <div class="mem-stat-value" style="color: #38bdf8;">${data.used_memory_human}</div>
-        <div class="mem-stat-sub">
-          Peak: <span style="font-family: var(--font-mono); color: var(--text-primary); font-weight: 600;">${data.used_memory_peak_human}</span>
-        </div>
-      </div>
-
-      <!-- Fragmentation Ratio -->
-      <div class="mem-stat-card" style="--card-border-glow: rgba(245, 158, 11, 0.6);">
-        <div class="mem-stat-label">
-          <span>Fragmentation</span>
-          <span class="mem-status-badge ${fragStatusClass}">${data.fragmentation_status}</span>
-        </div>
-        <div class="mem-stat-value" style="color: ${data.fragmentation_status === 'healthy' ? '#4ade80' : '#fbbf24'};">
-          ${data.fragmentation_ratio}
-        </div>
-        <div class="mem-stat-sub">
-          RSS: <span style="font-family: var(--font-mono); color: var(--text-primary); font-weight: 600;">${data.used_memory_rss_human}</span> (${fragStatusLabel})
-        </div>
-      </div>
-
-      <!-- Cache Hit Ratio -->
-      <div class="mem-stat-card" style="--card-border-glow: rgba(34, 197, 94, 0.6);">
-        <div class="mem-stat-label">
-          <span>Cache Hit Ratio</span>
-          <i data-lucide="trending-up" style="width: 14px; height: 14px; color: #4ade80;"></i>
-        </div>
-        <div class="mem-stat-value" style="color: #4ade80;">${data.hit_ratio_percent}%</div>
-        <div class="mem-stat-sub">
-          <span style="font-family: var(--font-mono); color: var(--text-primary);">${data.keyspace_hits.toLocaleString()}</span> hits / 
-          <span style="font-family: var(--font-mono); color: var(--text-muted);">${data.keyspace_misses.toLocaleString()}</span> misses
-        </div>
-      </div>
-
-      <!-- Total Keys & Max Memory -->
-      <div class="mem-stat-card" style="--card-border-glow: rgba(168, 85, 247, 0.6);">
-        <div class="mem-stat-label">
-          <span>Keys & Eviction</span>
-          <i data-lucide="server" style="width: 14px; height: 14px; color: #c084fc;"></i>
-        </div>
-        <div class="mem-stat-value" style="color: #c084fc;">${data.dbsize.toLocaleString()}</div>
-        <div class="mem-stat-sub">
-          Max: <span style="font-family: var(--font-mono); color: var(--text-primary);">${data.maxmemory_human}</span> | Policy: ${escapeHtml(data.maxmemory_policy)}
-        </div>
-      </div>
-    </div>
-  `;
-
-  setupIcons();
-}
-
-function renderMemoryProfilingSafeguardUI() {
-  const container = document.getElementById("memoryProfilingContainer");
-  if (!container) return;
-
-  container.innerHTML = `
-    <!-- Educational Explainer -->
-    <div class="mem-info-banner">
-      <i data-lucide="info" style="width: 20px; height: 20px; color: #38bdf8; flex-shrink: 0; margin-top: 2px;"></i>
-      <div>
-        <strong style="color: var(--text-primary); font-size: 0.85rem; display: block; margin-bottom: 3px;">What is BigKeys and how does it work?</strong>
-        <p style="margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary);">
-          In Redis, <strong>BigKeys</strong> are keys that consume excessive RAM (measured in bytes via <code>MEMORY USAGE</code>) or contain very high element counts (e.g., a hash with 50,000 fields, list with 100,000 items).
-          Because Redis is single-threaded, operating on or evicting BigKeys causes latency spikes, blocks other client requests, and creates hot shards in clusters.
-          This profiler safely samples your keyspace to identify memory hogs so you can partition or add TTLs to them.
-        </p>
-      </div>
-    </div>
-
-    <div class="mem-safeguard-box">
-      <div class="mem-safeguard-header">
-        <i data-lucide="alert-triangle" style="width: 22px; height: 22px;"></i>
-        <span>Performance Notice: Safe Non-Blocking Key Sampling</span>
-      </div>
-      <div class="mem-safeguard-body">
-        Profiling analyzes data structure allocation and identifies the <strong>Top 50 BigKeys</strong> by running non-blocking <code>SCAN</code> and computing memory footprints with <code>MEMORY USAGE</code>.
-        To ensure zero downtime and prevent CPU spikes on high-throughput environments, profiling is only run on-demand with controlled sampling limits.
-      </div>
-      <div class="mem-safeguard-controls">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">Sample Limit:</span>
-          <select id="memSampleSizeSelect" class="form-select" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
-            <option value="100">100 keys (Fastest)</option>
-            <option value="250">250 keys (Balanced)</option>
-            <option value="500" selected>500 keys (Recommended)</option>
-            <option value="1000">1,000 keys (Deep Scan)</option>
-            <option value="2500">2,500 keys (Thorough)</option>
-          </select>
-        </div>
-
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">Pattern:</span>
-          <input type="text" id="memSamplePatternInput" class="form-input" value="*" placeholder="e.g. *, user:*" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; width: 140px; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
-        </div>
-
-        <button type="button" class="btn btn-primary" id="btnStartProfilingAction" style="margin-left: auto; padding: 0.45rem 1rem;">
-          <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
-          Start Memory & BigKeys Profiling
-        </button>
-      </div>
-    </div>
-  `;
-
-  setupIcons();
-
-  const btnStart = document.getElementById("btnStartProfilingAction");
-  if (btnStart) {
-    btnStart.addEventListener("click", () => {
-      const sampleSize = parseInt(document.getElementById("memSampleSizeSelect").value, 10) || 500;
-      const pattern = document.getElementById("memSamplePatternInput").value || "*";
-      triggerMemoryAnalysis(sampleSize, pattern);
-    });
-  }
-}
-
-async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*") {
-  const container = document.getElementById("memoryProfilingContainer");
-  if (!container) return;
-
-  isMemoryProfilingRunning = true;
-  container.innerHTML = `
-    <div style="padding: 3.5rem 1.5rem; text-align: center;">
-      <i data-lucide="refresh-cw" class="spin" style="width: 36px; height: 36px; color: #a78bfa; margin-bottom: 1rem;"></i>
-      <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 0.4rem;">Analyzing Redis Keyspace...</h3>
-      <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 480px; margin: 0 auto; line-height: 1.5;">
-        Scanning sample of up to <strong>${sampleSize.toLocaleString()}</strong> keys (pattern <code>${escapeHtml(pattern)}</code>) and measuring memory allocations...
-      </p>
-    </div>
-  `;
-  setupIcons();
-
-  try {
-    const res = await fetch("/api/memory/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sample_size: sampleSize, pattern: pattern })
-    });
-    if (!res.ok) throw new Error("Failed to complete memory profiling");
-    currentMemoryAnalysis = await res.json();
-    isMemoryProfilingRunning = false;
-    renderMemoryAnalysisUI(currentMemoryAnalysis);
-  } catch (err) {
-    isMemoryProfilingRunning = false;
-    container.innerHTML = `
-      <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
-        <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
-        <h4>Memory Profiling Failed</h4>
-        <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
-        <button type="button" class="btn btn-secondary" id="btnRetryProfiling" style="margin-top: 1rem;">Try Again</button>
-      </div>
-    `;
-    setupIcons();
-    const btnRetry = document.getElementById("btnRetryProfiling");
-    if (btnRetry) btnRetry.addEventListener("click", renderMemoryProfilingSafeguardUI);
-  }
-}
-
-function renderMemoryAnalysisUI(data) {
-  const container = document.getElementById("memoryProfilingContainer");
-  if (!container || !data) return;
-
-  const typeColorMap = {
-    string: "#38bdf8",
-    hash: "#ec4899",
-    list: "#a855f7",
-    set: "#eab308",
-    zset: "#22c55e",
-    stream: "#06b6d4",
-    json: "#f97316",
-    other: "#94a3b8"
-  };
-
-  container.innerHTML = `
-    <!-- Summary Header Bar -->
-    <div style="background: rgba(15,23,42,0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
-      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.825rem;">
-        <div>
-          <span style="color: var(--text-muted);">Sampled Keys:</span>
-          <strong style="color: var(--text-primary); font-family: var(--font-mono); margin-left: 4px;">${data.sampled_count.toLocaleString()}</strong>
-        </div>
-        <div style="color: var(--border-subtle);">|</div>
-        <div>
-          <span style="color: var(--text-muted);">Scan Duration:</span>
-          <strong style="color: #4ade80; font-family: var(--font-mono); margin-left: 4px;">${data.scan_duration_ms} ms</strong>
-        </div>
-        <div style="color: var(--border-subtle);">|</div>
-        <div>
-          <span style="color: var(--text-muted);">Sampled Memory:</span>
-          <strong style="color: #38bdf8; font-family: var(--font-mono); margin-left: 4px;">${data.sampled_memory_human}</strong>
-        </div>
-      </div>
-      <button type="button" class="btn btn-secondary" id="btnReRunProfiling" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
-        <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
-        Re-Run Profiling
-      </button>
-    </div>
-
-    <!-- Visual Memory Breakdown by Type -->
-    <div class="mem-bar-wrapper">
-      <div style="display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-          <i data-lucide="pie-chart" style="width: 15px; height: 15px; color: #a78bfa;"></i>
-          Memory Allocation by Data Type
-        </span>
-        <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
-          ${data.types_breakdown.length} active types
-        </span>
-      </div>
-
-      <!-- Stacked Proportion Bar -->
-      <div class="mem-stacked-bar">
-        ${data.types_breakdown.map(t => {
-          const color = typeColorMap[t.type.toLowerCase()] || "#94a3b8";
-          return `
-            <div class="mem-stacked-segment" style="width: ${t.percentage}%; background: ${color};" title="${t.type.toUpperCase()}: ${t.percentage}% (${t.total_human})"></div>
-          `;
-        }).join("")}
-      </div>
-
-      <!-- Type Cards Grid -->
-      <div class="mem-type-cards-grid">
-        ${data.types_breakdown.map(t => {
-          const color = typeColorMap[t.type.toLowerCase()] || "#94a3b8";
-          return `
-            <div class="mem-type-card" style="border-left: 3px solid ${color};">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span class="type-badge ${t.type.toLowerCase()}" style="font-size: 0.68rem; padding: 0.1rem 0.4rem;">${t.type.toUpperCase()}</span>
-                <span style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; color: var(--text-primary);">${t.percentage}%</span>
-              </div>
-              <div style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; color: ${color}; margin-top: 2px;">
-                ${t.total_human}
-              </div>
-              <div style="font-size: 0.7rem; color: var(--text-muted);">
-                ${t.count.toLocaleString()} keys
-              </div>
-            </div>
-          `;
-        }).join("")}
-      </div>
-    </div>
-
-    <!-- Bottleneck Recommendations -->
-    ${data.recommendations && data.recommendations.length > 0 ? `
-      <div class="mem-recommendations-wrapper">
-        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-          <i data-lucide="zap" style="width: 15px; height: 15px; color: #fbbf24;"></i>
-          Bottleneck Insights & Recommendations
-        </div>
-        ${data.recommendations.map(r => `
-          <div class="recommendation-item">
-            <span>${escapeHtml(r)}</span>
-          </div>
-        `).join("")}
-      </div>
-    ` : ''}
-
-    <!-- Top 50 BigKeys Leaderboard -->
-    <div style="background: rgba(15,23,42,0.45); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 1.25rem;">
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-        <div>
-          <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-            <i data-lucide="bar-chart-2" style="width: 16px; height: 16px; color: #38bdf8;"></i>
-            Top 50 BigKeys Leaderboard
-          </h4>
-          <span style="font-size: 0.72rem; color: var(--text-secondary);">Highest memory consumers discovered in key sample</span>
-        </div>
-        <div class="search-group" style="max-width: 320px;">
-          <i data-lucide="search" class="search-icon" style="width: 13px; height: 13px;"></i>
-          <input type="text" id="bigkeysSearchInput" class="search-input" placeholder="Filter big keys..." style="padding: 0.35rem 0.65rem 0.35rem 1.85rem; font-size: 0.78rem;">
-        </div>
-      </div>
-
-      <div id="bigkeysTableContainer">
-        ${renderBigKeysTableHtml(data.top_bigkeys)}
-      </div>
-    </div>
-  `;
-
-  setupIcons();
-
-  const btnReRun = document.getElementById("btnReRunProfiling");
-  if (btnReRun) {
-    btnReRun.addEventListener("click", renderMemoryProfilingSafeguardUI);
-  }
-
-  const searchInput = document.getElementById("bigkeysSearchInput");
-  if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? data.top_bigkeys.filter(k => k.key.toLowerCase().includes(q) || k.type.toLowerCase().includes(q)) : data.top_bigkeys;
-      const tableContainer = document.getElementById("bigkeysTableContainer");
-      if (tableContainer) {
-        tableContainer.innerHTML = renderBigKeysTableHtml(filtered);
-        setupIcons();
-        attachBigKeyRowHandlers();
-      }
-    });
-  }
-
-  attachBigKeyRowHandlers();
-}
-
-function renderBigKeysTableHtml(keys) {
-  if (!keys || keys.length === 0) {
-    return `<div style="padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">No keys found</div>`;
-  }
-
-  const maxMem = keys[0] ? keys[0].memory_bytes : 1;
-
-  return `
-    <table class="keys-table" style="width: 100%;">
-      <thead>
-        <tr>
-          <th style="width: 50px;">Rank</th>
-          <th>Key Name</th>
-          <th style="width: 90px;">Type</th>
-          <th style="width: 180px;">Memory Usage</th>
-          <th style="width: 110px;">Items / Length</th>
-          <th style="width: 110px;">TTL</th>
-          <th style="width: 130px; text-align: right;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${keys.map((item, idx) => {
-          let rankClass = "rank-normal";
-          if (idx === 0) rankClass = "rank-gold";
-          else if (idx === 1) rankClass = "rank-silver";
-          else if (idx === 2) rankClass = "rank-bronze";
-
-          const memPct = maxMem > 0 ? Math.max(5, Math.round((item.memory_bytes / maxMem) * 100)) : 10;
-
-          let ttlStr = "No TTL (Persistent)";
-          let ttlColor = "var(--text-muted)";
-          if (item.ttl > 0) {
-            ttlStr = `${item.ttl.toLocaleString()}s`;
-            ttlColor = "var(--accent-warning)";
-          }
-
-          return `
-            <tr>
-              <td>
-                <span class="rank-badge ${rankClass}">#${idx + 1}</span>
-              </td>
-              <td>
-                <div style="display: flex; align-items: center; gap: 0.35rem;">
-                  <a href="javascript:void(0)" class="key-name-link bigkey-inspect-btn" data-key="${escapeHtml(item.key)}" style="font-family: var(--font-mono); font-size: 0.82rem; font-weight: 600; color: #38bdf8; text-decoration: none;" title="Inspect key: ${escapeHtml(item.key)}">
-                    ${escapeHtml(item.key)}
-                  </a>
-                  <button type="button" class="btn-copy-inline btn-copy-bigkey" data-key="${escapeHtml(item.key)}" title="Copy key name">
-                    <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
-                  </button>
-                </div>
-              </td>
-              <td>
-                <span class="type-badge ${item.type.toLowerCase()}" style="font-size: 0.68rem; padding: 0.15rem 0.45rem;">
-                  ${item.type.toUpperCase()}
-                </span>
-              </td>
-              <td>
-                <div style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; color: var(--text-primary);">
-                  ${item.memory_human}
-                </div>
-                <div style="width: 100%; height: 5px; background: rgba(255,255,255,0.06); border-radius: 9999px; overflow: hidden; margin-top: 3px;">
-                  <div style="width: ${memPct}%; height: 100%; background: #38bdf8; border-radius: 9999px;"></div>
-                </div>
-              </td>
-              <td style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">
-                ${item.length.toLocaleString()}
-              </td>
-              <td style="font-family: var(--font-mono); font-size: 0.75rem; color: ${ttlColor};">
-                ${ttlStr}
-              </td>
-              <td style="text-align: right;">
-                <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                  <button type="button" class="btn btn-secondary bigkey-inspect-btn" data-key="${escapeHtml(item.key)}" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" title="Inspect key detail">
-                    <i data-lucide="external-link" style="width: 11px; height: 11px;"></i>
-                    Inspect
-                  </button>
-                  ${lastStatus?.read_only ? '' : `
-                    <button type="button" class="btn btn-danger bigkey-delete-btn" data-key="${escapeHtml(item.key)}" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" title="Delete oversized key">
-                      <i data-lucide="trash-2" style="width: 11px; height: 11px;"></i>
-                    </button>
-                  `}
-                </div>
-              </td>
-            </tr>
-          `;
-        }).join("")}
-      </tbody>
-    </table>
-  `;
-}
-
-function attachBigKeyRowHandlers() {
-  document.querySelectorAll(".bigkey-inspect-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const keyName = btn.getAttribute("data-key");
-      if (keyName) {
-        closeMemoryModal();
-        openKeyDetail(keyName);
-      }
-    });
-  });
-
-  document.querySelectorAll(".btn-copy-bigkey").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const k = btn.getAttribute("data-key");
-      if (k) {
-        navigator.clipboard.writeText(k).then(() => {
-          btn.classList.add("copied");
-          btn.innerHTML = `<i data-lucide="check" style="width: 11px; height: 11px;"></i>`;
-          setupIcons();
-          setTimeout(() => {
-            btn.classList.remove("copied");
-            btn.innerHTML = `<i data-lucide="copy" style="width: 11px; height: 11px;"></i>`;
-            setupIcons();
-          }, 1500);
-        });
-      }
-    });
-  });
-
-  document.querySelectorAll(".bigkey-delete-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const keyName = btn.getAttribute("data-key");
-      if (keyName) {
-        triggerDeleteConfirmation(keyName, async () => {
-          if (currentMemoryAnalysis) {
-            currentMemoryAnalysis.top_bigkeys = currentMemoryAnalysis.top_bigkeys.filter(k => k.key !== keyName);
-            renderMemoryAnalysisUI(currentMemoryAnalysis);
-          }
-          await refreshStatus();
-        });
-      }
-    });
-  });
-}
-
-// ==========================================================================
-// Benchmark & Latency Studio Engine
-// ==========================================================================
-let currentBenchmarkTab = "probe";
-let isBenchmarkRunning = false;
-
-const LUA_PRESETS = {
-  counter: {
-    script: `local k = KEYS[1] or 'bench_counter'
-local count = redis.call('INCR', k)
-if count == 1 then
-  redis.call('EXPIRE', k, 60)
-end
-return count`,
-    keys: "bench_counter",
-    args: "60"
-  },
-  hash: {
-    script: `local k = KEYS[1] or 'bench_user'
-redis.call('HSET', k, 'name', 'benchmark_user', 'role', 'tester', 'ver', ARGV[1] or '1')
-return redis.call('HGETALL', k)`,
-    keys: "bench_user",
-    args: "1"
-  },
-  lock: {
-    script: `local k = KEYS[1] or 'bench_lock'
-local token = ARGV[1] or 'token_123'
-local acquired = redis.call('SET', k, token, 'NX', 'PX', 10000)
-return acquired and 'ACQUIRED' or 'BUSY'`,
-    keys: "bench_lock",
-    args: "token_123"
-  },
-  custom: {
-    script: `-- Custom Lua Script
-local key = KEYS[1] or 'my_key'
-return redis.call('PING')`,
-    keys: "my_key",
-    args: ""
-  }
-};
-
-function renderDecompBarHtml(breakdown) {
-  if (!breakdown) return "";
-  const netMs = Number(breakdown.network_overhead_ms || 0).toFixed(3);
-  const srvMs = Number(breakdown.server_exec_ms || 0).toFixed(3);
-  return `
-    <div class="latency-decomp-card">
-      <div class="latency-decomp-header">
-        <div class="latency-decomp-title">
-          <i data-lucide="layers" style="width: 14px; height: 14px; color: #f59e0b;"></i>
-          <span>Latency Decomposition (Network Transit vs Redis Server CPU)</span>
-        </div>
-        <div class="latency-decomp-legend">
-          <div class="latency-legend-item">
-            <span class="latency-legend-dot" style="background: #38bdf8;"></span>
-            <span>Network Overhead: <strong>${breakdown.network_percentage}%</strong> (${netMs} ms)</span>
-          </div>
-          <div class="latency-legend-item">
-            <span class="latency-legend-dot" style="background: #10b981;"></span>
-            <span>Redis Server CPU: <strong>${breakdown.server_percentage}%</strong> (${srvMs} ms)</span>
-          </div>
-        </div>
-      </div>
-      <div class="latency-decomp-track">
-        <div class="latency-decomp-bar-net" style="width: ${breakdown.network_percentage}%;">
-          🌐 Network: ${breakdown.network_percentage}% (${netMs}ms)
-        </div>
-        <div class="latency-decomp-bar-srv" style="width: ${breakdown.server_percentage}%;">
-          ⚡ Server: ${breakdown.server_percentage}% (${srvMs}ms)
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderPercentilesHtml(p) {
-  if (!p) return "";
-  return `
-    <div class="percentiles-chip-row">
-      <span style="font-size: 0.73rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-right: 0.35rem;">Percentiles:</span>
-      <div class="percentile-chip"><span class="k">Min:</span> <span class="v">${p.min_ms.toFixed(2)}ms</span></div>
-      <div class="percentile-chip"><span class="k">P50:</span> <span class="v">${p.p50_ms.toFixed(2)}ms</span></div>
-      <div class="percentile-chip"><span class="k">P90:</span> <span class="v">${p.p90_ms.toFixed(2)}ms</span></div>
-      <div class="percentile-chip"><span class="k">P95:</span> <span class="v">${p.p95_ms.toFixed(2)}ms</span></div>
-      <div class="percentile-chip"><span class="k">P99:</span> <span class="v" style="color: #f59e0b;">${p.p99_ms.toFixed(2)}ms</span></div>
-      <div class="percentile-chip"><span class="k">Max:</span> <span class="v">${p.max_ms.toFixed(2)}ms</span></div>
-      <div class="percentile-chip"><span class="k">Jitter:</span> <span class="v">±${p.jitter_ms.toFixed(2)}ms</span></div>
-    </div>
-  `;
-}
-
-function renderHistogramHtml(histogram) {
-  if (!histogram || !histogram.length) return "";
-  return `
-    <div class="histogram-card">
-      <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 0.35rem;">
-        <i data-lucide="bar-chart-2" style="width: 14px; height: 14px; color: #f59e0b;"></i>
-        <span>Latency Bucket Distribution</span>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 0.45rem;">
-        ${histogram.map(b => `
-          <div class="histogram-row">
-            <span class="histogram-label">${escapeHtml(b.label)}</span>
-            <div class="histogram-track">
-              <div class="histogram-fill" style="width: ${b.percentage}%;"></div>
-            </div>
-            <div class="histogram-stats">
-              <strong>${b.count.toLocaleString()}</strong> (${b.percentage}%)
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function openBenchmarkModal() {
-  const modal = document.getElementById("benchmarkModal");
-  if (!modal) return;
-  modal.classList.add("active");
-
-  const subtitle = document.getElementById("benchmarkTargetSubtitle");
-  if (subtitle && lastStatus) {
-    subtitle.textContent = `Active Target: ${lastStatus.host}:${lastStatus.port} (${lastStatus.env || "LOCAL"}) | Engine: AsyncIO Native | Namespace: __ri_bench__`;
-  }
-
-  const roBadge = document.getElementById("benchmarkReadOnlyBadge");
-  const optWrite = document.getElementById("optCommandPresetWrite");
-  const optStruct = document.getElementById("optCommandPresetStruct");
-
-  if (lastStatus?.read_only) {
-    if (roBadge) roBadge.style.display = "inline-flex";
-    if (optWrite) {
-      optWrite.disabled = true;
-      optWrite.textContent = "Write / Set (Disabled - Read-Only)";
-    }
-    if (optStruct) {
-      optStruct.disabled = true;
-      optStruct.textContent = "Data Structures (Disabled - Read-Only)";
-    }
-    const selPreset = document.getElementById("selCommandPreset");
-    if (selPreset && (selPreset.value === "write" || selPreset.value === "structures")) {
-      selPreset.value = "read";
-    }
-  } else {
-    if (roBadge) roBadge.style.display = "none";
-    if (optWrite) {
-      optWrite.disabled = false;
-      optWrite.textContent = "Write / Set (100% SET)";
-    }
-    if (optStruct) {
-      optStruct.disabled = false;
-      optStruct.textContent = "Data Structures (HSET / HGET)";
-    }
-  }
-
-  // Prepopulate Lua script if empty
-  const txtScript = document.getElementById("txtLuaScript");
-  if (txtScript && !txtScript.value.trim()) {
-    txtScript.value = LUA_PRESETS.counter.script;
-    const txtKeys = document.getElementById("txtLuaKeys");
-    const txtArgs = document.getElementById("txtLuaArgs");
-    if (txtKeys) txtKeys.value = LUA_PRESETS.counter.keys;
-    if (txtArgs) txtArgs.value = LUA_PRESETS.counter.args;
-  }
-
-  switchBenchmarkTab(currentBenchmarkTab || "probe");
-}
-
-function closeBenchmarkModal() {
-  const modal = document.getElementById("benchmarkModal");
-  if (modal) modal.classList.remove("active");
-}
-
-function switchBenchmarkTab(tabName) {
-  currentBenchmarkTab = tabName;
-  document.querySelectorAll(".benchmark-tab-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.getAttribute("data-tab") === tabName);
-  });
-
-  const panes = {
-    probe: document.getElementById("benchmarkPaneProbe"),
-    commands: document.getElementById("benchmarkPaneCommands"),
-    lua: document.getElementById("benchmarkPaneLua"),
-    cluster: document.getElementById("benchmarkPaneCluster")
-  };
-
-  Object.keys(panes).forEach(k => {
-    if (panes[k]) {
-      panes[k].style.display = k === tabName ? "flex" : "none";
-    }
-  });
-
-  setupIcons();
-}
-
-async function runLatencyProbe() {
-  if (isBenchmarkRunning) return;
-  const btn = document.getElementById("btnRunProbe");
-  const resultsContainer = document.getElementById("benchmarkProbeResults");
-  const countSelect = document.getElementById("selProbeCount");
-  const count = parseInt(countSelect?.value || "100", 10);
-
-  isBenchmarkRunning = true;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px;"></i><span>Running Probe (${count})...</span>`;
-  }
-  if (resultsContainer) {
-    resultsContainer.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">
-        <i data-lucide="refresh-cw" class="spin" style="width: 28px; height: 28px; color: #38bdf8; margin-bottom: 0.75rem;"></i>
-        <div style="font-weight: 600; color: var(--text-main);">Executing ${count} baseline probes...</div>
-        <div style="font-size: 0.78rem; margin-top: 0.25rem;">Measuring network round-trip time vs Redis event-loop CPU duration</div>
-      </div>
-    `;
-    setupIcons();
-  }
-
-  try {
-    const res = await fetch("/api/benchmark/probe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ count })
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ detail: "Probe request failed" }));
-      throw new Error(errData.detail || "Probe failed");
-    }
-    const data = await res.json();
-    renderProbeResults(data);
-  } catch (err) {
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `
-        <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
-          <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
-          <div style="font-weight: 600;">Latency Probe Failed</div>
-          <div style="font-size: 0.8rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</div>
-        </div>
-      `;
-      setupIcons();
-    }
-  } finally {
-    isBenchmarkRunning = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = `<i data-lucide="play" style="width: 14px; height: 14px;"></i><span>Run Latency Probe</span>`;
-      setupIcons();
-    }
-  }
-}
-
-function renderProbeResults(data) {
-  const container = document.getElementById("benchmarkProbeResults");
-  if (!container || !data) return;
-
-  const avgRtt = Number(data.avg_rtt_ms || 0).toFixed(3);
-  const srvExec = Number(data.breakdown?.server_exec_ms || 0).toFixed(3);
-  const netOverhead = Number(data.breakdown?.network_overhead_ms || 0).toFixed(3);
-  const opsSec = Number(data.ops_per_sec || 0).toLocaleString();
-
-  container.innerHTML = `
-    <div class="benchmark-metrics-grid">
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="activity" style="width: 12px; height: 12px; color: #38bdf8;"></i> Total Round-Trip (RTT)</div>
-        <div class="val">${avgRtt} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
-        <div class="sub">Average client observed latency</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="cpu" style="width: 12px; height: 12px; color: #10b981;"></i> Redis Server CPU Time</div>
-        <div class="val" style="color: #6ee7b7;">${srvExec} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
-        <div class="sub">Isolated server execution delay</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="network" style="width: 12px; height: 12px; color: #38bdf8;"></i> Network Overhead</div>
-        <div class="val" style="color: #38bdf8;">${netOverhead} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
-        <div class="sub">Transit & TCP stack overhead</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #f59e0b;"></i> Probe Throughput</div>
-        <div class="val" style="color: #fbbf24;">${opsSec} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ops/s</span></div>
-        <div class="sub">${data.count} probes in ${data.duration_ms}ms</div>
-      </div>
-    </div>
-
-    ${renderDecompBarHtml(data.breakdown)}
-    ${renderPercentilesHtml(data.percentiles)}
-    ${renderHistogramHtml(data.histogram)}
-  `;
-  setupIcons();
-}
-
-async function runCommandBenchmark() {
-  if (isBenchmarkRunning) return;
-  const btn = document.getElementById("btnRunCommandBench");
-  const resultsContainer = document.getElementById("benchmarkCommandResults");
-  const preset = document.getElementById("selCommandPreset")?.value || "read";
-  const requests = parseInt(document.getElementById("selCommandRequests")?.value || "1000", 10);
-  const concurrency = parseInt(document.getElementById("selCommandConcurrency")?.value || "5", 10);
-  const pipeline = parseInt(document.getElementById("selCommandPipeline")?.value || "1", 10);
-
-  isBenchmarkRunning = true;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px;"></i><span>Benchmarking (${requests})...</span>`;
-  }
-  if (resultsContainer) {
-    resultsContainer.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">
-        <i data-lucide="refresh-cw" class="spin" style="width: 28px; height: 28px; color: #f59e0b; margin-bottom: 0.75rem;"></i>
-        <div style="font-weight: 600; color: var(--text-main);">Running synthetic workload (${preset})...</div>
-        <div style="font-size: 0.78rem; margin-top: 0.25rem;">
-          Executing ${requests.toLocaleString()} requests across ${concurrency} workers (pipeline: ${pipeline})
-        </div>
-      </div>
-    `;
-    setupIcons();
-  }
-
-  try {
-    const res = await fetch("/api/benchmark/commands", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preset, requests, concurrency, pipeline })
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ detail: "Benchmark request failed" }));
-      throw new Error(errData.detail || "Benchmark failed");
-    }
-    const data = await res.json();
-    renderCommandResults(data);
-  } catch (err) {
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `
-        <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
-          <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
-          <div style="font-weight: 600;">Benchmark Execution Blocked</div>
-          <div style="font-size: 0.8rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</div>
-        </div>
-      `;
-      setupIcons();
-    }
-  } finally {
-    isBenchmarkRunning = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = `<i data-lucide="play" style="width: 14px; height: 14px;"></i><span>Start Benchmark</span>`;
-      setupIcons();
-    }
-  }
-}
-
-function renderCommandResults(data) {
-  const container = document.getElementById("benchmarkCommandResults");
-  if (!container || !data) return;
-
-  const opsSec = Number(data.ops_per_sec || 0).toLocaleString();
-  const avgLat = Number(data.avg_latency_ms || 0).toFixed(3);
-  const p99Lat = Number(data.percentiles?.p99_ms || 0).toFixed(3);
-  const cleaned = Number(data.cleaned_keys_count || 0).toLocaleString();
-
-  container.innerHTML = `
-    <div class="benchmark-metrics-grid">
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #f59e0b;"></i> Throughput</div>
-        <div class="val" style="color: #fbbf24;">${opsSec} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ops/s</span></div>
-        <div class="sub">${data.total_requests.toLocaleString()} ops in ${data.duration_ms}ms</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="clock" style="width: 12px; height: 12px; color: #38bdf8;"></i> Avg Latency</div>
-        <div class="val">${avgLat} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
-        <div class="sub">Mean per-operation latency</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="activity" style="width: 12px; height: 12px; color: #ec4899;"></i> P99 Tail Latency</div>
-        <div class="val" style="color: #f472b6;">${p99Lat} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
-        <div class="sub">99% of requests below this</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="shield-check" style="width: 12px; height: 12px; color: #10b981;"></i> Cleaned Ephemeral Keys</div>
-        <div class="val" style="color: #6ee7b7;">${cleaned}</div>
-        <div class="sub">Auto-unlinked via UNLINK</div>
-      </div>
-    </div>
-
-    ${renderDecompBarHtml(data.breakdown)}
-    ${renderPercentilesHtml(data.percentiles)}
-    ${renderHistogramHtml(data.histogram)}
-  `;
-  setupIcons();
-}
-
-async function runLuaBenchmark() {
-  if (isBenchmarkRunning) return;
-  const btn = document.getElementById("btnRunLuaBench");
-  const resultsContainer = document.getElementById("benchmarkLuaResults");
-  const script = document.getElementById("txtLuaScript")?.value || "";
-  const rawKeys = document.getElementById("txtLuaKeys")?.value || "";
-  const rawArgs = document.getElementById("txtLuaArgs")?.value || "";
-  const mode = document.getElementById("selLuaMode")?.value || "profile";
-  const iterations = parseInt(document.getElementById("selLuaIterations")?.value || "100", 10);
-
-  const keys = rawKeys.split(",").map(k => k.trim()).filter(Boolean);
-  const args = rawArgs.split(",").map(a => a.trim()).filter(Boolean);
-
-  if (!script.trim()) {
-    alert("Please enter a Lua script to execute and profile.");
-    return;
-  }
-
-  isBenchmarkRunning = true;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px;"></i><span>Executing Script...</span>`;
-  }
-  if (resultsContainer) {
-    resultsContainer.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 2.5rem 1rem;">
-        <i data-lucide="refresh-cw" class="spin" style="width: 28px; height: 28px; color: #38bdf8; margin-bottom: 0.75rem;"></i>
-        <div style="font-weight: 600; color: var(--text-main);">Pre-loading and running Lua script on Redis server...</div>
-        <div style="font-size: 0.78rem; margin-top: 0.25rem;">Measuring precise microsecond server execution time</div>
-      </div>
-    `;
-    setupIcons();
-  }
-
-  try {
-    const res = await fetch("/api/benchmark/lua", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ script, keys, args, mode, iterations, concurrency: 5 })
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ detail: "Lua benchmark failed" }));
-      throw new Error(errData.detail || "Lua benchmark failed");
-    }
-    const data = await res.json();
-    renderLuaResults(data);
-  } catch (err) {
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `
-        <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
-          <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
-          <div style="font-weight: 600;">Lua Script Execution Error</div>
-          <div style="font-size: 0.8rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</div>
-        </div>
-      `;
-      setupIcons();
-    }
-  } finally {
-    isBenchmarkRunning = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = `<i data-lucide="play" style="width: 14px; height: 14px;"></i><span>Execute & Profile</span>`;
-      setupIcons();
-    }
-  }
-}
-
-function renderLuaResults(data) {
-  const container = document.getElementById("benchmarkLuaResults");
-  if (!container || !data) return;
-
-  const srvMs = Number(data.server_duration_ms || 0).toFixed(3);
-  const totalMs = Number(data.duration_ms || 0).toFixed(3);
-
-  let alertHtml = "";
-  if (data.atomicity_warning) {
-    alertHtml = `
-      <div class="atomicity-alert warning">
-        <i data-lucide="alert-triangle" style="width: 20px; height: 20px; color: #ef4444; flex-shrink: 0;"></i>
-        <div>
-          <strong>High Atomicity Warning:</strong> Script spent <strong>${srvMs} ms</strong> executing on the Redis server (> 5ms).
-          In Redis, Lua scripts execute atomically and block all other incoming client connections for the entire duration! Consider optimizing loops or moving logic out of Lua.
-        </div>
-      </div>
-    `;
-  } else {
-    alertHtml = `
-      <div class="atomicity-alert safe">
-        <i data-lucide="check-circle-2" style="width: 20px; height: 20px; color: #10b981; flex-shrink: 0;"></i>
-        <div>
-          <strong>Atomicity Safe:</strong> Server execution took <strong>${srvMs} ms</strong>, well within non-blocking safety thresholds (&lt; 5ms).
-        </div>
-      </div>
-    `;
-  }
-
-  let benchSection = "";
-  if (data.mode === "benchmark" && data.ops_per_sec) {
-    benchSection = `
-      <div class="benchmark-metrics-grid">
-        <div class="benchmark-metric-card">
-          <div class="label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #f59e0b;"></i> Script Throughput</div>
-          <div class="val" style="color: #fbbf24;">${Number(data.ops_per_sec).toLocaleString()} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ops/s</span></div>
-        </div>
-        <div class="benchmark-metric-card">
-          <div class="label"><i data-lucide="clock" style="width: 12px; height: 12px; color: #38bdf8;"></i> Total Duration</div>
-          <div class="val">${totalMs} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
-        </div>
-      </div>
-      ${renderPercentilesHtml(data.percentiles)}
-      ${renderHistogramHtml(data.histogram)}
-    `;
-  }
-
-  container.innerHTML = `
-    ${alertHtml}
-
-    <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.85rem 1rem;">
-      <div style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.35rem;">
-        Script Return Value (Evaluated on Server)
-      </div>
-      <pre style="margin: 0; background: #090d16; padding: 0.65rem 0.85rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); color: #38bdf8; font-family: var(--font-mono); font-size: 0.82rem; overflow-x: auto;">${escapeHtml(String(data.result))}</pre>
-    </div>
-
-    ${renderDecompBarHtml(data.breakdown)}
-    ${benchSection}
-  `;
-  setupIcons();
-}
-
-async function runClusterMatrix() {
-  if (isBenchmarkRunning) return;
-  const btn = document.getElementById("btnRunClusterMatrix");
-  const resultsContainer = document.getElementById("benchmarkClusterResults");
-
-  isBenchmarkRunning = true;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px;"></i><span>Evaluating Matrix...</span>`;
-  }
-  if (resultsContainer) {
-    resultsContainer.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">
-        <i data-lucide="refresh-cw" class="spin" style="width: 28px; height: 28px; color: #38bdf8; margin-bottom: 0.75rem;"></i>
-        <div style="font-weight: 600; color: var(--text-main);">Probing primary cluster nodes...</div>
-        <div style="font-size: 0.78rem; margin-top: 0.25rem;">Measuring cross-node latency and throughput matrix</div>
-      </div>
-    `;
-    setupIcons();
-  }
-
-  try {
-    const res = await fetch("/api/benchmark/cluster-matrix");
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ detail: "Cluster matrix request failed" }));
-      throw new Error(errData.detail || "Cluster matrix failed");
-    }
-    const data = await res.json();
-    renderClusterMatrixResults(data);
-  } catch (err) {
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `
-        <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
-          <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
-          <div style="font-weight: 600;">Cluster Matrix Evaluation Failed</div>
-          <div style="font-size: 0.8rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</div>
-        </div>
-      `;
-      setupIcons();
-    }
-  } finally {
-    isBenchmarkRunning = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = `<i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i><span>Evaluate Cluster Latency Matrix</span>`;
-      setupIcons();
-    }
-  }
-}
-
-function renderClusterMatrixResults(data) {
-  const container = document.getElementById("benchmarkClusterResults");
-  if (!container || !data) return;
-
-  const clusterAvg = Number(data.cluster_avg_latency_ms || 0).toFixed(3);
-  const nodes = data.nodes || [];
-
-  container.innerHTML = `
-    <div class="benchmark-metrics-grid">
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="activity" style="width: 12px; height: 12px; color: #38bdf8;"></i> Cluster Avg Latency</div>
-        <div class="val">${clusterAvg} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
-        <div class="sub">Across ${nodes.length} primary node(s)</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #10b981;"></i> Fastest Node</div>
-        <div class="val" style="font-size: 1.1rem; color: #6ee7b7;">${escapeHtml(data.fastest_node || "N/A")}</div>
-        <div class="sub">Lowest latency probe</div>
-      </div>
-      <div class="benchmark-metric-card">
-        <div class="label"><i data-lucide="alert-triangle" style="width: 12px; height: 12px; color: #f59e0b;"></i> Slowest Node</div>
-        <div class="val" style="font-size: 1.1rem; color: #fbbf24;">${escapeHtml(data.slowest_node || "N/A")}</div>
-        <div class="sub">Highest latency probe</div>
-      </div>
-    </div>
-
-    <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden;">
-      <table class="cluster-matrix-table">
-        <thead>
-          <tr>
-            <th>Primary Node</th>
-            <th>Role & Slots</th>
-            <th>Avg Latency</th>
-            <th>P99 Latency</th>
-            <th>Throughput</th>
-            <th>Health Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${nodes.map(n => `
-            <tr class="${n.outlier ? "outlier" : ""}">
-              <td>
-                <div style="font-family: var(--font-mono); font-weight: 700; color: #38bdf8;">${escapeHtml(n.node)}</div>
-              </td>
-              <td>
-                <span class="badge-db" style="text-transform: capitalize;">${escapeHtml(n.role)}</span>
-                <span style="font-size: 0.72rem; color: var(--text-muted); margin-left: 0.35rem;">${escapeHtml(n.slots || "N/A")}</span>
-              </td>
-              <td>
-                <div style="display: flex; align-items: center; gap: 0.45rem;">
-                  <strong style="font-family: var(--font-mono);">${Number(n.avg_latency_ms).toFixed(3)} ms</strong>
-                </div>
-              </td>
-              <td style="font-family: var(--font-mono);">${Number(n.p99_latency_ms).toFixed(3)} ms</td>
-              <td style="font-family: var(--font-mono); color: #fbbf24;">${Number(n.ops_per_sec).toLocaleString()} ops/s</td>
-              <td>
-                ${n.outlier
-                  ? `<span class="badge-duration badge-duration-danger" style="font-size: 0.7rem; font-weight: 600;">⚠️ Latency Outlier (&gt;1.75x)</span>`
-                  : `<span class="badge-duration badge-duration-normal" style="font-size: 0.7rem; font-weight: 600; color: #6ee7b7;">Balanced</span>`
-                }
-              </td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-  setupIcons();
-}
-
-// Load Connections List from SQLite & connection limit
-async function loadConnections() {
-  const listEl = document.getElementById("connectionsList");
-  try {
-    const [connRes, limitRes] = await Promise.all([
-      fetch("/api/connections"),
-      fetch("/api/connections/limit")
-    ]);
-    const connections = await connRes.json();
-    cachedConnections = connections || [];
-
-    if (limitRes.ok) {
-      const limitData = await limitRes.json();
-      currentLimit = limitData.limit || 2;
-    }
-
-    renderConnectionsList();
-  } catch (err) {
-    if (listEl) {
-      listEl.innerHTML = `<div style="padding: 1rem; color: var(--accent-danger);">Failed to load connections</div>`;
-    }
-  }
-}
-
-function updateLimitUI(connectedCount, limit) {
-  const countEl = document.getElementById("connectedCountDisplay");
-  const limitEl = document.getElementById("connLimitDisplay");
-  const selectEl = document.getElementById("connLimitSelect");
-  const dotsEl = document.getElementById("limitProgressDots");
-  const pillEl = document.getElementById("limitCountPill");
-
-  if (countEl) countEl.textContent = connectedCount;
-  if (limitEl) limitEl.textContent = limit;
-  if (selectEl && String(selectEl.value) !== String(limit)) {
-    selectEl.value = String(limit);
-  }
-
-  if (pillEl) {
-    if (connectedCount >= limit && limit > 0) {
-      pillEl.classList.add("at-limit");
-      pillEl.title = "Connection limit reached";
-    } else {
-      pillEl.classList.remove("at-limit");
-      pillEl.title = `${connectedCount} of ${limit} connections in use`;
-    }
-  }
-
-  if (dotsEl) {
-    let dotsHtml = "";
-    for (let i = 0; i < limit; i++) {
-      const isFilled = i < connectedCount;
-      dotsHtml += `<span class="limit-slot-dot ${isFilled ? 'filled' : 'empty'}" title="Slot ${i + 1}: ${isFilled ? 'Connected' : 'Available'}"></span>`;
-    }
-    dotsEl.innerHTML = dotsHtml;
-  }
-}
-
-function renderConnectionsList() {
-  const listEl = document.getElementById("connectionsList");
-  if (!listEl) return;
-
-  // Update total badge in sidebar heading
-  const totalBadge = document.getElementById("totalConnCountBadge");
-  if (totalBadge) totalBadge.textContent = cachedConnections.length;
-
-  // Update environment pill counts
-  const envPills = document.querySelectorAll("#envFilterPills .env-pill-btn");
-  envPills.forEach(pill => {
-    const env = pill.getAttribute("data-env");
-    let count = 0;
-    if (env === "ALL") {
-      count = cachedConnections.length;
-    } else {
-      count = cachedConnections.filter(c => (c.env || "LOCAL").toUpperCase() === env).length;
-    }
-    pill.textContent = `${env} (${count})`;
-  });
-
-  const q = (currentConnSearch || "").trim().toLowerCase();
-  const env = currentEnvFilter;
-
-  // Filter by search and env
-  const filtered = cachedConnections.filter(c => {
-    if (env !== "ALL" && (c.env || "LOCAL").toUpperCase() !== env) {
-      return false;
-    }
-    if (q) {
-      const matchName = (c.name || "").toLowerCase().includes(q);
-      const matchHost = (c.host || "").toLowerCase().includes(q);
-      const matchEnv = (c.env || "").toLowerCase().includes(q);
-      const matchType = (c.conn_type || "").toLowerCase().includes(q);
-      if (!matchName && !matchHost && !matchEnv && !matchType) return false;
-    }
-    return true;
-  });
-
-  // Sort connected clusters ALWAYS on top, then active selected, then alphabetical by name
-  filtered.sort((a, b) => {
-    const aConn = a.is_connected ? 1 : 0;
-    const bConn = b.is_connected ? 1 : 0;
-    if (bConn !== aConn) return bConn - aConn;
-
-    const aSel = a.is_selected ? 1 : 0;
-    const bSel = b.is_selected ? 1 : 0;
-    if (bSel !== aSel) return bSel - aSel;
-
-    return (a.name || "").localeCompare(b.name || "");
-  });
-
-  const connectedTotal = cachedConnections.filter(c => c.is_connected).length;
-  updateLimitUI(connectedTotal, currentLimit);
-
-  if (filtered.length === 0) {
-    listEl.innerHTML = `
-      <div class="empty-filter-state">
-        <i data-lucide="search" style="width: 26px; height: 26px; color: var(--text-muted); margin-bottom: 0.5rem; opacity: 0.7;"></i>
-        <div style="font-weight: 500; color: var(--text-secondary);">No matching connections</div>
-        <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">
-          ${q ? `No results found for "${escapeHtml(q)}"` : `No connections configured in ${escapeHtml(env)}`}
-        </span>
-      </div>
-    `;
-    setupIcons();
-    return;
-  }
-
-  listEl.innerHTML = filtered.map(c => {
-    const envUpper = (c.env || "LOCAL").toUpperCase();
-    const envClass = `badge-env-${envUpper.toLowerCase()}`;
-    const isCluster = c.conn_type === "cluster";
-    const isSentinel = c.conn_type === "sentinel";
-    const isConfig = c.source === "config";
-    const isConnected = !!c.is_connected;
-    const isSelected = !!c.is_selected;
-
-    return `
-      <div class="conn-card ${isConnected ? 'is-connected' : ''} ${isSelected ? 'selected active' : ''}" data-id="${c.id}" title="Click to review config & connection options">
-        
-        <!-- Header: Lead Indicator + Name + Status Pill -->
-        <div class="conn-card-header">
-          <div class="conn-lead-indicator">
-            ${isSelected ? `
-              <span class="conn-status-indicator active" title="Active Cluster (Browsing Keys)">
-                <i data-lucide="check-circle-2" style="width: 15px; height: 15px;"></i>
-              </span>
-            ` : isConnected ? `
-              <span class="conn-status-indicator connected" title="Connected Cluster">
-                <i data-lucide="check-circle-2" style="width: 15px; height: 15px;"></i>
-              </span>
-            ` : `
-              <span class="conn-status-dot idle" title="Disconnected"></span>
-            `}
-          </div>
-
-          <div class="conn-title-wrap">
-            <span class="conn-name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</span>
-          </div>
-
-          <div class="conn-status-badge-wrap">
-            ${isSelected ? `
-              <span class="badge-selected-cluster"><span class="beacon-dot"></span>ACTIVE</span>
-            ` : isConnected ? `
-              <span class="badge-connected-cluster">CONNECTED</span>
-            ` : ''}
-          </div>
-        </div>
-
-        <!-- Sub-row: Endpoint on left, Badges on right -->
-        <div class="conn-sub-row">
-          <div class="conn-endpoint" title="${escapeHtml(c.host)}:${c.port}">
-            <i data-lucide="${isCluster ? 'network' : isSentinel ? 'git-branch' : 'server'}" style="width: 12px; height: 12px; opacity: 0.65; flex-shrink: 0;"></i>
-            <span class="endpoint-text">${escapeHtml(c.host)}:${c.port}</span>
-          </div>
-
-          <div class="conn-tags">
-            <span class="badge-env ${envClass}">${envUpper}</span>
-            ${c.read_only ? '<span class="badge-readonly" title="Read-Only Mode: Mutating operations locked">🔒 RO</span>' : ''}
-            ${isCluster ? '<span class="badge-conn-type badge-type-cluster">CLUSTER</span>' : ''}
-            ${isSentinel ? '<span class="badge-conn-type badge-type-sentinel">SENTINEL</span>' : ''}
-            ${!isCluster && !isSentinel ? `<span class="badge-db">DB${c.db}</span>` : ''}
-            ${c.use_tls ? '<i data-lucide="shield-check" class="conn-security-icon tls" title="TLS / SSL Encrypted"></i>' : ''}
-            ${c.has_password ? '<i data-lucide="lock" class="conn-security-icon auth" title="Password Protected"></i>' : ''}
-            ${isConfig ? '<span class="badge-source-cfg" title="Managed in config/connections.yaml">CFG</span>' : ''}
-          </div>
-        </div>
-
-        <!-- Floating Quick Action Toolbar on Hover -->
-        <div class="conn-hover-toolbar" onclick="event.stopPropagation()">
-          ${isConnected ? `
-            ${!isSelected ? `
-              <button type="button" class="btn-hover-action btn-card-select" data-id="${c.id}" title="Switch to this cluster">
-                <i data-lucide="arrow-right-left" style="width: 11px; height: 11px;"></i>
-                <span>Switch</span>
-              </button>
-            ` : ''}
-            <button type="button" class="btn-hover-action btn-hover-danger btn-card-disconnect" data-id="${c.id}" title="Disconnect cluster">
-              <i data-lucide="x" style="width: 12px; height: 12px;"></i>
-              <span>Disconnect</span>
-            </button>
-            ${(isCluster || isConnected) ? `
-              <button type="button" class="btn-hover-action btn-view-topology-card" data-id="${c.id}" title="View topology & nodes">
-                <i data-lucide="layers" style="width: 11px; height: 11px;"></i>
-              </button>
-            ` : ''}
-          ` : `
-            <button type="button" class="btn-hover-action btn-hover-connect btn-card-open-config" data-id="${c.id}" title="Review config & Connect">
-              <i data-lucide="play" style="width: 11px; height: 11px;"></i>
-              <span>Connect</span>
-            </button>
-            ${!isConfig ? `
-              <button type="button" class="btn-hover-action btn-hover-danger btn-delete-conn" data-id="${c.id}" data-name="${escapeHtml(c.name)}" title="Delete connection">
-                <i data-lucide="trash-2" style="width: 11px; height: 11px;"></i>
-              </button>
-            ` : ''}
-          `}
-        </div>
-
-      </div>
-    `;
-  }).join("");
-
-  setupIcons();
-
-  // Requirement 1: Clicking anywhere on card opens the Cluster Config Modal
-  listEl.querySelectorAll(".conn-card").forEach(card => {
-    card.addEventListener("click", (e) => {
-      if (
-        e.target.closest(".btn-delete-conn") ||
-        e.target.closest(".btn-view-topology-card") ||
-        e.target.closest(".btn-card-disconnect") ||
-        e.target.closest(".btn-card-select") ||
-        e.target.closest(".btn-card-open-config")
-      ) {
-        return;
-      }
-      const connId = card.getAttribute("data-id");
-      const targetConn = cachedConnections.find(c => c.id === connId);
-      if (targetConn) {
-        openClusterConfigModal(targetConn);
-      }
-    });
-  });
-
-  // Direct card disconnect button
-  listEl.querySelectorAll(".btn-card-disconnect").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const connId = btn.getAttribute("data-id");
-      await disconnectCluster(connId);
-    });
-  });
-
-  // Direct card select / switch button
-  listEl.querySelectorAll(".btn-card-select").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const connId = btn.getAttribute("data-id");
-      await selectCluster(connId);
-    });
-  });
-
-  // Direct card connect / open config button
-  listEl.querySelectorAll(".btn-card-open-config").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const connId = btn.getAttribute("data-id");
-      const targetConn = cachedConnections.find(c => c.id === connId);
-      if (targetConn) {
-        openClusterConfigModal(targetConn);
-      }
-    });
-  });
-
-  // Topology view handlers on cards
-  listEl.querySelectorAll(".btn-view-topology-card").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const id = btn.getAttribute("data-id");
-      await openTopologyModal(id);
-    });
-  });
-
-  // Delete handlers
-  listEl.querySelectorAll(".btn-delete-conn").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const id = btn.getAttribute("data-id");
-      const name = btn.getAttribute("data-name");
-      if (confirm(`Are you sure you want to delete '${name}'?`)) {
-        await deleteConnection(id);
-      }
-    });
-  });
-}
-
-// Parse seed nodes from various formats (JSON list of objects, list of strings, or comma-separated)
-function parseSeedNodes(raw) {
-  if (!raw) return [];
-  if (Array.isArray(raw)) {
-    return raw.map(n => {
-      if (typeof n === "object" && n !== null) {
-        return `${n.host || "127.0.0.1"}:${n.port || 6379}`;
-      }
-      return String(n);
-    });
-  }
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.map(n => {
-          if (typeof n === "object" && n !== null) {
-            return `${n.host || "127.0.0.1"}:${n.port || 6379}`;
-          }
-          return String(n);
-        });
-      }
-    } catch (e) {
-      return raw.split(",").map(s => s.trim()).filter(Boolean);
-    }
-  }
-  return [];
-}
-
-// Cluster Config Modal (Requirement 1: show config and ask for connect)
-function openClusterConfigModal(conn) {
-  activeConfigConn = conn;
-  const modal = document.getElementById("clusterConfigModal");
-  const titleEl = document.getElementById("cfgModalTitle");
-  const subtitleEl = document.getElementById("cfgModalSubtitle");
-  const bodyEl = document.getElementById("cfgModalBody");
-  const footerEl = document.getElementById("cfgModalFooter");
-
-  titleEl.textContent = conn.name || "Cluster Configuration";
-  subtitleEl.textContent = `Review configuration before connecting`;
-
-  const isConnected = !!conn.is_connected;
-  const isSelected = !!conn.is_selected;
-  const isCluster = conn.conn_type === "cluster";
-  const seedNodesList = parseSeedNodes(conn.cluster_nodes);
-  const connectedCount = cachedConnections.filter(c => c.is_connected).length;
-  const isAtLimit = !isConnected && connectedCount >= currentLimit;
-
-  bodyEl.innerHTML = `
-    <div class="config-status-banner ${isConnected ? 'connected' : 'disconnected'}">
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
-        <i data-lucide="${isConnected ? 'check-circle-2' : 'alert-circle'}" style="width: 18px; height: 18px;"></i>
-        <span>${isConnected ? 'Connected & Live' : 'Not Connected'}</span>
-      </div>
-      <div>
-        ${isSelected ? '<span class="badge-selected-cluster">ACTIVE / VIEWING KEYS</span>' : isConnected ? '<span class="badge-connected-cluster">CONNECTED</span>' : '<span style="font-size: 0.75rem; color: var(--text-muted);">Ready to connect</span>'}
-      </div>
-    </div>
-
-    <div class="config-grid">
-      <div class="config-grid-row">
-        <span class="config-label">Cluster / Instance Name</span>
-        <span class="config-value">${escapeHtml(conn.name)}</span>
-      </div>
-      <div class="config-grid-row">
-        <span class="config-label">Environment</span>
-        <span class="config-value">
-          <span class="badge-env badge-env-${(conn.env || 'LOCAL').toLowerCase()}">${(conn.env || 'LOCAL').toUpperCase()}</span>
-        </span>
-      </div>
-      <div class="config-grid-row">
-        <span class="config-label">Connection Type</span>
-        <span class="config-value" style="text-transform: capitalize;">${escapeHtml(conn.conn_type || 'standalone')}</span>
-      </div>
-      <div class="config-grid-row">
-        <span class="config-label">Host / Seed Node</span>
-        <span class="config-value" style="color: var(--accent-primary);">${escapeHtml(conn.host)}:${conn.port}</span>
-      </div>
-      ${isCluster && (seedNodesList.length > 0 || conn.cluster_nodes) ? `
-        <div class="config-grid-row config-grid-seeds-row">
-          <span class="config-label" style="padding-top: 2px;">
-            Seed Endpoints ${seedNodesList.length > 0 ? `(${seedNodesList.length})` : ''}
-          </span>
-          <div class="config-seeds-container">
-            ${seedNodesList.length > 0
-              ? seedNodesList.map(node => `
-                  <span class="seed-node-pill" title="${escapeHtml(node)}">
-                    <i data-lucide="server" style="width: 10px; height: 10px; opacity: 0.7;"></i>
-                    ${escapeHtml(node)}
-                  </span>
-                `).join('')
-              : `<span class="seed-node-pill">${escapeHtml(conn.cluster_nodes)}</span>`
-            }
-          </div>
-        </div>
-      ` : ''}
-      ${!isCluster ? `
-        <div class="config-grid-row">
-          <span class="config-label">Database Index</span>
-          <span class="config-value">DB ${conn.db || 0}</span>
-        </div>
-      ` : ''}
-      <div class="config-grid-row">
-        <span class="config-label">Authentication</span>
-        <span class="config-value">
-          ${conn.username ? escapeHtml(conn.username) : 'default'} / ${conn.has_password ? '•••••••• (Encrypted)' : 'None'}
-        </span>
-      </div>
-      <div class="config-grid-row">
-        <span class="config-label">TLS / SSL Encryption</span>
-        <span class="config-value">
-          ${conn.use_tls ? '<span style="color: var(--accent-success);">Enabled</span>' : '<span style="color: var(--text-muted);">Disabled</span>'}
-        </span>
-      </div>
-      <div class="config-grid-row">
-        <span class="config-label">Configuration Source</span>
-        <span class="config-value" style="font-size: 0.72rem; color: var(--text-muted);">
-          ${conn.source === 'config' ? 'config/connections.yaml' : 'Local SQLite DB'}
-        </span>
-      </div>
-    </div>
-
-    <div class="config-limit-info">
-      <i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--accent-primary); flex-shrink: 0;"></i>
-      <span>Connected Limit: <strong>${connectedCount} of ${currentLimit}</strong> clusters currently connected simultaneously.</span>
-    </div>
-
-    ${isAtLimit ? `
-      <div class="config-warning-box">
-        <i data-lucide="alert-circle" style="width: 16px; height: 16px; flex-shrink: 0;"></i>
-        <span>Connection limit reached (${currentLimit} maximum). Please disconnect a connected cluster first or increase the limit.</span>
-      </div>
-    ` : ''}
-
-    <div id="cfgTestResultBox" class="test-result-box" style="margin-top: 0.65rem;"></div>
-  `;
-
-  // Footer Buttons
-  if (!isConnected) {
-    footerEl.innerHTML = `
-      <div style="display: flex; gap: 0.5rem;">
-        <button type="button" class="btn btn-secondary" id="btnTestFromConfig">
-          <i data-lucide="zap" style="width: 13px; height: 13px;"></i>
-          Test Connection
-        </button>
-        <button type="button" class="btn btn-secondary" id="btnEditFromConfig">
-          <i data-lucide="edit" style="width: 13px; height: 13px;"></i>
-          Edit
-        </button>
-      </div>
-      <div style="display: flex; gap: 0.5rem;">
-        <button type="button" class="btn btn-secondary" id="btnCloseConfigModal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="btnConnectFromConfig" ${isAtLimit ? 'disabled' : ''}>
-          <i data-lucide="play" style="width: 13px; height: 13px;"></i>
-          Connect
-        </button>
-      </div>
-    `;
-  } else {
-    footerEl.innerHTML = `
-      <div style="display: flex; gap: 0.5rem;">
-        <button type="button" class="btn btn-secondary" id="btnTopologyFromConfig">
-          <i data-lucide="layers" style="width: 13px; height: 13px;"></i>
-          Topology & Nodes
-        </button>
-        <button type="button" class="btn btn-secondary" id="btnEditFromConfig">
-          <i data-lucide="edit" style="width: 13px; height: 13px;"></i>
-          Edit
-        </button>
-        <button type="button" class="btn btn-danger" id="btnDisconnectFromConfig">
-          <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-          Disconnect Cluster
-        </button>
-      </div>
-      <div style="display: flex; gap: 0.5rem;">
-        <button type="button" class="btn btn-secondary" id="btnCloseConfigModal">Close</button>
-        ${!isSelected ? `
-          <button type="button" class="btn btn-primary" id="btnSelectFromConfig">
-            <i data-lucide="database" style="width: 13px; height: 13px;"></i>
-            Switch & View Keys
-          </button>
-        ` : `
-          <button type="button" class="btn btn-secondary" id="btnSelectFromConfig">
-            <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
-            Refresh Keys
-          </button>
-        `}
-      </div>
-    `;
-  }
-
-  setupIcons();
-  modal.classList.add("active");
-
-  // Attach button events
-  const btnClose = document.getElementById("btnCloseConfigModal");
-  if (btnClose) btnClose.onclick = () => modal.classList.remove("active");
-
-  const btnEdit = document.getElementById("btnEditFromConfig");
-  if (btnEdit) {
-    btnEdit.onclick = () => {
-      modal.classList.remove("active");
-      openEditConnectionModal(conn);
-    };
-  }
-
-  const btnConnect = document.getElementById("btnConnectFromConfig");
-  if (btnConnect) {
-    btnConnect.onclick = async () => {
-      await connectCluster(conn.id);
-      modal.classList.remove("active");
-    };
-  }
-
-  const btnDisconnect = document.getElementById("btnDisconnectFromConfig");
-  if (btnDisconnect) {
-    btnDisconnect.onclick = async () => {
-      await disconnectCluster(conn.id);
-      modal.classList.remove("active");
-    };
-  }
-
-  const btnSelect = document.getElementById("btnSelectFromConfig");
-  if (btnSelect) {
-    btnSelect.onclick = async () => {
-      await selectCluster(conn.id);
-      modal.classList.remove("active");
-    };
-  }
-
-  const btnTopology = document.getElementById("btnTopologyFromConfig");
-  if (btnTopology) {
-    btnTopology.onclick = async () => {
-      modal.classList.remove("active");
-      await openTopologyModal(conn.id);
-    };
-  }
-
-  const btnTest = document.getElementById("btnTestFromConfig");
-  if (btnTest) {
-    btnTest.onclick = async () => {
-      await testConfigParams(conn);
-    };
-  }
-}
-
-// Test connection params from config modal using saved encrypted credentials
-async function testConfigParams(conn) {
-  const resBox = document.getElementById("cfgTestResultBox");
-  const btnTest = document.getElementById("btnTestFromConfig");
-  if (btnTest) {
-    btnTest.disabled = true;
-    btnTest.innerHTML = "Testing...";
-  }
-  if (resBox) {
-    resBox.className = "test-result-box";
-    resBox.innerHTML = "";
-  }
-
-  try {
-    const res = await fetch(`/api/connections/${conn.id}/test`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" }
-    });
-    const data = await res.json();
-    if (data.success) {
-      resBox.className = "test-result-box success";
-      resBox.innerHTML = `
-        <i data-lucide="check-circle-2"></i>
-        <span>Connected! Latency: <strong>${data.latency_ms} ms</strong> (Redis v${data.redis_version})</span>
-      `;
-    } else {
-      resBox.className = "test-result-box error";
-      resBox.innerHTML = `
-        <i data-lucide="alert-circle"></i>
-        <span>Failed: ${escapeHtml(data.error || "Connection refused")}</span>
-      `;
-    }
-  } catch (err) {
-    if (resBox) {
-      resBox.className = "test-result-box error";
-      resBox.innerHTML = `<i data-lucide="alert-circle"></i><span>Error: ${escapeHtml(err.message)}</span>`;
-    }
-  } finally {
-    if (btnTest) {
-      btnTest.disabled = false;
-      btnTest.innerHTML = `<i data-lucide="zap" style="width: 13px; height: 13px;"></i> Test Connection`;
-    }
-    setupIcons();
-  }
-}
-
-// Connect to a cluster (enforcing simultaneous limit)
-async function connectCluster(connId) {
-  // Check limit client-side first for instantaneous feedback
-  const target = cachedConnections.find(c => c.id === connId);
-  const connectedTotal = cachedConnections.filter(c => c.is_connected && c.id !== connId).length;
-
-  if (connectedTotal >= currentLimit) {
-    alert(`Connection limit reached: Maximum ${currentLimit} connected cluster(s) allowed at a time.\nPlease disconnect an existing cluster first or increase the limit in the sidebar.`);
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/connections/${connId}/connect`, { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || "Failed to connect to cluster");
-    }
-    await loadConnections();
-    await refreshStatus();
-    await resetAndScan();
-  } catch (err) {
-    alert("Connection error: " + err.message);
-  }
-}
-
-// Disconnect a cluster
-async function disconnectCluster(connId) {
-  try {
-    const res = await fetch(`/api/connections/${connId}/disconnect`, { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || "Failed to disconnect cluster");
-    }
-    await loadConnections();
-    await refreshStatus();
-
-    const stillConnected = cachedConnections.some(c => c.is_connected && c.id !== connId);
-    if (!stillConnected) {
-      // Clear key browsing table and show empty state
-      keysTableRows = [];
-      loadedKeysSet.clear();
-      totalScanned = 0;
-      currentCursor = 0;
-      scanComplete = false;
-      dbTotalKeys = 0;
-      renderEmptyWorkspace();
-    } else {
-      await resetAndScan();
-    }
-  } catch (err) {
-    alert("Disconnect error: " + err.message);
-  }
-}
-
-// Select / switch between connected clusters (Requirement 4: proper switching)
-async function selectCluster(connId) {
-  try {
-    const res = await fetch(`/api/connections/${connId}/select`, { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || "Failed to switch cluster");
-    }
-
-    // Close any open detail view
-    const detailModal = document.getElementById("keyDetailModal");
-    if (detailModal) detailModal.classList.remove("active");
-    activeDetailKey = null;
-    activeDetailData = null;
-
-    await loadConnections();
-    await refreshStatus();
-    await resetAndScan();
-  } catch (err) {
-    alert("Switch error: " + err.message);
-  }
-}
-
-// Render empty workspace state when no cluster is connected
-function renderEmptyWorkspace() {
-  const scanStatus = document.getElementById("scanStatusText");
-  if (scanStatus) {
-    scanStatus.textContent = "No cluster connected";
-  }
-  const emptyEl = document.getElementById("emptyWorkspaceState");
-  const gridContainer = document.getElementById("gridViewerContainer");
-  if (emptyEl) {
-    emptyEl.style.display = "flex";
-  }
-  if (gridContainer) {
-    gridContainer.style.display = "none";
-  }
-  const btnFirst = document.getElementById("btnConnectFirstAvailable");
-  if (btnFirst) {
-    btnFirst.innerHTML = `<i data-lucide="server" style="width: 14px; height: 14px;"></i> View Available Clusters (${cachedConnections.length})`;
-    if (cachedConnections.length > 0) {
-      btnFirst.onclick = () => openClusterConfigModal(cachedConnections[0]);
-    }
-  }
-  setupIcons();
-}
-
-// Delete a connection
-async function deleteConnection(connId) {
-  try {
-    const res = await fetch(`/api/connections/${connId}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Failed to delete");
-    await loadConnections();
-    await refreshStatus();
-    await resetAndScan();
-  } catch (err) {
-    alert("Delete error: " + err.message);
-  }
-}
-
-// ==========================================
-// Cluster Topology & Node Details Modal
-// ==========================================
-
-async function openKeyspaceModal() {
-  const modal = document.getElementById("keyspaceNodesModal");
-  if (!modal) return;
-  modal.classList.add("active");
-  renderKeyspaceNodes(lastStatus);
-  await loadKeyspaceNodes();
-}
-
-function closeKeyspaceModal() {
-  const modal = document.getElementById("keyspaceNodesModal");
-  if (modal) modal.classList.remove("active");
-}
-
-async function loadKeyspaceNodes() {
-  try {
-    const res = await fetch("/api/status");
-    if (!res.ok) throw new Error("Failed to load node stats");
-    lastStatus = await res.json();
-    renderKeyspaceNodes(lastStatus);
-  } catch (err) {
-    const container = document.getElementById("keyspaceNodesContainer");
-    if (container) {
-      container.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--accent-danger);">${escapeHtml(err.message)}</div>`;
-    }
-  }
-}
-
-function renderKeyspaceNodes(status) {
-  const container = document.getElementById("keyspaceNodesContainer");
-  const totalBadge = document.getElementById("keyspaceTotalBadge");
-  if (!container || !status) return;
-
-  const stats = status.node_stats || [];
-  const masters = stats.filter(n => n.role === "master");
-  const total = masters.reduce((sum, n) => sum + (n.keys || 0), 0);
-  if (totalBadge) totalBadge.textContent = `${total.toLocaleString()} keys`;
-
-  if (masters.length === 0) {
-    container.innerHTML = `<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Per-node breakdown is only available for cluster connections.</div>`;
-    return;
-  }
-
-  const fmt = v => (v === null || v === undefined) ? "—" : Number(v).toLocaleString();
-  const th = (label, align = "left") => `<th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: ${align};">${label}</th>`;
-  const td = (content, extra = "") => `<td style="padding: 0.6rem 0.85rem; font-family: var(--font-mono); font-size: 0.8rem; ${extra}">${content}</td>`;
-
-  const rows = masters.map(m => {
-    const share = total > 0 && m.keys !== null ? ((m.keys / total) * 100).toFixed(1) : "0.0";
-    const replicas = stats.filter(n => n.role === "replica" && n.master === m.node);
-    const masterRow = `
-      <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
-        ${td(`<span class="role-badge-master">MASTER</span> <span style="color: var(--text-primary); font-weight: 600; margin-left: 6px;">${escapeHtml(m.node)}</span>`)}
-        ${td(m.error ? `<span style="color: var(--accent-danger);" title="${escapeHtml(m.error)}">unreachable</span>` : fmt(m.keys), "text-align: right; color: var(--text-primary); font-weight: 600;")}
-        ${td(`${share}%`, "text-align: right; color: var(--text-secondary);")}
-        ${td(escapeHtml(m.used_memory_human || "—"), "text-align: right; color: #c084fc;")}
-        ${td(fmt(m.connected_clients), "text-align: right; color: #38bdf8;")}
-      </tr>`;
-    const replicaRows = replicas.map(r => {
-      const drift = (r.keys !== null && m.keys !== null) ? r.keys - m.keys : null;
-      const driftHtml = drift === null
-        ? ""
-        : drift === 0
-        ? `<span style="color: var(--accent-success); margin-left: 6px;">in sync</span>`
-        : `<span style="color: var(--accent-warning); margin-left: 6px;" title="Replica key count differs from its master (replication lag or expiring keys)">${drift > 0 ? "+" : ""}${drift.toLocaleString()}</span>`;
-      return `
-      <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); background: rgba(0,0,0,0.12);">
-        ${td(`<span style="color: var(--text-muted); margin-left: 0.75rem;">↳</span> <span class="role-badge-replica">REPLICA</span> <span style="color: var(--text-secondary); margin-left: 6px;">${escapeHtml(r.node)}</span>`)}
-        ${td(r.error ? `<span style="color: var(--accent-danger);" title="${escapeHtml(r.error)}">unreachable</span>` : `${fmt(r.keys)}${driftHtml}`, "text-align: right; color: var(--text-secondary);")}
-        ${td("", "")}
-        ${td(escapeHtml(r.used_memory_human || "—"), "text-align: right; color: var(--text-muted);")}
-        ${td(fmt(r.connected_clients), "text-align: right; color: var(--text-muted);")}
-      </tr>`;
-    }).join("");
-    return masterRow + replicaRows;
-  }).join("");
-
-  container.innerHTML = `
-    <table class="data-table" style="width: 100%; border-collapse: collapse;">
-      <thead>
-        <tr>${th("NODE")}${th("KEYS", "right")}${th("SHARE", "right")}${th("MEMORY", "right")}${th("CLIENTS", "right")}</tr>
-      </thead>
-      <tbody>${rows}</tbody>
-      <tfoot>
-        <tr>
-          ${td("Cluster total (masters)", "color: var(--text-muted); font-family: inherit;")}
-          ${td(total.toLocaleString(), "text-align: right; color: var(--accent-primary); font-weight: 700;")}
-          ${td("100%", "text-align: right; color: var(--text-muted);")}
-          ${td(escapeHtml(status.used_memory_human || "—"), "text-align: right; color: #c084fc;")}
-          ${td("", "")}
-        </tr>
-      </tfoot>
-    </table>
-  `;
-  setupIcons();
-}
-
-async function openTopologyModal(connId = null) {
-  const modal = document.getElementById("clusterTopologyModal");
-  if (!modal) return;
-  modal.classList.add("active");
-
-  if (connId) {
-    const activeCard = document.querySelector(`.conn-card[data-id="${connId}"]`);
-    if (activeCard && !activeCard.classList.contains("active")) {
-      await connectCluster(connId);
-    }
-  }
-
-  await loadTopologyData();
-}
-
-function closeTopologyModal() {
-  const modal = document.getElementById("clusterTopologyModal");
-  if (modal) modal.classList.remove("active");
-}
-
-async function loadTopologyData() {
-  const statsGrid = document.getElementById("topologyStatsGrid");
-  const tableContainer = document.getElementById("topologyTableContainer");
-  const nodesCountBadge = document.getElementById("topologyNodesCountBadge");
-  const envBadge = document.getElementById("topologyEnvBadge");
-
-  const activeConn = cachedConnections.find(c => c.is_active);
-  if (activeConn && envBadge) {
-    const env = (activeConn.env || "LOCAL").toUpperCase();
-    envBadge.textContent = env;
-    envBadge.className = `badge-env badge-env-${env.toLowerCase()}`;
-  }
-
-  if (tableContainer) {
-    tableContainer.innerHTML = `
-      <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
-        <i data-lucide="refresh-cw" class="spin" style="width: 20px; height: 20px; margin-bottom: 0.5rem;"></i>
-        <br>Fetching cluster nodes & slot mappings...
-      </div>
-    `;
-    setupIcons();
-  }
-
-  try {
-    const res = await fetch("/api/topology");
-    if (!res.ok) throw new Error("Failed to load cluster topology");
-    const data = await res.json();
-    currentTopologyData = data;
-
-    if (nodesCountBadge) {
-      nodesCountBadge.textContent = `${data.total_nodes} Node${data.total_nodes !== 1 ? 's' : ''}`;
-    }
-
-    renderTopologyStats(data);
-    renderTopologyNodes();
-  } catch (err) {
-    if (tableContainer) {
-      tableContainer.innerHTML = `
-        <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
-          <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
-          <h4>Unable to retrieve topology</h4>
-          <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-secondary);">${err.message}</p>
-        </div>
-      `;
-      setupIcons();
-    }
-  }
-}
-
-function renderTopologyStats(data) {
-  const statsGrid = document.getElementById("topologyStatsGrid");
-  if (!statsGrid) return;
-
-  const isCluster = data.is_cluster;
-  const isOk = (data.cluster_state || "").toLowerCase() === "ok" || !isCluster;
-
-  statsGrid.innerHTML = `
-    <div class="topology-stat-card">
-      <span class="topology-stat-label">Cluster State</span>
-      <span class="topology-stat-value" style="color: ${isOk ? 'var(--accent-success)' : 'var(--accent-danger)'}; display: flex; align-items: center; gap: 0.4rem;">
-        <span class="link-dot ${isOk ? 'connected' : 'disconnected'}"></span>
-        ${(data.cluster_state || (isCluster ? "OK" : "Standalone")).toUpperCase()}
-      </span>
-    </div>
-
-    <div class="topology-stat-card">
-      <span class="topology-stat-label">Total Nodes</span>
-      <span class="topology-stat-value" style="color: var(--accent-primary);">
-        ${data.total_nodes}
-      </span>
-    </div>
-
-    <div class="topology-stat-card">
-      <span class="topology-stat-label">Masters / Replicas</span>
-      <span class="topology-stat-value">
-        <span style="color: #38bdf8;">${data.masters_count}M</span>
-        <span style="color: var(--text-muted); font-size: 0.9rem; margin: 0 4px;">/</span>
-        <span style="color: #fbbf24;">${data.replicas_count}R</span>
-      </span>
-    </div>
-
-    <div class="topology-stat-card">
-      <span class="topology-stat-label">Assigned Slots</span>
-      <span class="topology-stat-value" style="color: ${data.slots_assigned >= 16384 ? 'var(--accent-success)' : 'var(--accent-warning)'};">
-        ${data.slots_assigned} / 16384
-      </span>
-    </div>
-  `;
-}
-
-function renderTopologyNodes() {
-  const container = document.getElementById("topologyTableContainer");
-  if (!container || !currentTopologyData) return;
-
-  const nodes = currentTopologyData.nodes || [];
-  const q = (currentTopologySearch || "").trim().toLowerCase();
-  const roleFilter = currentTopologyRole;
-
-  const filtered = nodes.filter(n => {
-    if (roleFilter !== "all" && n.role.toLowerCase() !== roleFilter) {
-      return false;
-    }
-    if (q) {
-      const matchAddr = (n.addr || "").toLowerCase().includes(q);
-      const matchId = (n.id || "").toLowerCase().includes(q);
-      const matchIp = (n.ip || "").toLowerCase().includes(q);
-      const matchSlots = (n.slots || "").toLowerCase().includes(q);
-      if (!matchAddr && !matchId && !matchIp && !matchSlots) return false;
-    }
-    return true;
-  });
-
-  if (filtered.length === 0) {
-    container.innerHTML = `<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">No nodes match current filter.</div>`;
-    return;
-  }
-
-  container.innerHTML = `
-    <table class="data-table" style="width: 100%; border-collapse: collapse;">
-      <thead>
-        <tr>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">NODE ID</th>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">ROLE</th>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">ENDPOINT (IP:PORT)</th>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: right;">KEYS</th>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">LINK STATE</th>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">ASSIGNED SLOTS</th>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: left;">MASTER / REPLICA OF</th>
-          <th style="padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.72rem; text-align: right;">FLAGS</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filtered.map(n => {
-          const isMaster = n.role === "master";
-          const isConnected = (n.link_state || "connected").toLowerCase() === "connected";
-          const shortId = n.id ? (n.id.length > 12 ? `${n.id.substring(0, 10)}...` : n.id) : "N/A";
-          const slotsDisplay = n.slots ? `${n.slots} <span style="color: var(--text-muted); font-size: 0.72rem;">(${n.slot_count || 0} slots)</span>` : (isMaster ? "None" : "<span style='color: var(--text-muted);'>Replication slave</span>");
-
-          return `
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
-              <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">
-                <span title="${escapeHtml(n.id || '')}">${escapeHtml(shortId)}</span>
-              </td>
-              <td style="padding: 0.65rem 0.85rem;">
-                <span class="${isMaster ? 'role-badge-master' : 'role-badge-replica'}">${n.role.toUpperCase()}</span>
-              </td>
-              <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-weight: 600; font-size: 0.82rem; color: var(--text-primary);">
-                ${escapeHtml(n.addr || `${n.ip}:${n.port}`)}
-              </td>
-              <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.82rem; text-align: right; color: ${isMaster ? 'var(--text-primary)' : 'var(--text-secondary)'};">
-                ${n.keys === null || n.keys === undefined ? '—' : Number(n.keys).toLocaleString()}
-              </td>
-              <td style="padding: 0.65rem 0.85rem; font-size: 0.8rem;">
-                <span class="link-dot ${isConnected ? 'connected' : 'disconnected'}"></span>
-                <span style="color: ${isConnected ? 'var(--accent-success)' : 'var(--accent-danger)'};">${n.link_state || 'connected'}</span>
-              </td>
-              <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.78rem;">
-                ${slotsDisplay}
-              </td>
-              <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
-                ${n.master_id ? `<span title="${escapeHtml(n.master_id)}">↳ ${escapeHtml(n.master_id.substring(0, 8))}...</span>` : '—'}
-              </td>
-              <td style="padding: 0.65rem 0.85rem; text-align: right; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">
-                ${(n.flags || []).join(", ") || "none"}
-              </td>
-            </tr>
-          `;
-        }).join("")}
-      </tbody>
-    </table>
-  `;
-
-  setupIcons();
-}
-
-function updateBulkDeleteToolbarVisibility() {
-  const btn = document.getElementById("btnOpenBulkDeleteModal");
-  if (!btn) return;
-  if (lastStatus?.read_only) {
-    btn.disabled = true;
-    btn.style.opacity = "0.4";
-    btn.style.cursor = "not-allowed";
-    btn.title = "🔒 Bulk Delete is disabled in Read-Only mode";
-  } else {
-    btn.disabled = false;
-    btn.style.opacity = "1";
-    btn.style.cursor = "pointer";
-    btn.title = "Bulk delete matched keys (Dry-run & confirmation required)";
-  }
-}
-
-// Refresh status
-async function refreshStatus() {
+// Periodic Health Status & Vitals Polling
+export async function refreshStatus() {
   const connContainer = document.getElementById("topConnContainer");
   const vitalsContainer = document.getElementById("topVitalsContainer");
 
@@ -5077,11 +1123,11 @@ async function refreshStatus() {
     const s = await res.json();
 
     if (s.connected) {
-      const activeConn = cachedConnections.find(c => c.is_selected) || cachedConnections.find(c => c.id === s.connection_id) || cachedConnections.find(c => c.is_connected);
+      const activeConn = state.cachedConnections.find(c => c.is_selected) || state.cachedConnections.find(c => c.id === s.connection_id) || state.cachedConnections.find(c => c.is_connected);
       const isCluster = (activeConn && activeConn.conn_type === "cluster") || (s.cluster_nodes && s.cluster_nodes.length > 0) || s.is_cluster;
       const totalNodes = s.cluster_nodes_count || (s.node_stats && s.node_stats.length > 0 ? s.node_stats.length : 1);
       const masterStats = (s.node_stats || []).filter(n => n.role === "master");
-      lastStatus = s;
+      state.lastStatus = s;
       updateBulkDeleteToolbarVisibility();
 
       if (connContainer) {
@@ -5148,6 +1194,16 @@ async function refreshStatus() {
         `;
       }
 
+      // Update workspace tab badges
+      const tabBadgeKeys = document.getElementById("tabBadgeKeys");
+      if (tabBadgeKeys) tabBadgeKeys.textContent = (s.dbsize || 0).toLocaleString();
+
+      const tabBadgeTopology = document.getElementById("tabBadgeTopology");
+      if (tabBadgeTopology) tabBadgeTopology.textContent = isCluster ? `${totalNodes} Nodes` : `1 Node`;
+
+      const tabBadgeClients = document.getElementById("tabBadgeClients");
+      if (tabBadgeClients) tabBadgeClients.textContent = String(s.connected_clients || 1);
+
       setupIcons();
 
       const btnDisconnectTop = document.getElementById("btnTopDisconnect");
@@ -5192,7 +1248,7 @@ async function refreshStatus() {
         `;
       }
       setupIcons();
-      if (totalScanned === 0 && keysTableRows.length === 0) {
+      if (state.totalScanned === 0 && state.keysTableRows.length === 0) {
         renderEmptyWorkspace();
       }
     }
@@ -5212,1239 +1268,100 @@ async function refreshStatus() {
   }
 }
 
-// Event Listeners Setup
-function setupEventListeners() {
-  // Connection Limit Dropdown change listener
-  const limitSelect = document.getElementById("connLimitSelect");
-  if (limitSelect) {
-    limitSelect.addEventListener("change", async () => {
-      const newLimit = parseInt(limitSelect.value, 10) || 2;
-      try {
-        const res = await fetch("/api/connections/limit", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ limit: newLimit })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          currentLimit = data.limit;
-          updateLimitUI(data.connected_count, data.limit);
-        }
-      } catch (e) {
-        console.error("Failed to update limit:", e);
-      }
+function setupGlobalEventListeners() {
+  const btnRefreshStats = document.getElementById("btnRefreshStats");
+  if (btnRefreshStats) btnRefreshStats.addEventListener("click", refreshStatus);
+
+  // Cluster config modal backdrop click & header close
+  const clusterConfigModal = document.getElementById("clusterConfigModal");
+  const btnCloseConfigHeader = document.getElementById("btnCloseConfigModalHeader");
+  if (btnCloseConfigHeader && clusterConfigModal) {
+    btnCloseConfigHeader.addEventListener("click", () => clusterConfigModal.classList.remove("active"));
+  }
+  if (clusterConfigModal) {
+    clusterConfigModal.addEventListener("click", (e) => {
+      if (e.target === clusterConfigModal) clusterConfigModal.classList.remove("active");
     });
   }
 
-  // Cluster Config Modal backdrop click
-  const cfgModal = document.getElementById("clusterConfigModal");
-  if (cfgModal) {
-    cfgModal.addEventListener("click", (e) => {
-      if (e.target === cfgModal) cfgModal.classList.remove("active");
-    });
-  }
+  // Sidebar toggle & shortcut
+  const sidebar = document.querySelector(".sidebar");
+  const btnToggleSidebar = document.getElementById("btnToggleSidebar");
+  const btnShowSidebar = document.getElementById("btnShowSidebar");
 
-  // Sidebar Search & Filter
-  const connSearchInput = document.getElementById("connSearchInput");
-  const btnClearSearch = document.getElementById("btnClearConnSearch");
-  if (connSearchInput) {
-    connSearchInput.addEventListener("input", () => {
-      currentConnSearch = connSearchInput.value;
-      if (btnClearSearch) {
-        btnClearSearch.style.display = currentConnSearch ? "flex" : "none";
-      }
-      renderConnectionsList();
-    });
-  }
-  if (btnClearSearch) {
-    btnClearSearch.addEventListener("click", () => {
-      if (connSearchInput) {
-        connSearchInput.value = "";
-        connSearchInput.focus();
-      }
-      currentConnSearch = "";
-      btnClearSearch.style.display = "none";
-      renderConnectionsList();
-    });
-  }
-
-  const envPills = document.querySelectorAll("#envFilterPills .env-pill-btn");
-  envPills.forEach(pill => {
-    pill.addEventListener("click", () => {
-      envPills.forEach(p => p.classList.remove("active"));
-      pill.classList.add("active");
-      currentEnvFilter = pill.getAttribute("data-env") || "ALL";
-      renderConnectionsList();
-    });
-  });
-
-  // Reload config connections button
-  const btnReloadConfig = document.getElementById("btnReloadConfig");
-  if (btnReloadConfig) {
-    btnReloadConfig.addEventListener("click", async () => {
-      btnReloadConfig.disabled = true;
-      try {
-        const res = await fetch("/api/connections/reload-config", { method: "POST" });
-        const data = await res.json();
-        const count = data.loaded ?? data.total_in_file ?? 0;
-        alert(`Config reloaded successfully! Synced ${count} connection(s) from config.`);
-        await loadConnections();
-      } catch (err) {
-        alert("Failed to reload config: " + err.message);
-      } finally {
-        btnReloadConfig.disabled = false;
-      }
-    });
-  }
-
-  // Auto-refresh connections when window/tab regains focus (e.g. after editing config file in editor)
-  window.addEventListener("focus", () => {
-    loadConnections().catch(() => {});
-  });
-
-
-  // Cluster Multi-Node Builder State
-  let configuredClusterNodes = [];
-
-  function renderConfiguredClusterNodes() {
-    const listEl = document.getElementById("clusterNodesList");
-    const countBadge = document.getElementById("clusterNodeCountBadge");
-    if (!listEl) return;
-
-    if (countBadge) {
-      countBadge.textContent = `${configuredClusterNodes.length} configured`;
+  const toggleSidebar = (collapse) => {
+    if (!sidebar) return;
+    const shouldCollapse = collapse !== undefined ? collapse : !sidebar.classList.contains("collapsed");
+    sidebar.classList.toggle("collapsed", shouldCollapse);
+    if (btnShowSidebar) {
+      btnShowSidebar.style.display = shouldCollapse ? "inline-flex" : "none";
     }
-
-    if (configuredClusterNodes.length === 0) {
-      listEl.innerHTML = `
-        <div style="font-size: 0.73rem; color: var(--text-muted); font-style: italic; padding: 0.25rem 0;">
-          No nodes configured yet. Enter a seed node above and click Auto-Discover, or add nodes manually below.
-        </div>
-      `;
-      return;
-    }
-
-    listEl.innerHTML = configuredClusterNodes.map((n, idx) => {
-      const isMaster = n.role === "master";
-      const isReplica = n.role === "replica";
-      const isSeed = n.role === "seed";
-      const chipClass = isMaster ? "master" : isReplica ? "replica" : "";
-      const roleBadgeClass = isMaster ? "master" : isReplica ? "replica" : isSeed ? "seed" : "manual";
-      const roleText = isMaster ? "Master" : isReplica ? "Replica" : isSeed ? "Seed" : "Node";
-
-      return `
-        <span class="cluster-node-chip ${chipClass}">
-          <i data-lucide="server" style="width: 11px; height: 11px; opacity: 0.75;"></i>
-          <span>${escapeHtml(n.host)}:${n.port}</span>
-          <span class="cluster-node-role-badge ${roleBadgeClass}">${roleText}</span>
-          <button type="button" class="cluster-node-chip-remove" data-idx="${idx}" title="Remove node">
-            <i data-lucide="x" style="width: 11px; height: 11px;"></i>
-          </button>
-        </span>
-      `;
-    }).join("");
-
-    listEl.querySelectorAll(".cluster-node-chip-remove").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const idx = parseInt(btn.getAttribute("data-idx"), 10);
-        if (!isNaN(idx) && idx >= 0 && idx < configuredClusterNodes.length) {
-          configuredClusterNodes.splice(idx, 1);
-          renderConfiguredClusterNodes();
-        }
-      });
-    });
-
+    localStorage.setItem("redis_insight_sidebar_collapsed", shouldCollapse ? "true" : "false");
     setupIcons();
-  }
-
-  // Connection Type toggle in Add Modal
-  const typeSelect = document.getElementById("connTypeSelect");
-  const clusterGroup = document.getElementById("clusterNodesGroup");
-  const hostLabel = document.getElementById("connHostLabel");
-  const portLabel = document.getElementById("connPortLabel");
-  const hostInput = document.getElementById("connHost");
-  const portInput = document.getElementById("connPort");
-  const dbGroup = document.getElementById("connDbGroup");
-
-  if (typeSelect && clusterGroup) {
-    typeSelect.addEventListener("change", () => {
-      const isCluster = typeSelect.value === "cluster";
-      clusterGroup.style.display = isCluster ? "block" : "none";
-      if (dbGroup) dbGroup.style.display = isCluster ? "none" : "block";
-
-      if (isCluster) {
-        if (hostLabel) hostLabel.textContent = "Primary Seed Host *";
-        if (portLabel) portLabel.textContent = "Seed Port *";
-        if (hostInput && (hostInput.value === "localhost" || !hostInput.value)) {
-          hostInput.value = "127.0.0.1";
-        }
-        if (portInput && (portInput.value === "6379" || !portInput.value)) {
-          portInput.value = "7000";
-        }
-        if (configuredClusterNodes.length === 0 && hostInput && hostInput.value && portInput && portInput.value) {
-          configuredClusterNodes.push({
-            host: hostInput.value.trim(),
-            port: parseInt(portInput.value, 10) || 7000,
-            role: "seed"
-          });
-        }
-        renderConfiguredClusterNodes();
-      } else {
-        if (hostLabel) hostLabel.textContent = "Host *";
-        if (portLabel) portLabel.textContent = "Port *";
-        if (portInput && portInput.value === "7000") {
-          portInput.value = "6379";
-        }
-      }
-    });
-  }
-
-  // Auto-Discover Cluster Nodes Button
-  const btnAutoDiscover = document.getElementById("btnAutoDiscoverCluster");
-  const discoveryStatusEl = document.getElementById("clusterDiscoveryStatus");
-
-  if (btnAutoDiscover) {
-    btnAutoDiscover.addEventListener("click", async () => {
-      const host = hostInput ? hostInput.value.trim() : "127.0.0.1";
-      const port = portInput ? parseInt(portInput.value, 10) || 7000 : 7000;
-      const username = document.getElementById("connUsername").value.trim() || null;
-      const password = document.getElementById("connPassword").value || null;
-      const use_tls = document.getElementById("connTls").checked;
-
-      if (!host) {
-        if (discoveryStatusEl) {
-          discoveryStatusEl.className = "cluster-discovery-status error";
-          discoveryStatusEl.style.display = "flex";
-          discoveryStatusEl.innerHTML = `<i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i><span>Please enter a Seed Host.</span>`;
-          setupIcons();
-        }
-        return;
-      }
-
-      btnAutoDiscover.disabled = true;
-      btnAutoDiscover.innerHTML = `<i class="lucide-spin" data-lucide="loader-2" style="width: 13px; height: 13px;"></i> Discovering...`;
-      setupIcons();
-
-      if (discoveryStatusEl) {
-        discoveryStatusEl.className = "cluster-discovery-status";
-        discoveryStatusEl.style.display = "none";
-      }
-
-      try {
-        const res = await fetch("/api/connections/discover-cluster", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ host, port, username, password, use_tls })
-        });
-        const data = await res.json();
-
-        if (data.success && data.nodes && data.nodes.length > 0) {
-          // Replace configured nodes with discovered nodes
-          configuredClusterNodes = data.nodes.map(n => ({
-            host: n.host,
-            port: n.port,
-            role: n.role,
-            is_myself: n.is_myself,
-            slots: n.slots
-          }));
-
-          renderConfiguredClusterNodes();
-
-          if (discoveryStatusEl) {
-            discoveryStatusEl.className = "cluster-discovery-status success";
-            discoveryStatusEl.style.display = "flex";
-            discoveryStatusEl.innerHTML = `
-              <i data-lucide="check-circle-2" style="width: 14px; height: 14px;"></i>
-              <span>Discovered <strong>${data.total_nodes} nodes</strong> (${data.masters_count} masters, ${data.replicas_count} replicas) • Cluster state: <strong>${data.cluster_state.toUpperCase()}</strong></span>
-            `;
-          }
-        } else {
-          if (discoveryStatusEl) {
-            discoveryStatusEl.className = "cluster-discovery-status error";
-            discoveryStatusEl.style.display = "flex";
-            discoveryStatusEl.innerHTML = `
-              <i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i>
-              <span>${escapeHtml(data.error || "Cluster discovery failed. Ensure seed node is part of a cluster.")}</span>
-            `;
-          }
-        }
-      } catch (err) {
-        if (discoveryStatusEl) {
-          discoveryStatusEl.className = "cluster-discovery-status error";
-          discoveryStatusEl.style.display = "flex";
-          discoveryStatusEl.innerHTML = `
-            <i data-lucide="alert-circle" style="width: 14px; height: 14px;"></i>
-            <span>Network error: ${escapeHtml(err.message)}</span>
-          `;
-        }
-      } finally {
-        btnAutoDiscover.disabled = false;
-        btnAutoDiscover.innerHTML = `<i data-lucide="sparkles" style="width: 13px; height: 13px;"></i> Auto-Discover Nodes`;
-        setupIcons();
-      }
-    });
-  }
-
-  // Manual Add Node to Cluster Builder
-  const inputCustomNode = document.getElementById("inputCustomClusterNode");
-  const btnAddCustomNode = document.getElementById("btnAddCustomClusterNode");
-
-  function handleAddCustomNode() {
-    if (!inputCustomNode) return;
-    const val = inputCustomNode.value.trim();
-    if (!val) return;
-
-    let h = "127.0.0.1";
-    let p = 7000;
-    if (val.includes(":")) {
-      const parts = val.split(":");
-      h = parts[0].trim() || "127.0.0.1";
-      p = parseInt(parts[1].trim(), 10) || 7000;
-    } else if (!isNaN(parseInt(val, 10))) {
-      p = parseInt(val, 10);
-      h = hostInput ? hostInput.value.trim() : "127.0.0.1";
-    } else {
-      h = val;
-    }
-
-    const exists = configuredClusterNodes.some(n => n.host === h && n.port === p);
-    if (!exists) {
-      configuredClusterNodes.push({ host: h, port: p, role: "manual" });
-      renderConfiguredClusterNodes();
-    }
-    inputCustomNode.value = "";
-  }
-
-  if (btnAddCustomNode) {
-    btnAddCustomNode.addEventListener("click", handleAddCustomNode);
-  }
-  if (inputCustomNode) {
-    inputCustomNode.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleAddCustomNode();
-      }
-    });
-  }
-
-  // Cluster Topology Modal controls
-  const topologyModal = document.getElementById("clusterTopologyModal");
-  const btnCloseTopology = document.getElementById("btnCloseTopologyModal");
-  if (btnCloseTopology) btnCloseTopology.addEventListener("click", closeTopologyModal);
-  const btnRefreshTopology = document.getElementById("btnRefreshTopologyModal");
-  if (btnRefreshTopology) btnRefreshTopology.addEventListener("click", loadTopologyData);
-  if (topologyModal) {
-    topologyModal.addEventListener("click", (e) => {
-      if (e.target === topologyModal) closeTopologyModal();
-    });
-  }
-
-  // Topology search & role filtering
-  const topologySearch = document.getElementById("topologySearchInput");
-  if (topologySearch) {
-    topologySearch.addEventListener("input", () => {
-      currentTopologySearch = topologySearch.value;
-      renderTopologyNodes();
-    });
-  }
-
-  document.querySelectorAll("#topologyRoleFilter .type-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll("#topologyRoleFilter .type-tab").forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-      currentTopologyRole = tab.getAttribute("data-role") || "all";
-      renderTopologyNodes();
-    });
-  });
-
-  // Keyspace by Node Modal controls
-  const keyspaceModal = document.getElementById("keyspaceNodesModal");
-  document.getElementById("btnCloseKeyspaceModal").addEventListener("click", closeKeyspaceModal);
-  document.getElementById("btnRefreshKeyspaceModal").addEventListener("click", loadKeyspaceNodes);
-  document.getElementById("btnKeyspaceOpenTopology").addEventListener("click", () => {
-    closeKeyspaceModal();
-    openTopologyModal();
-  });
-  keyspaceModal.addEventListener("click", (e) => {
-    if (e.target === keyspaceModal) closeKeyspaceModal();
-  });
-
-  // Clients Modal controls
-  const clientsModal = document.getElementById("clientsListModal");
-  document.getElementById("btnCloseClientsModal").addEventListener("click", closeClientsModal);
-  document.getElementById("btnRefreshClientsModal").addEventListener("click", loadConnectedClients);
-  clientsModal.addEventListener("click", (e) => {
-    if (e.target === clientsModal) closeClientsModal();
-  });
-
-  const clientsSearch = document.getElementById("clientsSearchInput");
-  if (clientsSearch) {
-    clientsSearch.addEventListener("input", () => {
-      const q = clientsSearch.value.trim().toLowerCase();
-      const filtered = q
-        ? allConnectedClients.filter(c =>
-            (c.addr && c.addr.toLowerCase().includes(q)) ||
-            (c.ip && c.ip.toLowerCase().includes(q)) ||
-            (c.name && c.name.toLowerCase().includes(q)) ||
-            (c.cmd && c.cmd.toLowerCase().includes(q)) ||
-            (c.user && c.user.toLowerCase().includes(q)) ||
-            (c.id && String(c.id).includes(q))
-          )
-        : allConnectedClients;
-      renderClientsTable(filtered);
-    });
-  }
-
-  // Top Action Buttons: Benchmark Studio
-  const btnOpenBenchmark = document.getElementById("btnOpenBenchmarkModal");
-  if (btnOpenBenchmark) {
-    btnOpenBenchmark.addEventListener("click", openBenchmarkModal);
-  }
-
-  // Benchmark Modal Controls
-  const benchmarkModal = document.getElementById("benchmarkModal");
-  const btnCloseBenchmark = document.getElementById("btnCloseBenchmarkModal");
-  if (btnCloseBenchmark) btnCloseBenchmark.addEventListener("click", closeBenchmarkModal);
-  if (benchmarkModal) {
-    benchmarkModal.addEventListener("click", (e) => {
-      if (e.target === benchmarkModal) closeBenchmarkModal();
-    });
-  }
-
-  // Benchmark Tab Navigation Buttons
-  document.querySelectorAll(".benchmark-tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const tab = btn.getAttribute("data-tab");
-      if (tab) switchBenchmarkTab(tab);
-    });
-  });
-
-  // Level 1: Probe Button
-  const btnRunProbe = document.getElementById("btnRunProbe");
-  if (btnRunProbe) btnRunProbe.addEventListener("click", runLatencyProbe);
-
-  // Level 2: Command Benchmark Button
-  const btnRunCommandBench = document.getElementById("btnRunCommandBench");
-  if (btnRunCommandBench) btnRunCommandBench.addEventListener("click", runCommandBenchmark);
-
-  // Level 3: Lua Script Profiler
-  const selLuaPreset = document.getElementById("selLuaPreset");
-  if (selLuaPreset) {
-    selLuaPreset.addEventListener("change", () => {
-      const presetKey = selLuaPreset.value;
-      const preset = LUA_PRESETS[presetKey];
-      if (preset) {
-        const txtScript = document.getElementById("txtLuaScript");
-        const txtKeys = document.getElementById("txtLuaKeys");
-        const txtArgs = document.getElementById("txtLuaArgs");
-        if (txtScript) txtScript.value = preset.script;
-        if (txtKeys) txtKeys.value = preset.keys;
-        if (txtArgs) txtArgs.value = preset.args;
-      }
-    });
-  }
-
-  const selLuaMode = document.getElementById("selLuaMode");
-  const groupLuaBenchControls = document.getElementById("groupLuaBenchmarkControls");
-  if (selLuaMode && groupLuaBenchControls) {
-    selLuaMode.addEventListener("change", () => {
-      groupLuaBenchControls.style.display = selLuaMode.value === "benchmark" ? "flex" : "none";
-    });
-  }
-
-  const btnRunLuaBench = document.getElementById("btnRunLuaBench");
-  if (btnRunLuaBench) btnRunLuaBench.addEventListener("click", runLuaBenchmark);
-
-  // Level 4: Cluster Matrix Button
-  const btnRunClusterMatrix = document.getElementById("btnRunClusterMatrix");
-  if (btnRunClusterMatrix) btnRunClusterMatrix.addEventListener("click", runClusterMatrix);
-
-  // Top Action Buttons for Slowlog & Memory
-  const btnOpenSlowlog = document.getElementById("btnOpenSlowlog");
-  if (btnOpenSlowlog) {
-    btnOpenSlowlog.addEventListener("click", openSlowlogModal);
-  }
-  const btnOpenMemoryModal = document.getElementById("btnOpenMemoryModal");
-  if (btnOpenMemoryModal) {
-    btnOpenMemoryModal.addEventListener("click", openMemoryModal);
-  }
-
-  // Slowlog Modal Controls
-  const slowlogModal = document.getElementById("slowlogModal");
-  const btnCloseSlowlog = document.getElementById("btnCloseSlowlogModal");
-  if (btnCloseSlowlog) btnCloseSlowlog.addEventListener("click", closeSlowlogModal);
-  const btnRefreshSlowlog = document.getElementById("btnRefreshSlowlogModal");
-  if (btnRefreshSlowlog) btnRefreshSlowlog.addEventListener("click", loadSlowlog);
-  const btnClearSlowlog = document.getElementById("btnClearSlowlogModal");
-  if (btnClearSlowlog) btnClearSlowlog.addEventListener("click", clearSlowlog);
-  if (slowlogModal) {
-    slowlogModal.addEventListener("click", (e) => {
-      if (e.target === slowlogModal) closeSlowlogModal();
-    });
-  }
-
-  const slowlogSearchInput = document.getElementById("slowlogSearchInput");
-  if (slowlogSearchInput) {
-    slowlogSearchInput.addEventListener("input", () => {
-      currentSlowlogSearch = slowlogSearchInput.value.trim();
-      filterAndRenderSlowlog();
-    });
-  }
-
-  document.querySelectorAll(".slowlog-filter-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".slowlog-filter-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentSlowlogMinDuration = parseFloat(btn.getAttribute("data-min-duration") || "0");
-      filterAndRenderSlowlog();
-    });
-  });
-
-  // Memory & BigKeys Modal Controls
-  const memoryModal = document.getElementById("memoryModal");
-  const btnCloseMemory = document.getElementById("btnCloseMemoryModal");
-  if (btnCloseMemory) btnCloseMemory.addEventListener("click", closeMemoryModal);
-  const btnRefreshMemory = document.getElementById("btnRefreshMemoryModal");
-  if (btnRefreshMemory) btnRefreshMemory.addEventListener("click", loadMemoryOverview);
-  if (memoryModal) {
-    memoryModal.addEventListener("click", (e) => {
-      if (e.target === memoryModal) closeMemoryModal();
-    });
-  }
-
-  // Editing connection ID state
-  let editingConnectionId = null;
-
-  // Open Edit Connection Modal
-  window.openEditConnectionModal = function(conn) {
-    editingConnectionId = conn.id;
-    const modal = document.getElementById("connectionModal");
-    const modalTitle = document.getElementById("connectionModalTitle");
-    const btnSave = document.getElementById("btnSaveConnModal");
-    const pwdInput = document.getElementById("connPassword");
-
-    if (modalTitle) {
-      modalTitle.innerHTML = `<i data-lucide="edit" style="color: var(--accent-primary);"></i> Edit Redis Connection`;
-    }
-    if (btnSave) {
-      btnSave.textContent = "Update Connection";
-    }
-
-    document.getElementById("connName").value = conn.name || "";
-    document.getElementById("connEnv").value = (conn.env || "DEV").toUpperCase();
-    const typeSelect = document.getElementById("connTypeSelect");
-    typeSelect.value = conn.conn_type || "standalone";
-
-    document.getElementById("connHost").value = conn.host || "localhost";
-    document.getElementById("connPort").value = conn.port || 6379;
-    document.getElementById("connDb").value = conn.db || 0;
-    document.getElementById("connUsername").value = conn.username || "";
-    document.getElementById("connTls").checked = !!conn.use_tls;
-    document.getElementById("connReadOnly").checked = !!conn.read_only;
-    pwdInput.value = "";
-    if (conn.has_password) {
-      pwdInput.placeholder = "•••••••• (Leave blank to keep saved password)";
-    } else {
-      pwdInput.placeholder = "Enter password (or leave empty)";
-    }
-
-    // Toggle UI according to connection type
-    const clusterNodesGroup = document.getElementById("clusterNodesGroup");
-    const connHostLabel = document.getElementById("connHostLabel");
-    const connDbRow = document.getElementById("connDbRow");
-    configuredClusterNodes = [];
-
-    if (conn.conn_type === "cluster") {
-      clusterNodesGroup.style.display = "block";
-      connHostLabel.textContent = "Seed Node Host *";
-      connDbRow.style.display = "none";
-      if (conn.cluster_nodes) {
-        try {
-          const parsed = typeof conn.cluster_nodes === "string" ? JSON.parse(conn.cluster_nodes) : conn.cluster_nodes;
-          if (Array.isArray(parsed)) {
-            configuredClusterNodes = parsed.map(n => {
-              if (typeof n === "string" && n.includes(":")) {
-                const parts = n.split(":");
-                return { host: parts[0].trim(), port: parseInt(parts[1], 10) || 6379 };
-              }
-              return { host: n.host || "127.0.0.1", port: parseInt(n.port, 10) || 6379 };
-            });
-          }
-        } catch (e) {}
-      }
-    } else {
-      clusterNodesGroup.style.display = "none";
-      connHostLabel.textContent = "Host *";
-      connDbRow.style.display = "flex";
-    }
-    renderConfiguredClusterNodes();
-
-    const resBox = document.getElementById("testResultBox");
-    if (resBox) {
-      resBox.className = "test-result-box";
-      resBox.innerHTML = "";
-    }
-    setupIcons();
-    modal.classList.add("active");
   };
 
-  // Auto-lock PROD to read-only when environment dropdown changes
-  const connEnvSelect = document.getElementById("connEnv");
-  if (connEnvSelect) {
-    connEnvSelect.addEventListener("change", (e) => {
-      if (e.target.value === "PROD") {
-        const roCheckbox = document.getElementById("connReadOnly");
-        if (roCheckbox) roCheckbox.checked = true;
-      }
-    });
+  if (btnToggleSidebar) btnToggleSidebar.addEventListener("click", () => toggleSidebar(true));
+  if (btnShowSidebar) btnShowSidebar.addEventListener("click", () => toggleSidebar(false));
+
+  const savedSidebar = localStorage.getItem("redis_insight_sidebar_collapsed");
+  if (savedSidebar === "true") {
+    toggleSidebar(true);
   }
 
-  // Modal controls for Add Connection
-  const modal = document.getElementById("connectionModal");
-  document.getElementById("btnAddConn").addEventListener("click", () => {
-    editingConnectionId = null;
-    document.getElementById("connectionForm").reset();
-    const modalTitle = document.getElementById("connectionModalTitle");
-    const btnSave = document.getElementById("btnSaveConnModal");
-    const pwdInput = document.getElementById("connPassword");
-
-    if (modalTitle) {
-      modalTitle.innerHTML = `<i data-lucide="database" style="color: var(--accent-primary);"></i> Add Redis Connection`;
-    }
-    if (btnSave) {
-      btnSave.textContent = "Save Connection";
-    }
-    if (pwdInput) {
-      pwdInput.placeholder = "Leave empty if none";
-    }
-
-    const defaultEnv = document.getElementById("connEnv").value;
-    document.getElementById("connReadOnly").checked = (defaultEnv === "PROD");
-
-    document.getElementById("clusterNodesGroup").style.display = "none";
-    document.getElementById("connHostLabel").textContent = "Host *";
-    document.getElementById("connDbRow").style.display = "flex";
-    configuredClusterNodes = [];
-    renderConfiguredClusterNodes();
-
-    const resBox = document.getElementById("testResultBox");
-    if (resBox) {
-      resBox.className = "test-result-box";
-      resBox.innerHTML = "";
-    }
-    setupIcons();
-    modal.classList.add("active");
-  });
-  document.getElementById("btnCloseModal").addEventListener("click", () => {
-    modal.classList.remove("active");
-  });
-  document.getElementById("btnCancelModal").addEventListener("click", () => {
-    modal.classList.remove("active");
-  });
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.classList.remove("active");
-  });
-
-  // Key Detail Modal Close
-  const detailModal = document.getElementById("keyDetailModal");
-  document.getElementById("btnCloseDetailModal").addEventListener("click", () => {
-    detailModal.classList.remove("active");
-  });
-  detailModal.addEventListener("click", (e) => {
-    if (e.target === detailModal) detailModal.classList.remove("active");
-  });
-
-  const btnDownloadKeyValue = document.getElementById("btnDownloadKeyValue");
-  if (btnDownloadKeyValue) {
-    btnDownloadKeyValue.addEventListener("click", () => downloadKeyValue(activeDetailKey, btnDownloadKeyValue));
-  }
-
-  // Copy key name in detail modal
-  document.getElementById("btnCopyKeyName").addEventListener("click", () => {
-    if (activeDetailKey) {
-      navigator.clipboard.writeText(activeDetailKey);
-      alert(`Copied '${activeDetailKey}' to clipboard!`);
+  // Shortcut Ctrl+B to toggle sidebar
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      toggleSidebar();
     }
   });
 
-  // Delete key from detail modal
-  document.getElementById("btnDeleteKeyFromDetail").addEventListener("click", () => {
-    if (activeDetailKey) {
-      triggerDeleteConfirmation(activeDetailKey, () => {
-        detailModal.classList.remove("active");
-        resetAndScan();
-      });
-    }
-  });
-
-  // Close Delete Confirm Modal
-  const deleteConfirmModal = document.getElementById("deleteKeyConfirmModal");
-  document.getElementById("btnCloseDeleteConfirmModal").addEventListener("click", () => {
-    deleteConfirmModal.classList.remove("active");
-  });
-  document.getElementById("btnCancelDeleteConfirm").addEventListener("click", () => {
-    deleteConfirmModal.classList.remove("active");
-  });
-
-  // Modal test connection
-  document.getElementById("btnTestConnModal").addEventListener("click", async () => {
-    const conn_type = document.getElementById("connTypeSelect").value;
-    const host = document.getElementById("connHost").value.trim() || "localhost";
-    const port = parseInt(document.getElementById("connPort").value, 10) || 6379;
-    const db = parseInt(document.getElementById("connDb").value, 10) || 0;
-    const username = document.getElementById("connUsername").value.trim() || null;
-    const pwdVal = document.getElementById("connPassword").value;
-    const use_tls = document.getElementById("connTls").checked;
-
-    let cluster_nodes = null;
-    if (conn_type === "cluster" && configuredClusterNodes.length > 0) {
-      cluster_nodes = JSON.stringify(configuredClusterNodes.map(n => ({ host: n.host, port: n.port })));
-    }
-
-    const resBox = document.getElementById("testResultBox");
-    const btnTest = document.getElementById("btnTestConnModal");
-    btnTest.disabled = true;
-    btnTest.innerHTML = "Testing...";
-
-    resBox.className = "test-result-box";
-    resBox.innerHTML = "";
-
-    try {
-      let res;
-      // If editing and password was left blank, test using the saved credentials on server
-      if (editingConnectionId && !pwdVal) {
-        res = await fetch(`/api/connections/${editingConnectionId}/test`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ host, port, db, username, use_tls, conn_type, cluster_nodes })
-        });
-      } else {
-        res = await fetch("/api/connections/test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ host, port, db, username, password: pwdVal || null, use_tls, conn_type, cluster_nodes })
-        });
-      }
-      const data = await res.json();
-      if (data.success) {
-        resBox.className = "test-result-box success";
-        const clusterInfo = data.is_cluster
-          ? ` • Cluster Mode (${data.cluster_nodes_count || configuredClusterNodes.length} nodes reachable)`
-          : "";
-        resBox.innerHTML = `
-          <i data-lucide="check-circle-2"></i>
-          <span>Connected! Latency: <strong>${data.latency_ms} ms</strong>${clusterInfo} (Redis v${data.redis_version})</span>
-        `;
-      } else {
-        resBox.className = "test-result-box error";
-        resBox.innerHTML = `
-          <i data-lucide="alert-circle"></i>
-          <span>Failed: ${escapeHtml(data.error || "Connection refused")}</span>
-        `;
-      }
-    } catch (err) {
-      resBox.className = "test-result-box error";
-      resBox.innerHTML = `
-        <i data-lucide="alert-circle"></i>
-        <span>Error: ${escapeHtml(err.message)}</span>
-      `;
-    } finally {
-      btnTest.disabled = false;
-      btnTest.innerHTML = `<i data-lucide="zap"></i> Test Connection`;
-      setupIcons();
-    }
-  });
-
-  // Save / Update Connection Form
-  document.getElementById("connectionForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = document.getElementById("connName").value.trim();
-    const env = document.getElementById("connEnv").value;
-    const conn_type = document.getElementById("connTypeSelect").value;
-    let host = document.getElementById("connHost").value.trim() || "localhost";
-    let port = parseInt(document.getElementById("connPort").value, 10) || 6379;
-    const db = parseInt(document.getElementById("connDb").value, 10) || 0;
-    const username = document.getElementById("connUsername").value.trim() || null;
-    const pwdVal = document.getElementById("connPassword").value;
-    const use_tls = document.getElementById("connTls").checked;
-    const auto_activate = document.getElementById("connAutoActivate").checked;
-    const read_only = document.getElementById("connReadOnly")?.checked || false;
-
-    let cluster_nodes = null;
-    if (conn_type === "cluster") {
-      if (configuredClusterNodes.length > 0) {
-        cluster_nodes = JSON.stringify(configuredClusterNodes.map(n => ({ host: n.host, port: n.port })));
-        host = configuredClusterNodes[0].host;
-        port = configuredClusterNodes[0].port;
-      } else {
-        cluster_nodes = JSON.stringify([{ host, port }]);
-      }
-    }
-
-    try {
-      if (editingConnectionId) {
-        const updatePayload = { name, env, conn_type, host, port, cluster_nodes, db, username, use_tls, read_only };
-        if (pwdVal) {
-          updatePayload.password = pwdVal;
-        }
-        const res = await fetch(`/api/connections/${editingConnectionId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updatePayload)
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || "Failed to update connection");
-        }
-      } else {
-        const createPayload = { name, env, conn_type, host, port, cluster_nodes, db, username, password: pwdVal || null, use_tls, read_only };
-        const res = await fetch(`/api/connections?auto_activate=${auto_activate}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(createPayload)
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || "Failed to save connection");
-        }
-      }
-
-      modal.classList.remove("active");
-      editingConnectionId = null;
-      document.getElementById("connectionForm").reset();
-      configuredClusterNodes = [];
-      renderConfiguredClusterNodes();
-      await loadConnections();
-      await refreshStatus();
-      await resetAndScan();
-    } catch (err) {
-      alert("Error saving: " + err.message);
-    }
-  });
-
-  // Top Ping button
-  document.getElementById("btnRefreshStats").addEventListener("click", refreshStatus);
-
-  // Search input
-  const searchInput = document.getElementById("keySearchInput");
-  let searchDebounce = null;
-  searchInput.addEventListener("input", () => {
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
-      currentPattern = searchInput.value.trim() || "*";
-      resetAndScan();
-      if (isAutoRefreshActive) resetAutoRefreshTimer();
-    }, 400);
-  });
-  searchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      clearTimeout(searchDebounce);
-      currentPattern = searchInput.value.trim() || "*";
-      resetAndScan();
-      if (isAutoRefreshActive) resetAutoRefreshTimer();
-    }
-  });
-
-  // Type filter buttons
-  document.querySelectorAll(".type-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".type-tab").forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-      currentType = tab.getAttribute("data-type");
-      resetAndScan();
-      if (isAutoRefreshActive) resetAutoRefreshTimer();
-    });
-  });
-
-  // View Mode Toggle (Table vs Tree)
-  const btnViewTable = document.getElementById("btnViewTable");
-  const btnViewTree = document.getElementById("btnViewTree");
-  if (btnViewTable) {
-    btnViewTable.addEventListener("click", () => {
-      currentViewMode = "table";
-      localStorage.setItem("redis_insight_view_mode", "table");
-      btnViewTable.classList.add("active");
-      if (btnViewTree) btnViewTree.classList.remove("active");
-      renderKeysView();
-    });
-  }
-  if (btnViewTree) {
-    btnViewTree.addEventListener("click", () => {
-      currentViewMode = "tree";
-      localStorage.setItem("redis_insight_view_mode", "tree");
-      btnViewTree.classList.add("active");
-      if (btnViewTable) btnViewTable.classList.remove("active");
-      renderKeysView();
-    });
-  }
-
-  // Scan controls
-  const scanBatchSelect = document.getElementById("scanBatchSizeSelect");
-  if (scanBatchSelect) {
-    scanBatchSelect.value = String(scanBatchSize);
-    scanBatchSelect.addEventListener("change", () => {
-      const n = parseInt(scanBatchSelect.value, 10);
-      scanBatchSize = SCAN_BATCH_SIZES.includes(n) ? n : 50;
-      updateScanChunkLabel();
-    });
-  }
-  updateScanChunkLabel();
-  const btnScanNext = document.getElementById("btnScanNext");
-  if (btnScanNext) {
-    btnScanNext.addEventListener("click", () => scanNextBatch());
-  }
-  const btnResetScan = document.getElementById("btnResetScan");
-  if (btnResetScan) {
-    btnResetScan.addEventListener("click", () => {
-      resetAndScan();
-      if (isAutoRefreshActive) resetAutoRefreshTimer();
-    });
-  }
-
-  // Auto-Refresh Controls
-  const btnToggleAutoRefresh = document.getElementById("btnToggleAutoRefresh");
-  const autoRefreshSelect = document.getElementById("autoRefreshIntervalSelect");
-  if (autoRefreshSelect) {
-    autoRefreshSelect.value = String(autoRefreshIntervalSec);
-    autoRefreshSelect.addEventListener("change", () => {
-      const val = Math.max(5, parseInt(autoRefreshSelect.value, 10) || 10);
-      autoRefreshIntervalSec = val;
-      autoRefreshRemainingSec = val;
-      localStorage.setItem("redis_insight_auto_refresh_sec", String(val));
-      if (isAutoRefreshActive) {
-        startAutoRefresh();
-      } else {
-        updateAutoRefreshUI();
-      }
-    });
-  }
-  if (btnToggleAutoRefresh) {
-    btnToggleAutoRefresh.addEventListener("click", () => {
-      toggleAutoRefresh();
-    });
-  }
-  updateAutoRefreshUI();
-
-  // ==========================================
-  // Export Matched Keys
-  // ==========================================
-  const modalExport = document.getElementById("exportKeysModal");
-  const btnOpenExportModal = document.getElementById("btnOpenExportModal");
-  const btnCloseExportModal = document.getElementById("btnCloseExportModal");
-  const btnCancelExportModal = document.getElementById("btnCancelExportModal");
-  const btnExecuteExport = document.getElementById("btnExecuteExport");
-
-  if (btnOpenExportModal && modalExport) {
-    btnOpenExportModal.addEventListener("click", () => {
-      document.getElementById("exportPatternDisplay").textContent = currentPattern || "*";
-      document.getElementById("exportTypeDisplay").textContent = (currentType && currentType !== "all") ? currentType.toUpperCase() : "All Types";
-      document.getElementById("exportLoadedCount").textContent = `${keysTableRows.length} keys`;
-      document.getElementById("exportScopeLoadedText").textContent = `${keysTableRows.length} keys`;
-      modalExport.classList.add("active");
-      setupIcons();
-    });
-
-    const closeExport = () => modalExport.classList.remove("active");
-    if (btnCloseExportModal) btnCloseExportModal.addEventListener("click", closeExport);
-    if (btnCancelExportModal) btnCancelExportModal.addEventListener("click", closeExport);
-
-    if (btnExecuteExport) {
-      btnExecuteExport.addEventListener("click", async () => {
-        const formatRadio = document.querySelector('input[name="exportFormatRadio"]:checked');
-        const scopeRadio = document.querySelector('input[name="exportScopeRadio"]:checked');
-        const format = (formatRadio ? formatRadio.value : "csv").toLowerCase();
-        const scope = scopeRadio ? scopeRadio.value : "loaded";
-
-        const pattern = currentPattern || "*";
-        const typeFilter = (currentType && currentType !== "all") ? currentType : "";
-        const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        const defaultFilename = `redis_keys_${dateStr}.${format}`;
-
-        if (scope === "all") {
-          btnExecuteExport.disabled = true;
-          btnExecuteExport.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Exporting...`;
-          setupIcons();
-
-          try {
-            let url = `/api/keys/export?pattern=${encodeURIComponent(pattern)}&format=${format}`;
-            if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
-            const res = await fetch(url);
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({ detail: "Export failed" }));
-              throw new Error(err.detail || `Server error: ${res.status}`);
-            }
-
-            await downloadResponseAsFile(res, defaultFilename, format);
-            closeExport();
-          } catch (err) {
-            alert(`Export failed: ${err.message}`);
-          } finally {
-            btnExecuteExport.disabled = false;
-            btnExecuteExport.innerHTML = `<i data-lucide="download" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Download`;
-            setupIcons();
-          }
-          return;
-        }
-
-        if (keysTableRows.length === 0) {
-          alert("No keys loaded in browser to export.");
-          return;
-        }
-
-        let blob;
-        if (format === "csv") {
-          const header = "Key,Type,TTL_Seconds\n";
-          const rows = keysTableRows.map(r => `"${(r.key || "").replace(/"/g, '""')}",${r.type || ""},${r.ttl_seconds !== undefined ? r.ttl_seconds : -1}`);
-          blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
-        } else {
-          const lines = keysTableRows.map(r => r.key);
-          blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain;charset=utf-8;" });
-        }
-
-        saveBlobAsFile(blob, defaultFilename);
-        closeExport();
-      });
-    }
-  }
-
-  // ==========================================
-  // Bulk Delete (UNLINK)
-  // ==========================================
-  const modalBulkDelete = document.getElementById("bulkDeleteModal");
-  const btnOpenBulkDeleteModal = document.getElementById("btnOpenBulkDeleteModal");
-  const btnCloseBulkDeleteModal = document.getElementById("btnCloseBulkDeleteModal");
-  const btnCancelBulkDelete = document.getElementById("btnCancelBulkDelete");
-  const btnConfirmBulkDelete = document.getElementById("btnConfirmBulkDelete");
-
-  const bdCountConfirmInput = document.getElementById("bdCountConfirmInput");
-  const bdProdConfirmInput = document.getElementById("bdProdConfirmInput");
-  const bdProdConfirmGroup = document.getElementById("bdProdConfirmGroup");
-  const bdProdBanner = document.getElementById("bulkDeleteProdBanner");
-  const bdDryRunStatus = document.getElementById("bulkDeleteDryRunStatus");
-  const bdDetails = document.getElementById("bulkDeleteDetails");
-
-  let activeDryRunResult = null;
-
-  function updateBulkDeleteButtonState() {
-    if (!activeDryRunResult || !btnConfirmBulkDelete) return;
-    const requiredCount = String(activeDryRunResult.matched_count);
-    const countTyped = (bdCountConfirmInput?.value || "").trim();
-    const countValid = countTyped === requiredCount && activeDryRunResult.matched_count > 0;
-
-    let prodValid = true;
-    if (activeDryRunResult.is_prod) {
-      const prodTyped = (bdProdConfirmInput?.value || "").trim().toUpperCase();
-      prodValid = prodTyped === "PROD";
-    }
-
-    btnConfirmBulkDelete.disabled = !(countValid && prodValid);
-  }
-
-  if (bdCountConfirmInput) bdCountConfirmInput.addEventListener("input", updateBulkDeleteButtonState);
-  if (bdProdConfirmInput) bdProdConfirmInput.addEventListener("input", updateBulkDeleteButtonState);
-
-  if (btnOpenBulkDeleteModal && modalBulkDelete) {
-    btnOpenBulkDeleteModal.addEventListener("click", async () => {
-      if (lastStatus?.read_only) {
-        alert("Bulk Delete is disabled in Read-Only mode.");
+  // Global Escape key handler
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      // 1. Check if any dialog modal is active
+      const dialogModal = document.querySelector(".modal-backdrop:not(.ws-dashboard-pane).active");
+      if (dialogModal) {
+        dialogModal.classList.remove("active");
         return;
       }
-      const pattern = currentPattern || "*";
-      const typeFilter = (currentType && currentType !== "all") ? currentType : null;
-
-      activeDryRunResult = null;
-      if (bdCountConfirmInput) bdCountConfirmInput.value = "";
-      if (bdProdConfirmInput) bdProdConfirmInput.value = "";
-      if (btnConfirmBulkDelete) btnConfirmBulkDelete.disabled = true;
-
-      bdDryRunStatus.style.display = "block";
-      bdDetails.style.display = "none";
-      modalBulkDelete.classList.add("active");
-      setupIcons();
-
-      try {
-        const res = await fetch("/api/keys/bulk-delete/dry-run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pattern, type_filter: typeFilter })
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: "Dry run failed" }));
-          throw new Error(err.detail || "Dry run failed");
-        }
-        const data = await res.json();
-        activeDryRunResult = data;
-
-        document.getElementById("bdPatternDisplay").textContent = data.pattern;
-        document.getElementById("bdTypeDisplay").textContent = data.type_filter ? data.type_filter.toUpperCase() : "All Types";
-        document.getElementById("bdCountDisplay").textContent = data.matched_count.toLocaleString();
-        document.getElementById("bdRequiredCountText").textContent = String(data.matched_count);
-
-        if (data.is_prod) {
-          bdProdBanner.style.display = "block";
-          bdProdConfirmGroup.style.display = "block";
-        } else {
-          bdProdBanner.style.display = "none";
-          bdProdConfirmGroup.style.display = "none";
-        }
-
-        const breakdownEl = document.getElementById("bdPerNodeBreakdown");
-        const nodeEntries = Object.entries(data.per_node_counts || {});
-        if (nodeEntries.length > 1) {
-          breakdownEl.innerHTML = `<strong>Per-node breakdown:</strong> ` + nodeEntries.map(([node, cnt]) => `${escapeHtml(node)}: ${cnt.toLocaleString()}`).join(" &bull; ");
-          breakdownEl.style.display = "block";
-        } else {
-          breakdownEl.style.display = "none";
-        }
-
-        const sampleListEl = document.getElementById("bdSampleKeysList");
-        if (data.sample_keys && data.sample_keys.length > 0) {
-          sampleListEl.innerHTML = data.sample_keys.map(k => `<div>${escapeHtml(k)}</div>`).join("");
-          document.getElementById("bdSampleKeysSection").style.display = "block";
-        } else {
-          document.getElementById("bdSampleKeysSection").style.display = "none";
-        }
-
-        bdDryRunStatus.style.display = "none";
-        bdDetails.style.display = "flex";
-        setupIcons();
-      } catch (err) {
-        bdDryRunStatus.innerHTML = `
-          <div style="color: var(--accent-danger);">
-            <i data-lucide="alert-circle" style="width: 20px; height: 20px; margin-bottom: 0.35rem; display: inline-block;"></i>
-            <div>Failed to calculate dry-run: ${escapeHtml(err.message)}</div>
-          </div>
-        `;
-        setupIcons();
+      // 2. If no dialog modal is active and currently on analytical tab, return to keys tab
+      if (state.activeWorkspaceTab && state.activeWorkspaceTab !== "keys") {
+        switchWorkspaceTab("keys");
       }
-    });
-
-    const closeBulkDelete = () => modalBulkDelete.classList.remove("active");
-    if (btnCloseBulkDeleteModal) btnCloseBulkDeleteModal.addEventListener("click", closeBulkDelete);
-    if (btnCancelBulkDelete) btnCancelBulkDelete.addEventListener("click", closeBulkDelete);
-
-    if (btnConfirmBulkDelete) {
-      btnConfirmBulkDelete.addEventListener("click", async () => {
-        if (!activeDryRunResult) return;
-        btnConfirmBulkDelete.disabled = true;
-        btnConfirmBulkDelete.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlinking...`;
-        setupIcons();
-
-        try {
-          const res = await fetch("/api/keys/bulk-delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              pattern: activeDryRunResult.pattern,
-              type_filter: activeDryRunResult.type_filter,
-              expected_count: activeDryRunResult.matched_count,
-              confirmed_count: parseInt(bdCountConfirmInput.value.trim(), 10),
-              confirmed_env: bdProdConfirmInput ? bdProdConfirmInput.value.trim() : null
-            })
-          });
-
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: "Bulk delete failed" }));
-            throw new Error(err.detail || "Bulk delete failed");
-          }
-
-          const result = await res.json();
-          alert(`Bulk delete complete!\n${result.message} (Duration: ${result.duration_ms}ms)`);
-          closeBulkDelete();
-          resetAndScan();
-        } catch (err) {
-          alert(`Bulk delete error: ${err.message}`);
-          btnConfirmBulkDelete.disabled = false;
-          btnConfirmBulkDelete.innerHTML = `<i data-lucide="trash-2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlink Keys`;
-          setupIcons();
-        }
-      });
-    }
-  }
-
-
-  // Sidebar Collapse & Expand Controls
-  function setSidebarCollapsed(collapsed) {
-    const sidebar = document.querySelector(".sidebar");
-    const btnShow = document.getElementById("btnShowSidebar");
-    if (!sidebar) return;
-    if (collapsed) {
-      sidebar.classList.add("collapsed");
-      if (btnShow) btnShow.style.display = "inline-flex";
-      localStorage.setItem("redis_insight_sidebar_collapsed", "true");
-    } else {
-      sidebar.classList.remove("collapsed");
-      if (btnShow) btnShow.style.display = "none";
-      localStorage.setItem("redis_insight_sidebar_collapsed", "false");
-    }
-    setupIcons();
-  }
-
-  const btnToggleSidebar = document.getElementById("btnToggleSidebar");
-  if (btnToggleSidebar) {
-    btnToggleSidebar.addEventListener("click", () => setSidebarCollapsed(true));
-  }
-
-  const btnShowSidebar = document.getElementById("btnShowSidebar");
-  if (btnShowSidebar) {
-    btnShowSidebar.addEventListener("click", () => setSidebarCollapsed(false));
-  }
-
-  // Restore saved collapse preference
-  if (localStorage.getItem("redis_insight_sidebar_collapsed") === "true") {
-    setSidebarCollapsed(true);
-  }
-
-  // Keyboard shortcut Ctrl+B or Cmd+B to toggle sidebar
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-      const sidebar = document.querySelector(".sidebar");
-      const isCurrentlyCollapsed = sidebar && sidebar.classList.contains("collapsed");
-      setSidebarCollapsed(!isCurrentlyCollapsed);
-      e.preventDefault();
     }
   });
 
-  // Global Modal UX: Close on Escape key or backdrop click
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      const activeModals = document.querySelectorAll(".modal-backdrop.active");
-      activeModals.forEach(m => m.classList.remove("active"));
-    }
+  // Auto-refresh config on window focus
+  window.addEventListener("focus", () => {
+    loadConnections();
   });
 
-  document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
-    backdrop.addEventListener("click", (e) => {
-      if (e.target === backdrop) {
-        backdrop.classList.remove("active");
-      }
-    });
-  });
-
-  // Periodic heartbeat
+  // Background vitals heartbeat (15s)
   setInterval(refreshStatus, 15000);
 }
 
-// Launch application immediately without waiting for passed events
 async function startApp() {
   renderAppShell();
   setupIcons();
-  setupEventListeners();
+  initWorkspaceTabs();
 
-  try {
-    await loadConnections();
-    await refreshStatus();
-  } catch (err) {
-    console.error("Failed to load initial status:", err);
-  }
+  // Setup event listeners in each module
+  setupConnectionsEventListeners();
+  setupKeysEventListeners();
+  setupBenchmarkEventListeners();
+  setupMemoryEventListeners();
+  setupSlowlogEventListeners();
+  setupTopologyEventListeners();
+  setupClientsEventListeners();
+  setupInspectorEventListeners();
+  setupActionsEventListeners();
+  setupGlobalEventListeners();
 
-  const active = cachedConnections.find(c => c.is_connected && c.is_selected) || cachedConnections.find(c => c.is_connected);
-  if (active) {
-    await resetAndScan();
-  } else {
-    renderEmptyWorkspace();
-  }
+  // Load initial data
+  await loadConnections();
+  await refreshStatus();
+  await resetAndScan();
 }
 
 if (document.readyState === "loading") {

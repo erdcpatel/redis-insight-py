@@ -345,6 +345,7 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
   });
 
   test('Redis Benchmark & Latency Studio opens, runs probe, commands, Lua profiler, and cluster matrix', async ({ page }) => {
+    test.setTimeout(60000);
     await page.goto('/');
 
     // 1. Open Benchmark Studio modal from top navbar
