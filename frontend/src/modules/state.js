@@ -1,0 +1,82 @@
+// Central reactive application state and shared constants
+export const SCAN_BATCH_SIZES = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+export const HASH_FIELDS_PAGE_SIZE = 200;
+
+export const state = {
+  // Active Workspace Tab ('keys', 'benchmark', 'memory', 'slowlog', 'topology', 'clients')
+  activeWorkspaceTab: 'keys',
+
+  // Clients
+  allConnectedClients: [],
+
+  // Slowlog
+  allSlowlogEntries: [],
+  currentSlowlogMinDuration: 0,
+  currentSlowlogSearch: "",
+  currentSlowlogNode: "all",
+
+  // View Mode & Tree
+  currentViewMode: localStorage.getItem("redis_insight_view_mode") || "table",
+  currentTreeDelimiter: localStorage.getItem("redis_insight_tree_delimiter") || "auto",
+  treeExpandedPaths: new Set(),
+  treeInitialized: false,
+  currentTreeFilterQuery: "",
+
+  // Memory & BigKeys
+  currentMemoryOverview: null,
+  currentMemoryAnalysis: null,
+  isMemoryProfilingRunning: false,
+  bigkeysSearchQuery: "",
+
+  // Keys Scanning
+  currentCursor: 0,
+  currentPattern: "*",
+  currentType: "all",
+  isScanning: false,
+  totalScanned: 0,
+  scanComplete: false,
+  dbTotalKeys: 0,
+  lastStatus: null,
+  keysTableRows: [],
+  loadedKeysSet: new Set(),
+
+  // Auto-Refresh
+  isAutoRefreshActive: false,
+  autoRefreshIntervalSec: (() => {
+    let s = parseInt(localStorage.getItem("redis_insight_auto_refresh_sec") || "10", 10);
+    return (isNaN(s) || s < 5) ? 10 : s;
+  })(),
+  autoRefreshRemainingSec: 10,
+  autoRefreshTimer: null,
+
+  // Detail / Inspector
+  activeDetailKey: null,
+  activeDetailData: null,
+  hashFieldsState: null,
+
+  // Deletion confirmations
+  pendingDeleteKey: null,
+  pendingDeleteCallback: null,
+
+  // Connections & Topology
+  cachedConnections: [],
+  currentEnvFilter: "ALL",
+  currentConnSearch: "",
+  currentTopologyData: null,
+  currentTopologyRole: "all",
+  currentTopologySearch: "",
+  currentLimit: 2,
+  activeConfigConn: null,
+  currentScanEpoch: 0,
+  scanBatchSize: 50,
+};
+
+export function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
