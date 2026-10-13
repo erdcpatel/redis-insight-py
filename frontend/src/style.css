@@ -2765,9 +2765,10 @@ body {
 .tree-delimiter-control {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   font-size: 0.74rem;
   color: var(--text-muted);
+  position: relative;
 }
 
 .tree-control-label {
@@ -2780,7 +2781,7 @@ body {
   border: 1px solid var(--border-subtle) !important;
   color: var(--text-primary) !important;
   border-radius: var(--radius-sm) !important;
-  padding: 0.24rem 0.5rem !important;
+  padding: 0.22rem 0.45rem !important;
   font-size: 0.74rem !important;
   cursor: pointer;
   outline: none;
@@ -2788,6 +2789,163 @@ body {
 
 .tree-select:focus {
   border-color: var(--accent-primary) !important;
+}
+
+.tree-delim-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.tree-delim-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.16rem 0.42rem;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  line-height: 1.1;
+}
+
+.tree-delim-chip:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tree-delim-chip.active {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-primary);
+  border-color: rgba(56, 189, 248, 0.4);
+  font-weight: 600;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.15);
+}
+
+.tree-delim-chip.custom {
+  border-style: dashed;
+}
+
+.tree-delim-chip.custom.active {
+  border-style: solid;
+}
+
+.tree-delim-chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0 0 0 0.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.65;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.tree-delim-chip-remove:hover {
+  opacity: 1;
+  color: var(--accent-danger);
+}
+
+.tree-add-delim-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-add-delim-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.16rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px dashed var(--border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.1;
+}
+
+.btn-add-delim-chip:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.tree-custom-delim-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  z-index: 60;
+  white-space: nowrap;
+}
+
+.custom-delim-input {
+  width: 90px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.custom-delim-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary-glow);
+}
+
+.btn-confirm-add-delim {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--accent-primary);
+  color: #0f172a;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-confirm-add-delim:hover {
+  opacity: 0.9;
+}
+
+.btn-cancel-add-delim {
+  padding: 0.15rem 0.35rem;
+  font-size: 0.8rem;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn-cancel-add-delim:hover {
+  color: var(--text-primary);
 }
 
 .tree-summary-pill {
@@ -3615,4 +3773,160 @@ body {
   border-radius: 3px;
   color: var(--text-muted);
   line-height: 1;
+}
+
+/* TTL Filter Control Wrap in Keys Browser Toolbar */
+.ttl-filter-control-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.2rem 0.55rem;
+  margin-left: auto;
+}
+
+.ttl-filter-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ttl-filter-select {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+}
+
+.ttl-filter-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.badge-persistent {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.badge-expiring {
+  color: var(--accent-warning);
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Memory Studio - TTL Space Reclaim Forecast Card */
+.mem-ttl-forecast-card {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.4rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.mem-ttl-forecast-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #10b981, #06b6d4, #3b82f6, #8b5cf6, #f43f5e);
+}
+
+.mem-ttl-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.mem-ttl-kpi-item {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.mem-ttl-kpi-item .kpi-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mem-ttl-kpi-item .kpi-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  margin-top: 0.25rem;
+  line-height: 1.2;
+}
+
+.mem-ttl-kpi-item .kpi-sub {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 0.2rem;
+}
+
+.mem-horizon-pills-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.mem-horizon-pill {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.7rem;
+}
+
+.mem-horizon-pill .pill-title {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.mem-horizon-pill .pill-val {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.mem-horizon-pill .pill-meta {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+
+/* Persistent Keys Leak Audit Card */
+.mem-leak-audit-card {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.4rem;
+  margin-bottom: 1.25rem;
 }

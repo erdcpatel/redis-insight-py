@@ -68,15 +68,21 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 - **View Mode Toggle (Flat Table vs Virtual Tree)**:
   - Toggle between **Table View** (flat data grid) and **Tree View** (hierarchical namespace folders) with 1 click from the action bar.
   - Remembers selected view mode and delimiter choice across page reloads in `localStorage`.
-- **Namespace Delimiter Grouping & Conventions**:
-  - Automatically parses and groups Redis keys following common delimiter conventions (`:`, `/`, `.`, `-`).
-  - Configurable Delimiter dropdown: `Auto (:, /, .)`, `: (Colon)`, `/ (Slash)`, `. (Dot)`, `- (Dash)`.
+- **Multi-Delimiter & Custom Delimiter Grouping**:
+  - Automatically parses and groups Redis keys into virtual namespace trees using multiple simultaneous delimiters (e.g. `:`, `/`, `.`, `-`, `_`, `::`, `#`, `|`).
+  - **Dynamic Delimiter Chips**: Click active delimiter pills to toggle specific delimiters on/off in real-time.
+  - **Custom Delimiter Popover (`+ Add`)**: Input custom single- or multi-character delimiters (e.g. `::`, `#`, `|`, `__`) to match any cluster's key-naming taxonomy.
+  - **Longest-Delimiter Precedence**: Matches multi-character delimiters first (e.g. `cache::user:1` splits on `::` before `:`).
+  - **Per-Connection Memory**: Delimiter selections are persisted individually per cluster connection (`redis_insight_tree_delimiters_<connId>`).
   - Un-namespaced keys are neatly organized under a designated "Root Keys" section.
 - **Collapsible Namespace Folders & Key Counts**:
   - Folders display total nested key counts (e.g., `users:` ➔ `1001:` ➔ `15 keys`).
   - Expand and collapse folders individually, or use **Expand All** and **Collapse All** toolbar controls.
   - **In-Tree Live Filter**: Instant client-side search across loaded namespaces and leaf key names without re-querying Redis.
   - **1-Click Namespace Filter**: Click the "Filter" badge on any folder to immediately set the search pattern (e.g. `users:1001:*`) and scan that namespace.
+- **TTL Filter in Keys Browser**:
+  - Direct dropdown filter on toolbar: **All TTLs**, **⏳ Expiring Only**, and **∞ No TTL (Persistent)**.
+  - Instant client-side filtering on loaded keys and tree nodes; persistent keys display a distinct `∞ No TTL` badge.
 - **Cluster Key Slot & Owning Node Mapping**:
   - Displays the CRC16 hash slot (`#Slot`) and owning master node (`host:port (Primary)`) directly on Key Detail metadata for hot-shard and slot debugging.
   - Automatically handles Redis hash tags `{...}` (e.g. `{user:100}:profile`).
@@ -91,10 +97,11 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 ---
 
 ### 5. Export Matched Key Names (CSV / TXT)
-- **One-Click Export**: Export keys matching your active search pattern and type filter.
+- **One-Click Export**: Export keys matching your active search pattern, type filter, and TTL filter.
 - **Flexible Scope**:
   - **Currently Loaded Keys**: Instant client-side download via browser `Blob` (zero network hops, zero load on Redis).
   - **All Matched Keys in Database**: Backend scan streaming keys across all cluster shards.
+- **TTL Filtering Integration**: Filter exports to **All**, **Expiring Only**, or **Persistent Keys Only** (`ttl_filter=persistent|expiring`) to easily audit unexpiring keys in external tools.
 - **Standard Formats**:
   - **CSV**: Structured columns `Key,Type,TTL_Seconds` formatted to POSIX/RFC standards for Excel, sheets, and analytics scripts.
   - **TXT**: Plain newline-delimited key names for piping into shell scripts, CLI tools, or `xargs`.
@@ -126,7 +133,7 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ---
 
-### 8. Memory Analysis & "BigKeys" Profiler
+### 8. Memory Analysis & "BigKeys" Profiler (with TTL Expiry Horizon & Leak Audit)
 - **What is BigKeys?**:
   - In Redis, **BigKeys** are keys consuming disproportionate RAM (measured in bytes via `MEMORY USAGE`) or containing excessive collection cardinality (`HLEN`, `LLEN`, `SCARD`, `ZCARD`, `STRLEN`).
   - Because Redis is single-threaded, operating on or evicting BigKeys causes latency spikes, blocks other client requests, and creates hot shards in clusters.
@@ -135,9 +142,13 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - **Memory Fragmentation Ratio**: Real-time status badge with intelligent classification (`Optimal 1.0-1.5`, `Warning`, or `Critical >2.0`).
   - **Cache Hit Ratio**: Real-time keyspace hits vs misses percentage calculation.
   - Maxmemory limits and eviction policy (`noeviction`, `volatile-lru`, `allkeys-lru`, etc.).
-- **Safe Non-Blocking Key Sampling**:
-  - **Performance Safeguard**: Does not run automatically. Warns the user upfront with a clear Performance Notice to protect production CPU.
-  - Configurable sample limits (100, 250, 500 [Default], 1,000, 2,500 keys) and pattern filtering using non-blocking `SCAN` and `MEMORY USAGE` with a concurrency semaphore (`Semaphore(25)`).
+- **TTL Expiry Horizon & Space Reclaim Forecast**:
+  - **Forecast Horizon Buckets**: Groups sampled/scanned keys into 5 actionable expiry windows: `< 1h`, `1-24h`, `1-7d`, `> 7d`, and `Persistent (No TTL)`.
+  - **Cumulative Reclamation KPIs**: Displays projected memory freed in the next **1 Hour**, **24 Hours**, and **7 Days**, with a multi-segment visual horizon progress bar.
+  - **Persistent Keys Leak Audit**: Identifies the percentage of memory occupied by unexpiring keys and lists the top offending namespaces (e.g. `session:*`, `cache:*`). Includes a 1-click **Filter in Keys** action that jumps directly to the Keys Browser with the namespace pattern and `Persistent` TTL filter pre-applied.
+- **Scan Modes & Performance Safeguards**:
+  - **Sampled Scan (Default)**: Non-blocking sampling (100, 250, 500, 1,000, 2,500 keys) using cursor `SCAN` with `asyncio.Semaphore(25)` throttling to protect production CPU.
+  - **Full Keyspace Deep Scan**: Traverses the entire keyspace for exhaustive memory accounting. Guarded by an interactive **Deep Scan Safety Modal** requiring explicit user confirmation to prevent unintended cluster strain.
 - **Data Type Allocation Bar**: Multi-colored stacked proportional bar showing exact memory % used by Hashes vs Strings vs Sets vs Lists vs ZSets.
 - **Top 50 BigKeys Leaderboard**:
   - Ranks keys by memory consumption with gold, silver, and bronze rank badges.
@@ -148,15 +159,19 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ---
 
-### 9. Connected Clients Inspector
+### 9. Connected Clients Inspector (with `[THIS APP]` Self-Identification)
 - **Real-Time Client Tracking**: Inspect all active connections via `CLIENT LIST` across standalone instances or cluster primary nodes.
+- **App Self-Identification**:
+  - Establishes connections using `client_name="redisinsight-py"` on both `aioredis.Redis` and `RedisCluster`.
+  - Dynamically highlights the current application's connection in the client table with a distinctive cyan **`[THIS APP]`** badge so you never mistake your own monitoring connection for external application traffic.
 - **Detailed Caller Metadata**: Displays client IP, port, local target port, authenticated user, connection flags, and currently active command.
 - **Instant Search**: Filter clients by IP, port, client name, user, or executed command.
 - **Client Termination**: 1-click **Kill Client** (`CLIENT KILL`) to terminate rogue or stalled connections with confirmation.
 
 ---
 
-### 10. Workspace Ergonomics & Modal UX
+### 10. Workspace Ergonomics & Tabbed Architecture
+- **Tabbed Workspace Navigation**: Analytical tools (Keys Browser, Benchmark Studio, Memory Studio, Slowlog Profiler, Topology Map, Connected Clients) are structured as dedicated workspace tabs for instant switching without modal stacking or loss of inspection state.
 - **Global Escape Key Dismiss**: Press `Escape` at any time to immediately close any open modal popup.
 - **Backdrop Click Dismiss**: Clicking outside any dialog content on the backdrop smoothly dismisses the modal.
 - **Smooth Animations & Blur**: Modern entrance scaling animations (`modalScaleIn`) with `backdrop-filter: blur(8px)`.

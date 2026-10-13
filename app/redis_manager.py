@@ -22,6 +22,9 @@ from app.models import (
     MemoryTypeBreakdown,
     MemoryOverviewResponse,
     MemoryAnalysisResponse,
+    TtlHorizonBucket,
+    TtlLeakNamespace,
+    TtlForecastAnalysis,
     ClusterDiscoveryResponse,
     DiscoveredClusterNode,
     NodeStat,
@@ -172,6 +175,7 @@ class RedisManager:
                 username=username,
                 password=password,
                 ssl=use_tls,
+                client_name="redisinsight-py",
                 decode_responses=True,
                 encoding="utf-8",
                 encoding_errors="replace",
@@ -186,6 +190,7 @@ class RedisManager:
                 username=username,
                 password=password,
                 ssl=use_tls,
+                client_name="redisinsight-py",
                 decode_responses=True,
                 encoding="utf-8",
                 encoding_errors="replace",
@@ -1451,6 +1456,8 @@ class RedisManager:
             port = addr.split(":")[1] if ":" in addr else ""
             age_sec = int(c.get("age", 0))
             idle_sec = int(c.get("idle", 0))
+            c_name = c.get("name") or ""
+            is_self = c_name == "redisinsight-py" or c_name.startswith("redisinsight")
 
             parsed_clients.append({
                 "id": str(c.get("id", "")),
@@ -1459,7 +1466,8 @@ class RedisManager:
                 "port": port,
                 "laddr": c.get("laddr", ""),
                 "fd": c.get("fd"),
-                "name": c.get("name") or "(unnamed)",
+                "name": c_name or "(unnamed)",
+                "is_current_app": is_self,
                 "age": age_sec,
                 "age_human": format_duration(age_sec),
                 "idle": idle_sec,
@@ -2160,56 +2168,120 @@ class RedisManager:
             dbsize=dbsize,
         )
 
-    async def analyze_memory(self, sample_size: int = 500, pattern: str = "*") -> MemoryAnalysisResponse:
-        """Sample keys non-blockingly using SCAN and profile memory usage, data types, and bottlenecks."""
+    async def analyze_memory(
+        self,
+        sample_size: int = 500,
+        pattern: str = "*",
+        scan_mode: str = "sample"
+    ) -> MemoryAnalysisResponse:
+        """Sample keys non-blockingly using SCAN and profile memory usage, data types, bottlenecks, and TTL reclaim forecast."""
         client = await self.get_client()
-        sample_size = max(50, min(5000, sample_size))
         clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
+        is_full_scan = scan_mode.lower() == "full"
+        target_limit = min(sample_size if sample_size > 500 else 25000, 50000) if is_full_scan else max(50, min(5000, sample_size))
+        scan_batch = min(200, target_limit)
 
         start_time = time.perf_counter()
 
         # Step 1: Safe non-blocking key sampling
         sampled_keys = []
         seen = set()
-        cursor: Any = 0
         is_cluster = isinstance(client, RedisCluster)
-        scan_batch = min(200, sample_size)
-        max_iterations = 60
 
-        for _ in range(max_iterations):
-            if len(sampled_keys) >= sample_size:
-                break
-            try:
-                if is_cluster:
-                    new_cursor, keys = await self._scan_cluster_batch(
-                        client, cursor, clean_pattern, scan_batch
-                    )
-                    new_cursor = self._parse_scan_cursor(new_cursor)
-                else:
-                    new_cursor, keys = await client.scan(cursor=cursor, match=clean_pattern, count=scan_batch)
-                if keys:
-                    for k in keys:
-                        if isinstance(k, bytes):
-                            k = k.decode("utf-8", errors="replace")
-                        if k not in seen:
-                            seen.add(k)
-                            sampled_keys.append(k)
-                            if len(sampled_keys) >= sample_size:
+        if is_full_scan:
+            # Thorough cluster/standalone scan, bounded safely and yielding to event loop
+            if is_cluster:
+                primaries = client.get_primaries() or client.get_nodes()
+                for node in primaries:
+                    node_cursor = 0
+                    while len(sampled_keys) < target_limit:
+                        try:
+                            new_cursor, keys = await client.scan(
+                                cursor=node_cursor, match=clean_pattern, count=scan_batch, target_nodes=node
+                            )
+                            if isinstance(new_cursor, dict):
+                                node_cursor = int(new_cursor.get(node.name, 0))
+                            else:
+                                node_cursor = int(new_cursor)
+                            if keys:
+                                for k in keys:
+                                    if isinstance(k, bytes):
+                                        k = k.decode("utf-8", errors="replace")
+                                    if k not in seen:
+                                        seen.add(k)
+                                        sampled_keys.append(k)
+                                        if len(sampled_keys) >= target_limit:
+                                            break
+                            if node_cursor == 0:
                                 break
-                if isinstance(new_cursor, dict):
-                    if all(v == 0 for v in new_cursor.values()):
-                        break
-                    cursor = new_cursor
-                else:
-                    try:
-                        if int(new_cursor) == 0:
+                            await asyncio.sleep(0)
+                        except Exception as e:
+                            logger.warning(f"Cluster node {node.name} scan error: {e}")
                             break
-                        cursor = int(new_cursor)
-                    except Exception:
+                    if len(sampled_keys) >= target_limit:
                         break
-            except Exception as e:
-                logger.warning(f"Memory analysis SCAN stopped early: {e}")
-                break
+            else:
+                cursor = 0
+                while len(sampled_keys) < target_limit:
+                    try:
+                        cursor, keys = await client.scan(cursor=cursor, match=clean_pattern, count=scan_batch)
+                        if keys:
+                            for k in keys:
+                                if isinstance(k, bytes):
+                                    k = k.decode("utf-8", errors="replace")
+                                if k not in seen:
+                                    seen.add(k)
+                                    sampled_keys.append(k)
+                                    if len(sampled_keys) >= target_limit:
+                                        break
+                        try:
+                            cursor = int(cursor)
+                        except Exception:
+                            cursor = 0
+                        if cursor == 0:
+                            break
+                        await asyncio.sleep(0)
+                    except Exception as e:
+                        logger.warning(f"Standalone full scan error: {e}")
+                        break
+        else:
+            # Sample mode: max 60 iterations
+            cursor_sample: Any = 0
+            max_iterations = 60
+            for _ in range(max_iterations):
+                if len(sampled_keys) >= target_limit:
+                    break
+                try:
+                    if is_cluster:
+                        new_cursor, keys = await self._scan_cluster_batch(
+                            client, cursor_sample, clean_pattern, scan_batch
+                        )
+                        new_cursor = self._parse_scan_cursor(new_cursor)
+                    else:
+                        new_cursor, keys = await client.scan(cursor=cursor_sample, match=clean_pattern, count=scan_batch)
+                    if keys:
+                        for k in keys:
+                            if isinstance(k, bytes):
+                                k = k.decode("utf-8", errors="replace")
+                            if k not in seen:
+                                seen.add(k)
+                                sampled_keys.append(k)
+                                if len(sampled_keys) >= target_limit:
+                                    break
+                    if isinstance(new_cursor, dict):
+                        if all(v == 0 for v in new_cursor.values()):
+                            break
+                        cursor_sample = new_cursor
+                    else:
+                        try:
+                            if int(new_cursor) == 0:
+                                break
+                            cursor_sample = int(new_cursor)
+                        except Exception:
+                            break
+                except Exception as e:
+                    logger.warning(f"Memory analysis SCAN stopped early: {e}")
+                    break
 
         # Step 2: Concurrently query memory and metadata using Semaphore
         sem = asyncio.Semaphore(25)
@@ -2304,7 +2376,93 @@ class RedisManager:
         # Top 50 BigKeys
         top_bigkeys = sorted(key_items, key=lambda x: x.memory_bytes, reverse=True)[:50]
 
-        # Step 4: Intelligent bottleneck recommendations
+        # Step 4: TTL Expiry Horizon & Space Reclaim Forecast Calculation
+        total_profiled = len(key_items)
+        bucket_defs = [
+            ("< 1 Hour", lambda ttl: 0 < ttl <= 3600, False),
+            ("1 - 24 Hours", lambda ttl: 3600 < ttl <= 86400, False),
+            ("1 - 7 Days", lambda ttl: 86400 < ttl <= 604800, False),
+            ("> 7 Days", lambda ttl: ttl > 604800, False),
+            ("No Expiration (Persistent)", lambda ttl: ttl <= 0, True),
+        ]
+
+        horizons: List[TtlHorizonBucket] = []
+        for label, cond, is_persist in bucket_defs:
+            b_items = [k for k in key_items if cond(k.ttl)]
+            b_count = len(b_items)
+            b_bytes = sum(k.memory_bytes for k in b_items)
+            horizons.append(TtlHorizonBucket(
+                label=label,
+                key_count=b_count,
+                total_memory_bytes=b_bytes,
+                total_memory_human=format_bytes(b_bytes),
+                keys_percentage=round((b_count / total_profiled) * 100.0, 1) if total_profiled > 0 else 0.0,
+                memory_percentage=round((b_bytes / total_sampled_bytes) * 100.0, 1) if total_sampled_bytes > 0 else 0.0,
+                is_persistent=is_persist,
+            ))
+
+        reclaim_1h_items = [k for k in key_items if 0 < k.ttl <= 3600]
+        reclaim_24h_items = [k for k in key_items if 0 < k.ttl <= 86400]
+        reclaim_7d_items = [k for k in key_items if 0 < k.ttl <= 604800]
+        persistent_items = [k for k in key_items if k.ttl <= 0]
+
+        reclaim_1h_bytes = sum(k.memory_bytes for k in reclaim_1h_items)
+        reclaim_24h_bytes = sum(k.memory_bytes for k in reclaim_24h_items)
+        reclaim_7d_bytes = sum(k.memory_bytes for k in reclaim_7d_items)
+        persistent_memory_bytes = sum(k.memory_bytes for k in persistent_items)
+        persistent_keys_count = len(persistent_items)
+
+        def extract_leak_namespace(key_name: str) -> str:
+            for sep in ("::", ":", "/", "#", "|", ".", "_", "-"):
+                if sep in key_name:
+                    prefix = key_name.split(sep, 1)[0]
+                    if prefix:
+                        return f"{prefix}{sep}*"
+            return "(root / no delimiter)"
+
+        leak_ns_map: Dict[str, Dict[str, int]] = {}
+        for k in persistent_items:
+            ns = extract_leak_namespace(k.key)
+            if ns not in leak_ns_map:
+                leak_ns_map[ns] = {"count": 0, "bytes": 0}
+            leak_ns_map[ns]["count"] += 1
+            leak_ns_map[ns]["bytes"] += k.memory_bytes
+
+        sorted_leaks = sorted(leak_ns_map.items(), key=lambda x: x[1]["bytes"], reverse=True)[:10]
+        top_leak_namespaces: List[TtlLeakNamespace] = []
+        for ns_name, ns_data in sorted_leaks:
+            ns_pct = round((ns_data["bytes"] / persistent_memory_bytes) * 100.0, 1) if persistent_memory_bytes > 0 else 0.0
+            top_leak_namespaces.append(TtlLeakNamespace(
+                namespace=ns_name,
+                key_count=ns_data["count"],
+                total_memory_bytes=ns_data["bytes"],
+                total_memory_human=format_bytes(ns_data["bytes"]),
+                percentage_of_leaks=ns_pct,
+            ))
+
+        ttl_forecast = TtlForecastAnalysis(
+            total_keys_profiled=total_profiled,
+            total_memory_profiled_bytes=total_sampled_bytes,
+            total_memory_profiled_human=format_bytes(total_sampled_bytes),
+            persistent_keys_count=persistent_keys_count,
+            persistent_memory_bytes=persistent_memory_bytes,
+            persistent_memory_human=format_bytes(persistent_memory_bytes),
+            persistent_keys_percent=round((persistent_keys_count / total_profiled) * 100.0, 1) if total_profiled > 0 else 0.0,
+            persistent_memory_percent=round((persistent_memory_bytes / total_sampled_bytes) * 100.0, 1) if total_sampled_bytes > 0 else 0.0,
+            reclaim_1h_bytes=reclaim_1h_bytes,
+            reclaim_1h_human=format_bytes(reclaim_1h_bytes),
+            reclaim_1h_percent=round((reclaim_1h_bytes / total_sampled_bytes) * 100.0, 1) if total_sampled_bytes > 0 else 0.0,
+            reclaim_24h_bytes=reclaim_24h_bytes,
+            reclaim_24h_human=format_bytes(reclaim_24h_bytes),
+            reclaim_24h_percent=round((reclaim_24h_bytes / total_sampled_bytes) * 100.0, 1) if total_sampled_bytes > 0 else 0.0,
+            reclaim_7d_bytes=reclaim_7d_bytes,
+            reclaim_7d_human=format_bytes(reclaim_7d_bytes),
+            reclaim_7d_percent=round((reclaim_7d_bytes / total_sampled_bytes) * 100.0, 1) if total_sampled_bytes > 0 else 0.0,
+            horizons=horizons,
+            top_leak_namespaces=top_leak_namespaces,
+        )
+
+        # Step 5: Intelligent bottleneck recommendations
         recommendations: List[str] = []
 
         # Check for individual huge keys (> 500 KB)
@@ -2325,15 +2483,18 @@ class RedisManager:
                 f"Running commands like HGETALL or SMEMBERS on this key blocks the event loop. Use HSCAN / SSCAN instead."
             )
 
-        # Check non-expiring keys
-        if len(key_items) > 0:
-            no_ttl_count = sum(1 for k in key_items if k.ttl == -1)
-            no_ttl_pct = round((no_ttl_count / len(key_items)) * 100.0, 1)
-            if no_ttl_pct > 60:
+        # Check non-expiring keys & forecast
+        if persistent_items and total_profiled > 0:
+            if ttl_forecast.persistent_memory_percent > 35:
+                top_leak_str = f" Top leak namespace: '{top_leak_namespaces[0].namespace}' ({top_leak_namespaces[0].total_memory_human})." if top_leak_namespaces else ""
                 recommendations.append(
-                    f"💡 Memory Leak Risk: {no_ttl_pct}% of sampled keys ({no_ttl_count}/{len(key_items)}) have no expiration TTL configured. "
-                    f"Without TTLs, keys accumulate indefinitely unless an eviction policy like volatile-lru/allkeys-lru is configured."
+                    f"💡 Memory Leak Risk: {ttl_forecast.persistent_memory_percent}% of memory ({ttl_forecast.persistent_memory_human}, {persistent_keys_count:,} keys) has NO TTL set and will never free space automatically.{top_leak_str}"
                 )
+
+        if ttl_forecast.reclaim_24h_percent > 5:
+            recommendations.append(
+                f"♻️ Space Reclaim Forecast: {ttl_forecast.reclaim_24h_percent}% of profiled memory ({ttl_forecast.reclaim_24h_human}) will expire and free up within 24 hours."
+            )
 
         if not recommendations:
             recommendations.append(
@@ -2349,12 +2510,14 @@ class RedisManager:
             top_bigkeys=top_bigkeys,
             recommendations=recommendations,
             scan_duration_ms=duration_ms,
+            ttl_forecast=ttl_forecast,
         )
 
     async def export_keys(
         self,
         pattern: str = "*",
         type_filter: Optional[str] = None,
+        ttl_filter: Optional[str] = None,
         max_keys: int = 50000
     ) -> List[Dict[str, Any]]:
         """
@@ -2411,6 +2574,14 @@ class RedisManager:
                 k_ttl = int(pipe_res[idx * 2 + 1])
                 if type_filter and type_filter.lower() != "all" and k_type.lower() != type_filter.lower():
                     continue
+                if ttl_filter:
+                    tf = ttl_filter.strip().lower()
+                    if tf in ("persistent", "nottl", "no_ttl", "no-ttl"):
+                        if k_ttl != -1:
+                            continue
+                    elif tf in ("expiring", "has_ttl", "ttl"):
+                        if k_ttl <= 0:
+                            continue
                 results.append({
                     "name": k,
                     "type": k_type,
@@ -2418,6 +2589,7 @@ class RedisManager:
                 })
 
         return results
+
 
     async def bulk_delete_dry_run(
         self,

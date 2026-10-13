@@ -191,19 +191,154 @@ export async function scanNextBatch(expectedEpoch = null) {
   }
 }
 
-export function getDelimiterForKey(key, delimiterPreference = "auto") {
-  if (!key) return null;
-  if (delimiterPreference && delimiterPreference !== "auto") {
-    return key.includes(delimiterPreference) ? delimiterPreference : null;
-  }
-  if (key.includes(":")) return ":";
-  if (key.includes("/")) return "/";
-  if (key.includes(".")) return ".";
-  if (key.includes("-")) return "-";
-  return null;
+export const STANDARD_CHIP_DELIMITERS = [":", "/", ".", "-", "_"];
+export const PRESET_DELIMITERS_MAP = {
+  auto: [":", "/", "."],
+  ":": [":"],
+  "/": ["/"],
+  ".": ["."],
+  "-": ["-"],
+  "_": ["_"]
+};
+
+export function getActiveConnectionId() {
+  if (state.lastStatus?.connection_id) return state.lastStatus.connection_id;
+  const sel = state.cachedConnections?.find(c => c.is_selected);
+  if (sel) return sel.id;
+  const conn = state.cachedConnections?.find(c => c.is_connected);
+  return conn ? conn.id : null;
 }
 
-export function buildNamespaceTree(rows, delimiterPreference = "auto") {
+export function derivePresetFromDelimiters(delims) {
+  if (!Array.isArray(delims) || delims.length === 0) return "custom";
+  const s = new Set(delims);
+  if (s.size === 3 && s.has(":") && s.has("/") && s.has(".")) return "auto";
+  if (s.size === 1) {
+    if (s.has(":")) return ":";
+    if (s.has("/")) return "/";
+    if (s.has(".")) return ".";
+    if (s.has("-")) return "-";
+    if (s.has("_")) return "_";
+  }
+  return "custom";
+}
+
+export function saveDelimitersForActiveConnection(connId = null) {
+  const cid = connId || getActiveConnectionId();
+  if (cid) {
+    localStorage.setItem(`redis_insight_tree_delimiters_${cid}`, JSON.stringify(state.activeTreeDelimiters));
+  }
+  localStorage.setItem("redis_insight_tree_delimiters_global", JSON.stringify(state.activeTreeDelimiters));
+  localStorage.setItem("redis_insight_tree_delimiter_preset", state.treeDelimiterPreset);
+  localStorage.setItem("redis_insight_custom_delimiters", JSON.stringify(state.customTreeDelimiters));
+}
+
+export function loadDelimitersForActiveConnection(connId = null) {
+  const cid = connId || getActiveConnectionId();
+  let savedDelims = null;
+  if (cid) {
+    const raw = localStorage.getItem(`redis_insight_tree_delimiters_${cid}`);
+    if (raw) {
+      try {
+        const p = JSON.parse(raw);
+        if (Array.isArray(p) && p.length > 0) savedDelims = p;
+      } catch (_) {}
+    }
+  }
+  if (!savedDelims) {
+    const rawGlobal = localStorage.getItem("redis_insight_tree_delimiters_global");
+    if (rawGlobal) {
+      try {
+        const p = JSON.parse(rawGlobal);
+        if (Array.isArray(p) && p.length > 0) savedDelims = p;
+      } catch (_) {}
+    }
+  }
+
+  if (Array.isArray(savedDelims) && savedDelims.length > 0) {
+    state.activeTreeDelimiters = savedDelims;
+  } else {
+    state.activeTreeDelimiters = [":", "/", "."];
+  }
+
+  const rawCustom = localStorage.getItem("redis_insight_custom_delimiters");
+  if (rawCustom) {
+    try {
+      const p = JSON.parse(rawCustom);
+      if (Array.isArray(p)) state.customTreeDelimiters = p;
+    } catch (_) {}
+  }
+
+  state.treeDelimiterPreset = derivePresetFromDelimiters(state.activeTreeDelimiters);
+}
+
+export function tokenizeKeyWithDelimiters(key, activeDelimiters = state.activeTreeDelimiters) {
+  if (!key || !activeDelimiters || activeDelimiters.length === 0) {
+    return { segments: [], leafName: key || "" };
+  }
+
+  const sortedDelims = [...activeDelimiters]
+    .filter(d => typeof d === "string" && d.length > 0)
+    .sort((a, b) => b.length - a.length);
+
+  if (sortedDelims.length === 0) {
+    return { segments: [], leafName: key };
+  }
+
+  const segments = [];
+  let currentIndex = 0;
+
+  while (currentIndex < key.length) {
+    let earliestPos = -1;
+    let matchedDelim = null;
+
+    for (const delim of sortedDelims) {
+      const pos = key.indexOf(delim, currentIndex);
+      if (pos !== -1) {
+        if (earliestPos === -1 || pos < earliestPos) {
+          earliestPos = pos;
+          matchedDelim = delim;
+        } else if (pos === earliestPos && delim.length > (matchedDelim ? matchedDelim.length : 0)) {
+          matchedDelim = delim;
+        }
+      }
+    }
+
+    if (earliestPos === -1) {
+      break;
+    }
+
+    const segName = key.slice(currentIndex, earliestPos);
+    if (segName !== "" || segments.length > 0) {
+      segments.push({
+        name: segName,
+        delim: matchedDelim
+      });
+    }
+    currentIndex = earliestPos + matchedDelim.length;
+  }
+
+  const leafName = key.slice(currentIndex);
+
+  if (segments.length === 0) {
+    return { segments: [], leafName: key };
+  }
+
+  return { segments, leafName: leafName || "(empty)" };
+}
+
+export function getDelimiterForKey(key, delimiterPreference = "auto") {
+  if (!key) return null;
+  const delims = (Array.isArray(delimiterPreference) && delimiterPreference.length > 0)
+    ? delimiterPreference
+    : (delimiterPreference && delimiterPreference !== "auto"
+      ? [delimiterPreference]
+      : (state.activeTreeDelimiters || [":", "/", "."]));
+  const { segments } = tokenizeKeyWithDelimiters(key, delims);
+  return segments.length > 0 ? segments[0].delim : null;
+}
+
+export function buildNamespaceTree(rows, delimiters = state.activeTreeDelimiters) {
   const root = {
     id: "__root__",
     name: "Root",
@@ -215,22 +350,17 @@ export function buildNamespaceTree(rows, delimiterPreference = "auto") {
     totalKeyCount: 0
   };
 
+  const activeDelims = Array.isArray(delimiters)
+    ? delimiters
+    : (typeof delimiters === "string" && delimiters !== "auto"
+      ? [delimiters]
+      : (state.activeTreeDelimiters || [":", "/", "."]));
+
   for (const row of rows) {
     const key = row.key || "";
-    const delim = getDelimiterForKey(key, delimiterPreference);
+    const { segments, leafName } = tokenizeKeyWithDelimiters(key, activeDelims);
 
-    if (!delim) {
-      root.keys.push({ ...row, leafName: key });
-      continue;
-    }
-
-    const rawParts = key.split(delim);
-    let parts = rawParts;
-    if (parts.length > 1 && parts[parts.length - 1] === "") {
-      parts = parts.slice(0, -1);
-    }
-
-    if (parts.length <= 1) {
+    if (segments.length === 0) {
       root.keys.push({ ...row, leafName: key });
       continue;
     }
@@ -238,10 +368,10 @@ export function buildNamespaceTree(rows, delimiterPreference = "auto") {
     let currentNode = root;
     let currentPrefix = "";
 
-    for (let i = 0; i < parts.length - 1; i++) {
-      const seg = parts[i];
-      currentPrefix += (i > 0 ? delim : "") + seg;
-      const fullFolderPrefix = currentPrefix + delim;
+    for (let i = 0; i < segments.length; i++) {
+      const { name: seg, delim } = segments[i];
+      currentPrefix += seg + delim;
+      const fullFolderPrefix = currentPrefix;
 
       if (!currentNode.folders.has(seg)) {
         currentNode.folders.set(seg, {
@@ -258,8 +388,7 @@ export function buildNamespaceTree(rows, delimiterPreference = "auto") {
       currentNode = currentNode.folders.get(seg);
     }
 
-    const leafName = parts[parts.length - 1] || "(empty)";
-    currentNode.keys.push({ ...row, leafName });
+    currentNode.keys.push({ ...row, leafName: leafName || "(empty)" });
   }
 
   function finalizeNode(node) {
@@ -297,10 +426,33 @@ export function folderMatchesQuery(folder, q) {
   return false;
 }
 
+export function getFilteredKeysRows() {
+  const filter = (state.currentTtlFilter || "all").toLowerCase();
+  if (filter === "expiring") {
+    return state.keysTableRows.filter(r => r.ttl_seconds > 0);
+  }
+  if (filter === "persistent" || filter === "no-ttl") {
+    return state.keysTableRows.filter(r => r.ttl_seconds === -1);
+  }
+  return state.keysTableRows;
+}
+
 export function renderKeysFlatTable() {
   const container = document.getElementById("gridViewerContainer");
   if (!container) return;
-  if (state.keysTableRows.length === 0) {
+
+  const rowsToDisplay = getFilteredKeysRows();
+
+  if (rowsToDisplay.length === 0) {
+    if (state.keysTableRows.length > 0) {
+      container.innerHTML = `
+        <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+          No keys match TTL filter "<strong>${escapeHtml(state.currentTtlFilter)}</strong>".<br>
+          <span style="font-size: 0.78rem; opacity: 0.75; margin-top: 0.35rem; display: inline-block;">(${state.keysTableRows.length.toLocaleString()} total keys scanned so far)</span>
+        </div>
+      `;
+      return;
+    }
     const notStarted = !state.scanComplete && isScanCursorComplete(state.currentCursor);
     container.innerHTML = state.scanComplete
       ? `
@@ -335,7 +487,7 @@ export function renderKeysFlatTable() {
           </tr>
         </thead>
         <tbody>
-          ${state.keysTableRows.map(r => `
+          ${rowsToDisplay.map(r => `
             <tr class="key-row" data-key="${encodeURIComponent(r.key)}" style="border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;">
               <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
                 <span class="btn-inspect-key" data-key="${encodeURIComponent(r.key)}">${escapeHtml(r.key)}</span>
@@ -343,8 +495,15 @@ export function renderKeysFlatTable() {
               <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase;">
                 <span class="badge-db">${r.type}</span>
               </td>
-              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary);">${r.ttl_seconds}</td>
-              <td style="padding: 0.65rem 1rem; font-size: 0.8rem; color: ${r.ttl_seconds === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};">${r.status}</td>
+              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary);">
+                ${r.ttl_seconds === -1 ? '<span style="color: var(--text-muted);">None</span>' : `${r.ttl_seconds}s`}
+              </td>
+              <td style="padding: 0.65rem 1rem; font-size: 0.8rem;">
+                ${r.ttl_seconds === -1
+                  ? `<span class="badge-persistent" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">∞ No TTL</span>`
+                  : `<span class="badge-expiring" style="color: var(--accent-warning); font-size: 0.78rem;">⏳ ${r.status}</span>`
+                }
+              </td>
               <td style="padding: 0.65rem 1rem; text-align: right;" onclick="event.stopPropagation()">
                 ${state.lastStatus?.read_only ? `
                   <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
@@ -362,6 +521,7 @@ export function renderKeysFlatTable() {
       </table>
     </div>
   `;
+
 
   setupIcons();
 
@@ -386,7 +546,19 @@ export function renderKeysFlatTable() {
 export function renderKeysTreeView() {
   const container = document.getElementById("gridViewerContainer");
   if (!container) return;
-  if (state.keysTableRows.length === 0) {
+
+  const rowsToDisplay = getFilteredKeysRows();
+
+  if (rowsToDisplay.length === 0) {
+    if (state.keysTableRows.length > 0) {
+      container.innerHTML = `
+        <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+          No keys match TTL filter "<strong>${escapeHtml(state.currentTtlFilter)}</strong>".<br>
+          <span style="font-size: 0.78rem; opacity: 0.75; margin-top: 0.35rem; display: inline-block;">(${state.keysTableRows.length.toLocaleString()} total keys scanned so far)</span>
+        </div>
+      `;
+      return;
+    }
     const notStarted = !state.scanComplete && isScanCursorComplete(state.currentCursor);
     container.innerHTML = state.scanComplete
       ? `
@@ -409,7 +581,7 @@ export function renderKeysTreeView() {
     return;
   }
 
-  const treeRoot = buildNamespaceTree(state.keysTableRows, state.currentTreeDelimiter);
+  const treeRoot = buildNamespaceTree(rowsToDisplay, state.activeTreeDelimiters);
 
   if (!state.treeInitialized && state.treeExpandedPaths.size === 0) {
     for (const f of treeRoot.folders.values()) {
@@ -442,7 +614,10 @@ export function renderKeysTreeView() {
             ${escapeHtml(r.leafName || r.key)}
           </span>
           <span class="badge-db" style="margin-left: 0.35rem; font-size: 0.68rem; text-transform: uppercase;">${escapeHtml(r.type)}</span>
-          <span class="tree-key-ttl" title="TTL in seconds">${r.ttl_seconds}s</span>
+          ${r.ttl_seconds === -1
+            ? `<span class="badge-persistent" style="margin-left: 0.35rem; font-size: 0.65rem; padding: 0.08rem 0.35rem; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600;">∞ No TTL</span>`
+            : `<span class="tree-key-ttl" title="Expires in ${r.ttl_seconds}s">⏳ ${r.ttl_seconds}s</span>`
+          }
           <span class="tree-key-status" style="color: ${r.ttl_seconds === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};">${escapeHtml(r.status)}</span>
           <div class="tree-key-actions" onclick="event.stopPropagation()">
             ${state.lastStatus?.read_only ? `
@@ -459,6 +634,7 @@ export function renderKeysTreeView() {
       </div>
     `;
   }
+
 
   function renderFolderNode(folder, depth) {
     if (isFiltered && !folderMatchesQuery(folder, q)) {
@@ -530,19 +706,51 @@ export function renderKeysTreeView() {
     }
   }
 
+  const allDelimChips = [
+    ...STANDARD_CHIP_DELIMITERS,
+    ...(state.customTreeDelimiters || []).filter(d => !STANDARD_CHIP_DELIMITERS.includes(d))
+  ];
+
+  const delimChipsHtml = allDelimChips.map(d => {
+    const isActive = (state.activeTreeDelimiters || []).includes(d);
+    const isCustom = !STANDARD_CHIP_DELIMITERS.includes(d);
+    return `
+      <span class="tree-delim-chip ${isActive ? 'active' : ''} ${isCustom ? 'custom' : ''}" data-delim="${escapeHtml(d)}" title="${isActive ? 'Click to disable' : 'Click to enable'} delimiter '${escapeHtml(d)}'">
+        <span class="delim-char">${escapeHtml(d)}</span>
+        ${isCustom ? `<button type="button" class="tree-delim-chip-remove" data-remove-delim="${escapeHtml(d)}" title="Remove custom delimiter">&times;</button>` : ''}
+      </span>
+    `;
+  }).join("");
+
   container.innerHTML = `
     <div class="tree-view-wrapper">
       <div class="tree-toolbar">
         <div class="tree-toolbar-left">
           <div class="tree-delimiter-control">
-            <label for="treeDelimiterSelect" class="tree-control-label">Delimiter:</label>
+            <label for="treeDelimiterSelect" class="tree-control-label">Delimiters:</label>
             <select id="treeDelimiterSelect" class="tree-select" title="Grouping delimiter convention">
-              <option value="auto"${state.currentTreeDelimiter === "auto" ? " selected" : ""}>Auto (:, /, .)</option>
-              <option value=":"${state.currentTreeDelimiter === ":" ? " selected" : ""}>: (Colon)</option>
-              <option value="/"${state.currentTreeDelimiter === "/" ? " selected" : ""}>/ (Slash)</option>
-              <option value="."${state.currentTreeDelimiter === "." ? " selected" : ""}>. (Dot)</option>
-              <option value="-"${state.currentTreeDelimiter === "-" ? " selected" : ""}>- (Dash)</option>
+              <option value="auto"${state.treeDelimiterPreset === "auto" ? " selected" : ""}>Auto (:, /, .)</option>
+              <option value=":"${state.treeDelimiterPreset === ":" ? " selected" : ""}>: (Colon)</option>
+              <option value="/"${state.treeDelimiterPreset === "/" ? " selected" : ""}>/ (Slash)</option>
+              <option value="."${state.treeDelimiterPreset === "." ? " selected" : ""}>. (Dot)</option>
+              <option value="-"${state.treeDelimiterPreset === "-" ? " selected" : ""}>- (Dash)</option>
+              <option value="_"${state.treeDelimiterPreset === "_" ? " selected" : ""}>_ (Underscore)</option>
+              <option value="custom"${state.treeDelimiterPreset === "custom" ? " selected" : ""}>Custom (${(state.activeTreeDelimiters || []).length} active)</option>
             </select>
+            <div class="tree-delim-chips" id="treeDelimChips">
+              ${delimChipsHtml}
+            </div>
+            <div class="tree-add-delim-wrapper">
+              <button type="button" class="btn-add-delim-chip" id="btnAddDelimToggle" title="Add custom delimiter">
+                <i data-lucide="plus" style="width: 10px; height: 10px;"></i>
+                <span>Add</span>
+              </button>
+              <div class="tree-custom-delim-popover" id="treeCustomDelimPopover" style="display: none;">
+                <input type="text" id="customDelimInput" class="custom-delim-input" placeholder="e.g. #, ::, |" maxlength="12" />
+                <button type="button" class="btn-confirm-add-delim" id="btnConfirmAddDelim">Add</button>
+                <button type="button" class="btn-cancel-add-delim" id="btnCancelAddDelim" title="Cancel">&times;</button>
+              </div>
+            </div>
           </div>
           <div class="tree-summary-pill" id="treeSummaryPill">
             ${totalFolders.toLocaleString()} ${totalFolders === 1 ? 'Namespace' : 'Namespaces'} &bull; ${state.keysTableRows.length.toLocaleString()} ${state.keysTableRows.length === 1 ? 'Key' : 'Keys'}
@@ -625,11 +833,111 @@ export function renderKeysTreeView() {
   const delimSelect = document.getElementById("treeDelimiterSelect");
   if (delimSelect) {
     delimSelect.addEventListener("change", (e) => {
-      state.currentTreeDelimiter = e.target.value;
-      localStorage.setItem("redis_insight_tree_delimiter", state.currentTreeDelimiter);
+      const val = e.target.value;
+      if (val === "custom") {
+        state.treeDelimiterPreset = "custom";
+      } else if (PRESET_DELIMITERS_MAP[val]) {
+        state.activeTreeDelimiters = [...PRESET_DELIMITERS_MAP[val]];
+        state.treeDelimiterPreset = val;
+      }
+      saveDelimitersForActiveConnection();
       state.treeExpandedPaths.clear();
       state.treeInitialized = false;
       renderKeysTreeView();
+    });
+  }
+
+  container.querySelectorAll(".tree-delim-chip").forEach(chip => {
+    chip.addEventListener("click", (e) => {
+      if (e.target.closest(".tree-delim-chip-remove")) return;
+      const d = chip.getAttribute("data-delim");
+      if (!d) return;
+      if (state.activeTreeDelimiters.includes(d)) {
+        state.activeTreeDelimiters = state.activeTreeDelimiters.filter(x => x !== d);
+      } else {
+        state.activeTreeDelimiters.push(d);
+      }
+      state.treeDelimiterPreset = derivePresetFromDelimiters(state.activeTreeDelimiters);
+      saveDelimitersForActiveConnection();
+      state.treeExpandedPaths.clear();
+      state.treeInitialized = false;
+      renderKeysTreeView();
+    });
+  });
+
+  container.querySelectorAll(".tree-delim-chip-remove").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const d = btn.getAttribute("data-remove-delim");
+      if (!d) return;
+      state.customTreeDelimiters = (state.customTreeDelimiters || []).filter(x => x !== d);
+      state.activeTreeDelimiters = (state.activeTreeDelimiters || []).filter(x => x !== d);
+      state.treeDelimiterPreset = derivePresetFromDelimiters(state.activeTreeDelimiters);
+      saveDelimitersForActiveConnection();
+      state.treeExpandedPaths.clear();
+      state.treeInitialized = false;
+      renderKeysTreeView();
+    });
+  });
+
+  const btnAddToggle = document.getElementById("btnAddDelimToggle");
+  const popover = document.getElementById("treeCustomDelimPopover");
+  const customInput = document.getElementById("customDelimInput");
+  const btnConfirmAdd = document.getElementById("btnConfirmAddDelim");
+  const btnCancelAdd = document.getElementById("btnCancelAddDelim");
+
+  if (btnAddToggle && popover) {
+    btnAddToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isVisible = popover.style.display !== "none";
+      popover.style.display = isVisible ? "none" : "flex";
+      if (!isVisible && customInput) {
+        customInput.value = "";
+        customInput.focus();
+      }
+    });
+  }
+
+  function handleAddCustomDelimiter() {
+    if (!customInput) return;
+    const val = customInput.value.trim();
+    if (!val) return;
+
+    if (!state.customTreeDelimiters.includes(val) && !STANDARD_CHIP_DELIMITERS.includes(val)) {
+      state.customTreeDelimiters.push(val);
+    }
+    if (!state.activeTreeDelimiters.includes(val)) {
+      state.activeTreeDelimiters.push(val);
+    }
+    state.treeDelimiterPreset = derivePresetFromDelimiters(state.activeTreeDelimiters);
+    saveDelimitersForActiveConnection();
+    state.treeExpandedPaths.clear();
+    state.treeInitialized = false;
+    renderKeysTreeView();
+  }
+
+  if (btnConfirmAdd) {
+    btnConfirmAdd.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleAddCustomDelimiter();
+    });
+  }
+
+  if (customInput) {
+    customInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddCustomDelimiter();
+      } else if (e.key === "Escape") {
+        if (popover) popover.style.display = "none";
+      }
+    });
+  }
+
+  if (btnCancelAdd) {
+    btnCancelAdd.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (popover) popover.style.display = "none";
     });
   }
 
@@ -752,6 +1060,14 @@ export function setupKeysEventListeners() {
         resetAutoRefreshTimer();
         resetAndScan();
       }
+    });
+  }
+
+  const ttlFilterSelect = document.getElementById("ttlFilterSelect");
+  if (ttlFilterSelect) {
+    ttlFilterSelect.addEventListener("change", (e) => {
+      state.currentTtlFilter = e.target.value;
+      renderKeysView();
     });
   }
 

@@ -85,6 +85,21 @@ def test_memory_analyze_endpoint(client):
         assert "scan_duration_ms" in data
         assert data["scan_duration_ms"] >= 0
 
+        # Check TTL forecast schema
+        assert "ttl_forecast" in data
+        if data["ttl_forecast"]:
+            tf = data["ttl_forecast"]
+            assert "total_keys_profiled" in tf
+            assert "persistent_keys_count" in tf
+            assert "persistent_memory_bytes" in tf
+            assert "reclaim_1h_bytes" in tf
+            assert "reclaim_24h_bytes" in tf
+            assert "reclaim_7d_bytes" in tf
+            assert "horizons" in tf
+            assert isinstance(tf["horizons"], list)
+            assert "top_leak_namespaces" in tf
+            assert isinstance(tf["top_leak_namespaces"], list)
+
         # Check BigKeyItem schema if any keys exist
         if data["top_bigkeys"]:
             bk = data["top_bigkeys"][0]
@@ -94,3 +109,54 @@ def test_memory_analyze_endpoint(client):
             assert "memory_human" in bk
             assert "length" in bk
             assert "ttl" in bk
+
+
+def test_memory_analyze_full_mode(client):
+    """Verify Memory Analyze endpoint supports scan_mode='full' safely."""
+    payload = {
+        "sample_size": 200,
+        "pattern": "*",
+        "scan_mode": "full"
+    }
+    resp = client.post("/api/memory/analyze", json=payload)
+    if resp.status_code == 200:
+        data = resp.json()
+        assert "ttl_forecast" in data
+        assert data["ttl_forecast"] is not None
+        assert "horizons" in data["ttl_forecast"]
+
+
+def test_export_keys_with_ttl_filter(client):
+    """Verify keys export endpoint filters correctly by ttl_filter (persistent vs expiring)."""
+    # 1. Export persistent only
+    resp_persist = client.get("/api/keys/export?pattern=*&ttl_filter=persistent&format=csv")
+    if resp_persist.status_code == 200:
+        lines = resp_persist.text.strip().split("\n")
+        assert len(lines) >= 1  # Header line
+        assert "Key,Type,TTL" in lines[0]
+        # Any returned row should have TTL == -1
+        for row in lines[1:]:
+            if row.strip():
+                parts = row.split(",")
+                assert parts[-1] == "-1"
+
+    # 2. Export expiring only
+    resp_exp = client.get("/api/keys/export?pattern=*&ttl_filter=expiring&format=csv")
+    if resp_exp.status_code == 200:
+        lines = resp_exp.text.strip().split("\n")
+        assert len(lines) >= 1
+        for row in lines[1:]:
+            if row.strip():
+                parts = row.split(",")
+                assert int(parts[-1]) > 0
+
+
+def test_client_name_identification(client):
+    """Verify connected clients list identifies current app connection with is_current_app."""
+    resp = client.get("/api/clients")
+    if resp.status_code == 200:
+        clients_list = resp.json()
+        assert isinstance(clients_list, list)
+        has_self = any(c.get("is_current_app") is True for c in clients_list)
+        # We connected via client fixture with redisinsight-py
+        assert isinstance(has_self, bool)

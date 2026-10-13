@@ -49,7 +49,8 @@ import {
 } from "./modules/actions.js";
 import {
   resetAndScan,
-  setupKeysEventListeners
+  setupKeysEventListeners,
+  loadDelimitersForActiveConnection
 } from "./modules/keys.js";
 
 // Wire module cross-callbacks
@@ -238,6 +239,16 @@ function renderAppShell() {
                   <button type="button" class="type-tab" data-type="set">Sets</button>
                   <button type="button" class="type-tab" data-type="zset">ZSets</button>
                   <button type="button" class="type-tab" data-type="json">JSON</button>
+                </div>
+
+                <div class="ttl-filter-control-wrap" id="ttlFilterControlWrap" title="Filter keys by TTL expiration status">
+                  <i data-lucide="clock" style="width: 12px; height: 12px; color: var(--accent-warning);"></i>
+                  <span class="ttl-filter-label">TTL:</span>
+                  <select id="ttlFilterSelect" class="ttl-filter-select">
+                    <option value="all" selected>All TTLs</option>
+                    <option value="expiring">⏳ Expiring Only</option>
+                    <option value="persistent">∞ No TTL (Persistent)</option>
+                  </select>
                 </div>
               </div>
 
@@ -988,6 +999,10 @@ function renderAppShell() {
               <span id="exportTypeDisplay" style="font-weight: 500;">All Types</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span>TTL Filter:</span>
+              <span id="exportTtlDisplay" style="font-weight: 500;">All TTLs</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
               <span>Loaded in Browser:</span>
               <strong id="exportLoadedCount">0 keys</strong>
             </div>
@@ -1110,6 +1125,48 @@ function renderAppShell() {
         </div>
       </div>
     </div>
+
+    <!-- Deep Cluster Scan Safety Confirmation Modal -->
+    <div class="modal-backdrop" id="deepScanSafetyModal">
+      <div class="config-modal-card" style="max-width: 500px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="shield-alert" style="color: #fbbf24; width: 22px; height: 22px;"></i>
+            <div>
+              <h3 class="modal-title">Deep Cluster Keyspace Scan</h3>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Non-blocking cluster memory & TTL audit</div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseDeepScanModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; padding: 0.85rem 1rem; font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary);">
+            <div style="display: flex; gap: 0.5rem; align-items: flex-start; margin-bottom: 0.4rem;">
+              <i data-lucide="info" style="color: #fbbf24; width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px;"></i>
+              <strong style="color: var(--text-primary);">Zero-Downtime Safe Execution</strong>
+            </div>
+            This scan uses cursor-based <code>SCAN</code> across primary nodes with a bounded concurrency pool (25 workers) and event loop yielding. Redis single-threaded execution will <strong>NOT</strong> be blocked.
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45;">
+            Expected behavior during deep profiling:
+            <ul style="margin: 0.4rem 0 0 1.2rem; padding: 0;">
+              <li>Keys analyzed: up to <strong>25,000 keys</strong> (or custom limit)</li>
+              <li>TTL expiry horizon buckets & space reclaim forecast</li>
+              <li>Full audit of persistent keys leaking RAM without TTL</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-actions" style="padding: 1rem 1.25rem; background: var(--bg-secondary); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn btn-secondary" id="btnCancelDeepScan">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmDeepScan" style="background: #f59e0b; border-color: #f59e0b; color: #000; font-weight: 600;">
+            <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
+            Run Deep Scan
+          </button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -1128,6 +1185,7 @@ export async function refreshStatus() {
       const totalNodes = s.cluster_nodes_count || (s.node_stats && s.node_stats.length > 0 ? s.node_stats.length : 1);
       const masterStats = (s.node_stats || []).filter(n => n.role === "master");
       state.lastStatus = s;
+      loadDelimitersForActiveConnection(s.connection_id || activeConn?.id);
       updateBulkDeleteToolbarVisibility();
 
       if (connContainer) {

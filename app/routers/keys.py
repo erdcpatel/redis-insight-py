@@ -376,7 +376,8 @@ async def analyze_memory_endpoint(request: MemoryAnalysisRequest = Body(...)):
     try:
         return await redis_manager.analyze_memory(
             sample_size=request.sample_size,
-            pattern=request.pattern
+            pattern=request.pattern,
+            scan_mode=request.scan_mode
         )
     except Exception as e:
         raise_mapped_exception(e, "Failed to analyze memory")
@@ -386,6 +387,7 @@ async def analyze_memory_endpoint(request: MemoryAnalysisRequest = Body(...)):
 async def export_keys_endpoint(
     pattern: str = Query("*", description="Glob pattern of keys to export"),
     type: Optional[str] = Query(None, description="Optional Redis type filter"),
+    ttl_filter: Optional[str] = Query(None, description="Optional TTL filter: 'all', 'expiring', or 'persistent'"),
     format: str = Query("csv", description="Export format: csv or txt")
 ):
     """Export matched key names with type and TTL as CSV or TXT."""
@@ -393,7 +395,7 @@ async def export_keys_endpoint(
     if fmt not in ("csv", "txt"):
         raise HTTPException(status_code=400, detail=f"Unsupported export format '{format}'. Allowed: csv, txt")
     try:
-        keys_data = await redis_manager.export_keys(pattern=pattern, type_filter=type)
+        keys_data = await redis_manager.export_keys(pattern=pattern, type_filter=type, ttl_filter=ttl_filter)
         if fmt == "csv":
             output = io.StringIO()
             writer = csv.writer(output, lineterminator="\n")

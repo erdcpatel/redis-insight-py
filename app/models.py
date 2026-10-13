@@ -252,9 +252,50 @@ class MemoryOverviewResponse(BaseModel):
     dbsize: int
 
 
+class TtlHorizonBucket(BaseModel):
+    label: str
+    key_count: int
+    total_memory_bytes: int
+    total_memory_human: str
+    keys_percentage: float
+    memory_percentage: float
+    is_persistent: bool = False
+
+
+class TtlLeakNamespace(BaseModel):
+    namespace: str
+    key_count: int
+    total_memory_bytes: int
+    total_memory_human: str
+    percentage_of_leaks: float
+
+
+class TtlForecastAnalysis(BaseModel):
+    total_keys_profiled: int
+    total_memory_profiled_bytes: int
+    total_memory_profiled_human: str
+    persistent_keys_count: int
+    persistent_memory_bytes: int
+    persistent_memory_human: str
+    persistent_keys_percent: float
+    persistent_memory_percent: float
+    reclaim_1h_bytes: int
+    reclaim_1h_human: str
+    reclaim_1h_percent: float
+    reclaim_24h_bytes: int
+    reclaim_24h_human: str
+    reclaim_24h_percent: float
+    reclaim_7d_bytes: int
+    reclaim_7d_human: str
+    reclaim_7d_percent: float
+    horizons: List[TtlHorizonBucket]
+    top_leak_namespaces: List[TtlLeakNamespace]
+
+
 class MemoryAnalysisRequest(BaseModel):
-    sample_size: int = Field(default=500, ge=50, le=5000, description="Max keys to sample")
+    sample_size: int = Field(default=500, ge=50, le=20000, description="Max keys to sample")
     pattern: str = Field(default="*", description="Key pattern to sample")
+    scan_mode: str = Field(default="sample", description="'sample' (up to limit) or 'full' (thorough cluster scan)")
 
 
 class MemoryAnalysisResponse(BaseModel):
@@ -266,6 +307,7 @@ class MemoryAnalysisResponse(BaseModel):
     top_bigkeys: List[BigKeyItem]
     recommendations: List[str]
     scan_duration_ms: float
+    ttl_forecast: Optional[TtlForecastAnalysis] = None
 
 
 # --- Bulk Delete Models ---
