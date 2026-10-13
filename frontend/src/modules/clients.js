@@ -89,7 +89,8 @@ export function renderClientsTable(clients) {
             </td>
             <td style="padding: 0.65rem 0.85rem;">
               <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
-                <span>${escapeHtml(c.name)}</span>
+                <span style="${c.is_current_app ? 'color: #38bdf8;' : ''}">${escapeHtml(c.name)}</span>
+                ${c.is_current_app ? '<span class="badge-db" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); font-size: 0.65rem; font-weight: 600;">THIS APP</span>' : ''}
                 ${c.flags && c.flags.includes("O") ? '<span class="badge-db" style="background: rgba(234, 179, 8, 0.15); color: #fde047; font-size: 0.65rem;">MONITOR</span>' : ''}
               </div>
               <div class="client-sub-text">User: ${escapeHtml(c.user)} | Flags: ${escapeHtml(c.flags || 'none')}</div>

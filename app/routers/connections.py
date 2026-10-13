@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from app.logger import logger
 from app.db import (
     list_connections,
@@ -21,6 +21,7 @@ from app.models import (
     ClusterDiscoveryRequest,
     ClusterDiscoveryResponse,
 )
+from app.dependencies import get_target_conn_id
 from app.redis_manager import redis_manager
 
 router = APIRouter(prefix="/api/connections", tags=["Connections"])
@@ -52,7 +53,8 @@ async def update_connection_limit(payload: ConnectionLimitModel):
 @router.get("", response_model=List[ConnectionOut])
 async def get_all_connections(
     search: Optional[str] = Query(None, description="Search by name, host, or nodes"),
-    env: Optional[str] = Query(None, description="Filter by environment: LOCAL, DEV, UAT, PROD, ALL")
+    env: Optional[str] = Query(None, description="Filter by environment: LOCAL, DEV, UAT, PROD, ALL"),
+    target_conn_id: Optional[str] = Depends(get_target_conn_id)
 ):
     """
     List all saved Redis connections.
@@ -65,7 +67,7 @@ async def get_all_connections(
     raw_conns = list_connections(search=search, env=env)
     enriched = []
     connected_ids = set(redis_manager.connected_ids)
-    selected_id = redis_manager.selected_id
+    selected_id = target_conn_id or redis_manager.selected_id
 
     for c in raw_conns:
         is_conn = c["id"] in connected_ids

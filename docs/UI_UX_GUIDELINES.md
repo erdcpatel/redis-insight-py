@@ -55,16 +55,21 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
 1. **Seamless View Mode Switching**:
    - The view switcher must be an ergonomic segmented pill (`.view-mode-toggle-group`) placed at the start of `.actions-left`.
    - Persist choice in `localStorage ("redis_insight_view_mode")`.
-2. **Compact Tree Toolbar**:
-   - Delimiter selector dropdown (`Auto (:, /, .)`, `:`, `/`, `.`, `-`).
+2. **Multi-Delimiter & Custom Delimiter Controls**:
+   - Display active delimiters as interactive togglable chips (`.delim-chip.active` / `.delim-chip`).
+   - Include a `+ Add` button triggering a lightweight popover for custom delimiters (single or multi-character, e.g. `::`, `#`, `|`).
+   - Precedence: longest delimiters matched first to prevent premature splitting on substrings.
+   - Persist delimiter sets per connection (`redis_insight_tree_delimiters_<connId>`).
+3. **Compact Tree Toolbar**:
+   - Delimiter chip container with horizontal flex wrapping.
    - Summary badge (`N Namespaces • M Keys`).
    - In-tree real-time filter box (`#treeFilterInput`) with clear icon.
    - Expand All and Collapse All buttons.
-3. **Hierarchical Folder Structure**:
+4. **Hierarchical Folder Structure**:
    - Folders display chevron toggle, folder icon, trailing delimiter (`:`), and key count badge.
    - Hover reveals a 1-click `Filter` button to immediately scope the Redis SCAN pattern to `prefix:*`.
    - Folder click toggles expansion without re-querying the backend.
-   - Leaf keys display key icon, leaf name, type badge, TTL, status, and action buttons (respecting Read-Only mode). Clicking a key opens the Key Inspector modal.
+   - Leaf keys display key icon, leaf name, type badge, TTL badge (`⏳ Expiring` or `∞ No TTL`), status, and action buttons (respecting Read-Only mode). Clicking a key opens the Key Inspector modal.
 
 ---
 
@@ -80,23 +85,44 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
 
 ---
 
-## 4. Modal Design Standards
+## 4. Workspace Tabs & Modal Architecture Standards
 
-All dialogs and profilers must follow the standard modal architecture:
+### A. Separation of Workspace Tabs vs Dialog Modals
 
-- **Backdrop**: `backdrop-filter: blur(8px)` with smooth fade-in.
-- **Card**: Max width constrained (`720px` for dialogs, `980px` for wide analysis tables like Slowlog, Memory, and Topology).
-- **Header**:
-  - Clear icon + title.
-  - Context badges (Environment, Node Count, Status).
-  - Refresh button (`btn-secondary`) + Close button (`btn-icon` with `id="btnClose<Name>Modal"`).
-- **Footer**:
-  - Right-aligned buttons with explicit primary and cancel actions.
-- **Keyboard Shortcuts**:
-  - Pressing `Escape` must close any active modal.
-  - Modals must pause active background polling to conserve bandwidth and prevent state conflicts.
+1. **Analytical & Diagnostic Studios (Workspace Tabs)**:
+   - Deep diagnostic surfaces (**Keys Browser**, **Benchmark Studio**, **Memory & BigKeys Studio**, **Slowlog Profiler**, **Cluster Topology Map**, **Connected Clients**) are rendered as full-surface workspace tabs (`.ws-tab-pane`) rather than stacked popup dialogs.
+   - Tabs are toggled via the top navbar navigation pills (`.ws-tab-btn`) with active indicators.
+   - Switching between tabs preserves scroll state, search filters, and loaded results without refetching unnecessarily.
+2. **Ephemeral Dialog Modals**:
+   - Short-lived interactions (Connection Configuration, Add Connection, Key Inspector, Bulk Delete, Export Dialog, Deep Scan Safety Warning) use centered backdrop dialog modals (`.modal-backdrop` + `.modal-card`).
+   - Must dismiss smoothly on `Escape` key and backdrop click.
 
-### B. Benchmark & Latency Studio Standards
+### B. Memory Studio: TTL Horizon & Leak Audit Standards
+
+1. **Scan Mode Selector & Safety Gate**:
+   - Provide clear choice between **Sampled Scan (Default, Fast & Safe)** and **Full Keyspace Deep Scan**.
+   - Any full keyspace scan must display the **Deep Scan Safety Modal** (`#deepScanSafetyModal`) with a clear warning explaining cluster overhead and non-blocking safety invariants, requiring explicit user confirmation.
+2. **TTL Expiry Horizon Card**:
+   - Summary KPIs: Projected memory reclaimed in next **1h**, **24h**, **7d**, and **Unexpiring Memory %**.
+   - Stacked Progress Bar: Multi-colored horizon distribution bar visualizing the 5 buckets:
+     - `< 1h`: Cyan (`#38bdf8`)
+     - `1-24h`: Emerald (`#10b981`)
+     - `1-7d`: Amber (`#f59e0b`)
+     - `> 7d`: Indigo (`#818cf8`)
+     - `Persistent`: Rose (`#f43f5e`)
+3. **Persistent Keys Leak Audit**:
+   - Tabulate top namespaces containing persistent keys (e.g. `session:*`, `cache:*`), their total count, and memory footprint.
+   - Each namespace row must feature a 1-click **Filter in Keys** action button that switches to the Keys Browser tab, sets the pattern input, and activates the `Persistent` TTL filter.
+
+### C. Connected Clients Inspector Standards
+
+1. **App Self-Identification (`[THIS APP]`)**:
+   - All client connections initialized by this application must send `client_name="redisinsight-py"`.
+   - In the Connected Clients table, rows matching the current application connection must display a prominent cyan **`[THIS APP]`** badge (`.badge-db`) so operators never mistake monitoring traffic for external microservice load.
+2. **Client Termination Safeguards**:
+   - Terminating a client (`CLIENT KILL`) requires confirmation and must be disabled when connected in Read-Only mode.
+
+### D. Benchmark & Latency Studio Standards
 
 1. **Top Segmented Level Switcher**:
    - Navigation between the 4 levels (Probe, Commands, Lua Profiler, Cluster Matrix) must use clean segmented tabs (`.benchmark-tab-btn`).

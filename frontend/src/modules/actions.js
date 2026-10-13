@@ -85,13 +85,24 @@ export function setupActionsEventListeners() {
     btnOpenExportModal.addEventListener("click", () => {
       const pat = document.getElementById("exportPatternDisplay");
       const typ = document.getElementById("exportTypeDisplay");
+      const ttlDisp = document.getElementById("exportTtlDisplay");
       const loadedCnt = document.getElementById("exportLoadedCount");
       const scopeLoaded = document.getElementById("exportScopeLoadedText");
 
+      const currentTtl = state.currentTtlFilter || "all";
+      const ttlText = currentTtl === "persistent" ? "∞ No TTL (Persistent)" : currentTtl === "expiring" ? "⏳ Expiring Only" : "All TTLs";
+
+      const filteredLoaded = (currentTtl === "persistent")
+        ? state.keysTableRows.filter(r => r.ttl_seconds === -1)
+        : (currentTtl === "expiring")
+        ? state.keysTableRows.filter(r => r.ttl_seconds > 0)
+        : state.keysTableRows;
+
       if (pat) pat.textContent = state.currentPattern || "*";
       if (typ) typ.textContent = (state.currentType && state.currentType !== "all") ? state.currentType.toUpperCase() : "All Types";
-      if (loadedCnt) loadedCnt.textContent = `${state.keysTableRows.length} keys`;
-      if (scopeLoaded) scopeLoaded.textContent = `${state.keysTableRows.length} keys`;
+      if (ttlDisp) ttlDisp.textContent = ttlText;
+      if (loadedCnt) loadedCnt.textContent = `${filteredLoaded.length} keys`;
+      if (scopeLoaded) scopeLoaded.textContent = `${filteredLoaded.length} keys`;
 
       modalExport.classList.add("active");
       setupIcons();
@@ -110,6 +121,7 @@ export function setupActionsEventListeners() {
 
         const pattern = state.currentPattern || "*";
         const typeFilter = (state.currentType && state.currentType !== "all") ? state.currentType : "";
+        const ttlFilter = (state.currentTtlFilter && state.currentTtlFilter !== "all") ? state.currentTtlFilter : "";
         const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
         const defaultFilename = `redis_keys_${dateStr}.${format}`;
 
@@ -121,6 +133,7 @@ export function setupActionsEventListeners() {
           try {
             let url = `/api/keys/export?pattern=${encodeURIComponent(pattern)}&format=${format}`;
             if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
+            if (ttlFilter) url += `&ttl_filter=${encodeURIComponent(ttlFilter)}`;
             const res = await fetch(url);
             if (!res.ok) {
               const err = await res.json().catch(() => ({ detail: "Export failed" }));
@@ -139,18 +152,24 @@ export function setupActionsEventListeners() {
           return;
         }
 
-        if (state.keysTableRows.length === 0) {
-          alert("No keys loaded in browser to export.");
+        const rowsToExport = (state.currentTtlFilter === "persistent")
+          ? state.keysTableRows.filter(r => r.ttl_seconds === -1)
+          : (state.currentTtlFilter === "expiring")
+          ? state.keysTableRows.filter(r => r.ttl_seconds > 0)
+          : state.keysTableRows;
+
+        if (rowsToExport.length === 0) {
+          alert("No keys matching filters loaded in browser to export.");
           return;
         }
 
         let blob;
         if (format === "csv") {
           const header = "Key,Type,TTL_Seconds\n";
-          const rows = state.keysTableRows.map(r => `"${(r.key || "").replace(/"/g, '""')}",${r.type || ""},${r.ttl_seconds !== undefined ? r.ttl_seconds : -1}`);
+          const rows = rowsToExport.map(r => `"${(r.key || "").replace(/"/g, '""')}",${r.type || ""},${r.ttl_seconds !== undefined ? r.ttl_seconds : -1}`);
           blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
         } else {
-          const lines = state.keysTableRows.map(r => r.key);
+          const lines = rowsToExport.map(r => r.key);
           blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain;charset=utf-8;" });
         }
 
@@ -158,6 +177,7 @@ export function setupActionsEventListeners() {
         closeExport();
       });
     }
+
   }
 
   // ==========================================

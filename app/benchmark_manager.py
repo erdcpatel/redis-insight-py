@@ -175,9 +175,9 @@ def calculate_breakdown(avg_rtt_ms: float, server_exec_ms: float) -> LatencyBrea
 class BenchmarkManager:
     """Core engine for in-app Redis benchmarking, latency isolation, and Lua profiling."""
 
-    async def run_latency_probe(self, count: int = 100) -> BenchmarkProbeResponse:
+    async def run_latency_probe(self, count: int = 100, conn_id: Optional[str] = None) -> BenchmarkProbeResponse:
         """Level 1: Run rapid PING probes to isolate baseline network RTT vs server time."""
-        client = await redis_manager.get_client()
+        client = await redis_manager.get_client(conn_id)
         if not client:
             raise HTTPException(status_code=400, detail="No active Redis connection")
 
@@ -212,8 +212,9 @@ class BenchmarkManager:
         ops_sec = round((count / (overall_duration / 1000.0)), 1) if overall_duration > 0 else 0.0
 
         node_info = None
-        if redis_manager.active_info:
-            node_info = f"{redis_manager.active_info.get('host')}:{redis_manager.active_info.get('port')}"
+        conn_info = redis_manager.get_conn_info(conn_id)
+        if conn_info:
+            node_info = f"{conn_info.get('host')}:{conn_info.get('port')}"
 
         return BenchmarkProbeResponse(
             success=True,
@@ -228,14 +229,14 @@ class BenchmarkManager:
         )
 
     async def run_command_benchmark(
-        self, preset: str = "read", requests: int = 1000, concurrency: int = 5, pipeline: int = 1
+        self, preset: str = "read", requests: int = 1000, concurrency: int = 5, pipeline: int = 1, conn_id: Optional[str] = None
     ) -> CommandBenchmarkResponse:
         """Level 2: Core Command benchmark with auto-cleanup of ephemeral keys."""
-        client = await redis_manager.get_client()
+        client = await redis_manager.get_client(conn_id)
         if not client:
             raise HTTPException(status_code=400, detail="No active Redis connection")
 
-        is_ro = redis_manager.is_read_only
+        is_ro = redis_manager.is_conn_read_only(conn_id)
         if is_ro and preset in ["write", "structures"]:
             raise HTTPException(
                 status_code=403,
@@ -335,9 +336,10 @@ class BenchmarkManager:
         mode: str = "profile",
         iterations: int = 100,
         concurrency: int = 5,
+        conn_id: Optional[str] = None,
     ) -> LuaBenchmarkResponse:
         """Level 3: Lua Script Sandbox & Profiler with exact server execution measurement."""
-        client = await redis_manager.get_client()
+        client = await redis_manager.get_client(conn_id)
         if not client:
             raise HTTPException(status_code=400, detail="No active Redis connection")
 
@@ -466,17 +468,18 @@ return {{__ri_result, __ri_elapsed_us}}
             histogram=histogram,
         )
 
-    async def run_cluster_matrix(self) -> ClusterMatrixResponse:
+    async def run_cluster_matrix(self, conn_id: Optional[str] = None) -> ClusterMatrixResponse:
         """Level 4: Cross-Node Latency Matrix evaluating primary nodes side-by-side."""
-        client = await redis_manager.get_client()
+        client = await redis_manager.get_client(conn_id)
         if not client:
             raise HTTPException(status_code=400, detail="No active Redis connection")
 
         is_cluster = isinstance(client, RedisCluster)
         if not is_cluster:
             # Standalone mode: single-node latency matrix
-            probe = await self.run_latency_probe(count=50)
-            node_label = f"{redis_manager.active_info.get('host', '127.0.0.1')}:{redis_manager.active_info.get('port', 6379)}"
+            probe = await self.run_latency_probe(count=50, conn_id=conn_id)
+            conn_info = redis_manager.get_conn_info(conn_id) or {}
+            node_label = f"{conn_info.get('host', '127.0.0.1')}:{conn_info.get('port', 6379)}"
             item = ClusterNodeMatrixItem(
                 node=node_label,
                 role="master (standalone)",

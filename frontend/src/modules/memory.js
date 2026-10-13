@@ -1,6 +1,7 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
+import { resetAndScan } from "./keys.js";
 
 // Callbacks set during registration
 let onInspectKey = null;
@@ -137,33 +138,41 @@ export function renderMemoryProfilingSafeguardUI() {
     <div class="mem-info-banner">
       <i data-lucide="info" style="width: 20px; height: 20px; color: #38bdf8; flex-shrink: 0; margin-top: 2px;"></i>
       <div>
-        <strong style="color: var(--text-primary); font-size: 0.85rem; display: block; margin-bottom: 3px;">What is BigKeys and how does it work?</strong>
+        <strong style="color: var(--text-primary); font-size: 0.85rem; display: block; margin-bottom: 3px;">What is Memory & BigKeys Profiling?</strong>
         <p style="margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary);">
-          In Redis, <strong>BigKeys</strong> are keys that consume excessive RAM (measured in bytes via <code>MEMORY USAGE</code>) or contain very high element counts (e.g., a hash with 50,000 fields, list with 100,000 items).
-          Because Redis is single-threaded, operating on or evicting BigKeys causes latency spikes, blocks other client requests, and creates hot shards in clusters.
-          This profiler safely samples your keyspace to identify memory hogs so you can partition or add TTLs to them.
+          In Redis, <strong>BigKeys</strong> consume excessive RAM or contain very high element counts. In addition, keys missing TTLs lead to silent persistent memory leaks.
+          This profiler runs non-blocking <code>SCAN</code> across your instance or cluster to identify top memory hogs, project <strong>TTL Space Reclaims</strong>, and audit persistent key leaks.
         </p>
       </div>
     </div>
 
     <div class="mem-safeguard-box">
       <div class="mem-safeguard-header">
-        <i data-lucide="alert-triangle" style="width: 22px; height: 22px;"></i>
-        <span>Performance Notice: Safe Non-Blocking Key Sampling</span>
+        <i data-lucide="shield-check" style="width: 22px; height: 22px; color: #38bdf8;"></i>
+        <span>Non-Blocking Keyspace Profiling & TTL Forecast</span>
       </div>
       <div class="mem-safeguard-body">
-        Profiling analyzes data structure allocation and identifies the <strong>Top 50 BigKeys</strong> by running non-blocking <code>SCAN</code> and computing memory footprints with <code>MEMORY USAGE</code>.
-        To ensure zero downtime and prevent CPU spikes on high-throughput environments, profiling is only run on-demand with controlled sampling limits.
+        Profiling samples keys using cursor-based <code>SCAN</code>, reads byte footprints with <code>MEMORY USAGE</code>, and projects when RAM will be freed based on expiration horizons.
+        Redis is never blocked — all commands execute with bounded concurrency.
       </div>
       <div class="mem-safeguard-controls">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">Scan Mode:</span>
+          <select id="memScanModeSelect" class="form-select" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
+            <option value="sample" selected>Standard Sample (Fast)</option>
+            <option value="full">Deep Cluster Scan (Full Keyspace)</option>
+          </select>
+        </div>
+
         <div style="display: flex; align-items: center; gap: 0.5rem;">
           <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">Sample Limit:</span>
           <select id="memSampleSizeSelect" class="form-select" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); color: var(--text-primary); border-radius: 4px;">
             <option value="100">100 keys (Fastest)</option>
             <option value="250">250 keys (Balanced)</option>
             <option value="500" selected>500 keys (Recommended)</option>
-            <option value="1000">1,000 keys (Deep Scan)</option>
-            <option value="2500">2,500 keys (Thorough)</option>
+            <option value="1000">1,000 keys (Thorough)</option>
+            <option value="5000">5,000 keys (Deep Scan)</option>
+            <option value="25000">25,000 keys (Max Cluster Scan)</option>
           </select>
         </div>
 
@@ -185,24 +194,51 @@ export function renderMemoryProfilingSafeguardUI() {
   const btnStart = document.getElementById("btnStartProfilingAction");
   if (btnStart) {
     btnStart.addEventListener("click", () => {
+      const scanMode = document.getElementById("memScanModeSelect")?.value || "sample";
       const sampleSize = parseInt(document.getElementById("memSampleSizeSelect").value, 10) || 500;
       const pattern = document.getElementById("memSamplePatternInput").value || "*";
-      triggerMemoryAnalysis(sampleSize, pattern);
+
+      if (scanMode === "full") {
+        const modal = document.getElementById("deepScanSafetyModal");
+        if (modal) {
+          modal.classList.add("active");
+          setupIcons();
+
+          const closeModal = () => modal.classList.remove("active");
+          const btnCancel = document.getElementById("btnCancelDeepScan");
+          const btnClose = document.getElementById("btnCloseDeepScanModal");
+          const btnConfirm = document.getElementById("btnConfirmDeepScan");
+
+          if (btnCancel) btnCancel.onclick = closeModal;
+          if (btnClose) btnClose.onclick = closeModal;
+          if (btnConfirm) {
+            btnConfirm.onclick = () => {
+              closeModal();
+              triggerMemoryAnalysis(sampleSize, pattern, "full");
+            };
+          }
+          return;
+        }
+      }
+      triggerMemoryAnalysis(sampleSize, pattern, scanMode);
     });
   }
 }
 
-export async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*") {
+export async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*", scanMode = "sample") {
   const container = document.getElementById("memoryProfilingContainer");
   if (!container) return;
 
   state.isMemoryProfilingRunning = true;
+  const isDeep = scanMode === "full";
   container.innerHTML = `
     <div style="padding: 3.5rem 1.5rem; text-align: center;">
-      <i data-lucide="refresh-cw" class="spin" style="width: 36px; height: 36px; color: #a78bfa; margin-bottom: 1rem;"></i>
-      <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 0.4rem;">Analyzing Redis Keyspace...</h3>
-      <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 480px; margin: 0 auto; line-height: 1.5;">
-        Scanning sample of up to <strong>${sampleSize.toLocaleString()}</strong> keys (pattern <code>${escapeHtml(pattern)}</code>) and measuring memory allocations...
+      <i data-lucide="refresh-cw" class="spin" style="width: 36px; height: 36px; color: ${isDeep ? '#f59e0b' : '#a78bfa'}; margin-bottom: 1rem;"></i>
+      <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 0.4rem;">
+        ${isDeep ? 'Running Deep Non-Blocking Cluster Scan...' : 'Analyzing Redis Keyspace...'}
+      </h3>
+      <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 520px; margin: 0 auto; line-height: 1.5;">
+        ${isDeep ? 'Scanning across cluster primary nodes using non-blocking cursors with bounded concurrency pool and calculating TTL space reclaim forecast...' : `Scanning sample of up to <strong>${sampleSize.toLocaleString()}</strong> keys (pattern <code>${escapeHtml(pattern)}</code>) and measuring memory allocations...`}
       </p>
     </div>
   `;
@@ -212,7 +248,7 @@ export async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*") {
     const res = await fetch("/api/memory/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sample_size: sampleSize, pattern: pattern })
+      body: JSON.stringify({ sample_size: sampleSize, pattern: pattern, scan_mode: scanMode })
     });
     if (!res.ok) throw new Error("Failed to complete memory profiling");
     state.currentMemoryAnalysis = await res.json();
@@ -273,6 +309,163 @@ export function renderMemoryAnalysisUI(data) {
         Re-Run Profiling
       </button>
     </div>
+
+    <!-- TTL Space Reclaim Forecast Card -->
+    ${data.ttl_forecast ? `
+      <div class="mem-ttl-forecast-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <span style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+              <i data-lucide="clock" style="width: 16px; height: 16px; color: #38bdf8;"></i>
+              TTL Expiry & Cluster Space Reclaim Forecast
+            </span>
+            <span style="font-size: 0.73rem; color: var(--text-muted); margin-top: 2px; display: block;">
+              Non-blocking projection of automatic memory recovery based on key expiration horizons (${data.ttl_forecast.total_keys_profiled.toLocaleString()} profiled keys, ${data.ttl_forecast.total_memory_profiled_human}).
+            </span>
+          </div>
+          <span class="badge-db" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+            Live Projection
+          </span>
+        </div>
+
+        <!-- 4 KPI Metrics -->
+        <div class="mem-ttl-kpi-grid">
+          <!-- Immediate 1h -->
+          <div class="mem-ttl-kpi-item" style="border-top: 2px solid #10b981;">
+            <div class="kpi-label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #10b981;"></i> &lt; 1 Hour Relief</div>
+            <div class="kpi-val" style="color: #10b981;">${data.ttl_forecast.reclaim_1h_human}</div>
+            <div class="kpi-sub">${data.ttl_forecast.reclaim_1h_percent}% of memory reclaimed</div>
+          </div>
+          <!-- 24h -->
+          <div class="mem-ttl-kpi-item" style="border-top: 2px solid #06b6d4;">
+            <div class="kpi-label"><i data-lucide="calendar" style="width: 12px; height: 12px; color: #06b6d4;"></i> 24-Hour Recovery</div>
+            <div class="kpi-val" style="color: #06b6d4;">${data.ttl_forecast.reclaim_24h_human}</div>
+            <div class="kpi-sub">${data.ttl_forecast.reclaim_24h_percent}% of memory reclaimed</div>
+          </div>
+          <!-- 7d -->
+          <div class="mem-ttl-kpi-item" style="border-top: 2px solid #3b82f6;">
+            <div class="kpi-label"><i data-lucide="trending-down" style="width: 12px; height: 12px; color: #3b82f6;"></i> 7-Day Recovery</div>
+            <div class="kpi-val" style="color: #3b82f6;">${data.ttl_forecast.reclaim_7d_human}</div>
+            <div class="kpi-sub">${data.ttl_forecast.reclaim_7d_percent}% of memory reclaimed</div>
+          </div>
+          <!-- Persistent -->
+          <div class="mem-ttl-kpi-item" style="border-top: 2px solid ${data.ttl_forecast.persistent_memory_percent > 30 ? '#f43f5e' : '#fbbf24'};">
+            <div class="kpi-label"><i data-lucide="alert-octagon" style="width: 12px; height: 12px; color: #f43f5e;"></i> No TTL (Persistent)</div>
+            <div class="kpi-val" style="color: ${data.ttl_forecast.persistent_memory_percent > 30 ? '#f43f5e' : '#fbbf24'};">${data.ttl_forecast.persistent_memory_human}</div>
+            <div class="kpi-sub">${data.ttl_forecast.persistent_keys_percent}% of keys (${data.ttl_forecast.persistent_keys_count.toLocaleString()})</div>
+          </div>
+        </div>
+
+        <!-- Stacked Horizon Progress Bar -->
+        <div style="margin-top: 1.1rem;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.35rem;">
+            <span>Expiration Horizon Distribution (by RAM Footprint)</span>
+            <span>Total Profiled: ${data.ttl_forecast.total_memory_profiled_human}</span>
+          </div>
+          <div class="mem-stacked-bar" style="height: 14px; border-radius: 6px;">
+            ${(data.ttl_forecast.horizons || []).map(h => {
+              const colors = {
+                "< 1 Hour": "#10b981",
+                "1 - 24 Hours": "#06b6d4",
+                "1 - 7 Days": "#3b82f6",
+                "> 7 Days": "#8b5cf6",
+                "No Expiration (Persistent)": "#f43f5e"
+              };
+              const col = colors[h.label] || "#94a3b8";
+              return `
+                <div class="mem-stacked-segment" style="width: ${h.memory_percentage}%; background: ${col};" title="${escapeHtml(h.label)}: ${h.memory_percentage}% (${h.total_memory_human}, ${h.key_count.toLocaleString()} keys)"></div>
+              `;
+            }).join("")}
+          </div>
+
+          <!-- Horizon Pills Legend -->
+          <div class="mem-horizon-pills-row">
+            ${(data.ttl_forecast.horizons || []).map(h => {
+              const colors = {
+                "< 1 Hour": "#10b981",
+                "1 - 24 Hours": "#06b6d4",
+                "1 - 7 Days": "#3b82f6",
+                "> 7 Days": "#8b5cf6",
+                "No Expiration (Persistent)": "#f43f5e"
+              };
+              const col = colors[h.label] || "#94a3b8";
+              return `
+                <div class="mem-horizon-pill" style="border-left: 3px solid ${col};">
+                  <div class="pill-title">${escapeHtml(h.label)}</div>
+                  <div class="pill-val" style="color: ${col};">${h.total_memory_human}</div>
+                  <div class="pill-meta">${h.key_count.toLocaleString()} keys (${h.memory_percentage}%)</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Persistent Keys (No TTL) Leak Audit Card -->
+    ${data.ttl_forecast && data.ttl_forecast.top_leak_namespaces && data.ttl_forecast.top_leak_namespaces.length > 0 ? `
+      <div class="mem-leak-audit-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <span style="font-size: 0.95rem; font-weight: 700; color: #fca5a5; display: flex; align-items: center; gap: 0.5rem;">
+              <i data-lucide="alert-triangle" style="width: 16px; height: 16px; color: #f43f5e;"></i>
+              Persistent Keys Leak Audit (Missing Expiration TTL)
+            </span>
+            <span style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 2px; display: block;">
+              Keys in these namespaces have no TTL and accumulate in RAM indefinitely. Filter directly in Keys Browser to inspect or add TTL policies.
+            </span>
+          </div>
+          <span style="font-size: 0.73rem; color: var(--text-muted); font-family: var(--font-mono);">
+            ${data.ttl_forecast.top_leak_namespaces.length} leak sources detected
+          </span>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="keys-table" style="width: 100%; font-size: 0.8rem;">
+            <thead>
+              <tr>
+                <th>Offending Namespace / Pattern</th>
+                <th style="width: 130px;">Key Count</th>
+                <th style="width: 160px;">Unreclaimed RAM</th>
+                <th style="width: 120px;">% of Leaks</th>
+                <th style="width: 140px; text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.ttl_forecast.top_leak_namespaces.map(leak => `
+                <tr>
+                  <td>
+                    <code style="font-family: var(--font-mono); font-weight: 600; color: #38bdf8; background: rgba(56,189,248,0.1); padding: 0.15rem 0.4rem; border-radius: 4px;">
+                      ${escapeHtml(leak.namespace)}
+                    </code>
+                  </td>
+                  <td style="font-family: var(--font-mono); color: var(--text-primary); font-weight: 600;">
+                    ${leak.key_count.toLocaleString()}
+                  </td>
+                  <td style="font-family: var(--font-mono); color: #f87171; font-weight: 700;">
+                    ${leak.total_memory_human}
+                  </td>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                      <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">${leak.percentage_of_leaks}%</span>
+                      <div style="width: 45px; height: 4px; background: rgba(255,255,255,0.06); border-radius: 9999px; overflow: hidden;">
+                        <div style="width: ${Math.min(100, leak.percentage_of_leaks)}%; height: 100%; background: #f43f5e; border-radius: 9999px;"></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style="text-align: right;">
+                    <button type="button" class="btn btn-secondary btn-inspect-leak" data-namespace="${escapeHtml(leak.namespace)}" title="Filter keys in Keys Browser matching ${escapeHtml(leak.namespace)} with No TTL" style="padding: 0.25rem 0.55rem; font-size: 0.72rem;">
+                      <i data-lucide="filter" style="width: 11px; height: 11px; margin-right: 3px;"></i>
+                      Filter in Keys
+                    </button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ` : ''}
 
     <!-- Visual Memory Breakdown by Type -->
     <div class="mem-bar-wrapper">
@@ -378,6 +571,7 @@ export function renderMemoryAnalysisUI(data) {
 
   attachBigKeyRowHandlers();
 }
+
 
 export function renderBigKeysTableHtml(keys) {
   if (!keys || keys.length === 0) {
@@ -510,6 +704,22 @@ export function attachBigKeyRowHandlers() {
           }
           if (onRefreshStatus) await onRefreshStatus();
         });
+      }
+    });
+  });
+
+  document.querySelectorAll(".btn-inspect-leak").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const ns = btn.getAttribute("data-namespace");
+      if (ns) {
+        state.currentPattern = ns;
+        state.currentTtlFilter = "persistent";
+        const keyInput = document.getElementById("keySearchInput");
+        if (keyInput) keyInput.value = ns;
+        const ttlSelect = document.getElementById("ttlFilterSelect");
+        if (ttlSelect) ttlSelect.value = "persistent";
+        switchWorkspaceTab("keys");
+        resetAndScan();
       }
     });
   });

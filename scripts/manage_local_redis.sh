@@ -7,7 +7,7 @@ STANDALONE_PORT=6379
 
 check_port_running() {
   local port="$1"
-  redis-cli -p "$port" ping 2>/dev/null | grep -q "PONG"
+  redis-cli -t 1 -p "$port" ping 2>/dev/null | grep -q "PONG"
 }
 
 start_standalone() {
@@ -143,6 +143,13 @@ seed_test_data() {
     redis-cli -p "$STANDALONE_PORT" LPUSH "tasks:queue" "job_1" "job_2" "job_3" >/dev/null
     redis-cli -p "$STANDALONE_PORT" SADD "features:active" "dark_mode" "auto_refresh" "clusters" >/dev/null
     redis-cli -p "$STANDALONE_PORT" ZADD "leaderboard:points" 100 "Alice" 85 "Bob" 95 "Charlie" >/dev/null
+    # Mixed & custom delimiter test keys
+    redis-cli -p "$STANDALONE_PORT" SET "api/v1/users/list" '{"count":25}' >/dev/null
+    redis-cli -p "$STANDALONE_PORT" SET "services/auth:session:xyz" "active_jwt" EX 1800 >/dev/null
+    redis-cli -p "$STANDALONE_PORT" SET "system.metrics.cpu.load" "0.42" >/dev/null
+    redis-cli -p "$STANDALONE_PORT" SET "audit_log_2026_events" "ok" >/dev/null
+    redis-cli -p "$STANDALONE_PORT" SET "models::v2::user#meta" "custom_delim_data" >/dev/null
+    redis-cli -p "$STANDALONE_PORT" SET "analytics|daily|summary" "1024_views" >/dev/null
     echo "    ✓ Standalone keys seeded."
   else
     echo "    Standalone Redis not running on port $STANDALONE_PORT, skipping."
@@ -158,6 +165,10 @@ seed_test_data() {
     redis-cli -c -p 7000 LPUSH "events:audit" "login_user_1" "update_key_ttl" "bulk_delete" >/dev/null
     redis-cli -c -p 7000 SADD "cluster:tenants" "tenant_alpha" "tenant_beta" "tenant_gamma" >/dev/null
     redis-cli -c -p 7000 ZADD "cluster:metrics:latency" 1.2 "node_7000" 0.9 "node_7001" 1.5 "node_7002" >/dev/null
+    # Mixed & custom delimiter test keys for cluster
+    redis-cli -c -p 7000 SET "cluster/region-us-east/app:metrics.p99" "12ms" >/dev/null
+    redis-cli -c -p 7000 SET "sharded_tenant_a_cache" "tenant_data" >/dev/null
+    redis-cli -c -p 7000 SET "cluster::shard::node#meta" "cluster_hash" >/dev/null
     echo "    ✓ Cluster keys seeded."
   else
     echo "    Cluster port 7000 not running, skipping cluster seed."

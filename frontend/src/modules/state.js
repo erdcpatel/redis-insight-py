@@ -15,9 +15,37 @@ export const state = {
   currentSlowlogSearch: "",
   currentSlowlogNode: "all",
 
-  // View Mode & Tree
+  // View Mode & Tree Multi-Delimiters
   currentViewMode: localStorage.getItem("redis_insight_view_mode") || "table",
-  currentTreeDelimiter: localStorage.getItem("redis_insight_tree_delimiter") || "auto",
+  activeTreeDelimiters: (() => {
+    try {
+      const raw = localStorage.getItem("redis_insight_tree_delimiters_global");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    const legacy = localStorage.getItem("redis_insight_tree_delimiter");
+    if (legacy && legacy !== "auto") return [legacy];
+    return [":", "/", "."];
+  })(),
+  customTreeDelimiters: (() => {
+    try {
+      const raw = localStorage.getItem("redis_insight_custom_delimiters");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  })(),
+  treeDelimiterPreset: localStorage.getItem("redis_insight_tree_delimiter_preset") || "auto",
+  get currentTreeDelimiter() {
+    return this.treeDelimiterPreset || (this.activeTreeDelimiters && this.activeTreeDelimiters[0]) || "auto";
+  },
+  set currentTreeDelimiter(val) {
+    this.treeDelimiterPreset = val;
+  },
   treeExpandedPaths: new Set(),
   treeInitialized: false,
   currentTreeFilterQuery: "",
@@ -32,6 +60,7 @@ export const state = {
   currentCursor: 0,
   currentPattern: "*",
   currentType: "all",
+  currentTtlFilter: "all",
   isScanning: false,
   totalScanned: 0,
   scanComplete: false,
@@ -59,6 +88,7 @@ export const state = {
   pendingDeleteCallback: null,
 
   // Connections & Topology
+  selectedConnectionId: localStorage.getItem("redis_insight_selected_conn_id") || null,
   cachedConnections: [],
   currentEnvFilter: "ALL",
   currentConnSearch: "",

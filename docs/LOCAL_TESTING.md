@@ -161,9 +161,10 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] Search for `user:*` &rarr; table updates immediately without page reload.
    - [ ] Filter by Type (e.g. `hash`, `string`, `set`) &rarr; table only displays matched types.
 
-4. **Virtual Folder Tree View**:
+4. **Virtual Folder Tree View & Delimiters**:
    - [ ] Click **Tree** view tab in the action bar &rarr; keyspace switches smoothly from table to collapsible namespace folders.
-   - [ ] Check Delimiter dropdown &rarr; test `Auto (:, /, .)`, `:`, `/`, `.`, and `-`.
+   - [ ] Test Delimiter Chips &rarr; click chip pills (`:`, `/`, `.`, `-`) to toggle active delimiters on and off in real time.
+   - [ ] Test Custom Delimiter &rarr; click `+ Add`, enter custom delimiter (e.g. `::` or `#`), click Add &rarr; tree regroups immediately.
    - [ ] Click on a folder &rarr; toggles expand/collapse state.
    - [ ] Click **Collapse All** / **Expand All** &rarr; collapses or expands all namespace levels.
    - [ ] Type into the in-tree filter input &rarr; tree filters matching folders and leaf keys in real time.
@@ -171,7 +172,10 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] Click on any leaf key in tree view &rarr; Key Inspector modal opens.
    - [ ] Click **Table** view tab &rarr; switches back to the flat data table.
 
-5. **Key Inspection Modal**:
+5. **TTL Filter & Key Inspection**:
+   - [ ] Toggle TTL filter dropdown &rarr; select **⏳ Expiring Only** &rarr; verify only keys with TTL are shown.
+   - [ ] Select **∞ No TTL (Persistent)** &rarr; verify only persistent keys with `∞ No TTL` badge are shown.
+   - [ ] Click **Export** &rarr; verify CSV/TXT export respects the selected TTL filter.
    - [ ] Click on a cluster key &rarr; verify key details modal displays:
      - Accurate Type and TTL.
      - Key Slot (e.g. `1024 / 16383`).
@@ -182,10 +186,16 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] Toggle Auto-Refresh ON with `5m` interval &rarr; countdown begins with 5m.
    - [ ] Toggle Auto-Refresh OFF &rarr; timer stops.
 
-7. **Diagnostic Modals**:
-   - [ ] Click **Memory** in top bar &rarr; Memory Analysis & Profiler modal opens.
-   - [ ] Click **Clients** in top bar &rarr; Connected Clients modal opens.
-   - [ ] Click **Slowlog** &rarr; Slowlog modal opens and lists logged commands.
+7. **Diagnostic Studios (Workspace Tabs)**:
+   - [ ] Click **Memory** in top bar &rarr; Memory Analysis workspace tab opens.
+     - Verify **TTL Expiry Horizon** card renders 4 KPI metrics (`1h`, `24h`, `7d`, `Unexpiring %`) and stacked horizon bar.
+     - Verify **Persistent Keys Leak Audit** lists unexpiring namespaces.
+     - Click **Filter in Keys** on an offending namespace &rarr; switches to Keys Browser with pattern and `Persistent` TTL filter active.
+     - Switch scan mode to **Full Keyspace Scan** &rarr; verify `#deepScanSafetyModal` displays before deep scan starts.
+   - [ ] Click **Clients** in top bar &rarr; Connected Clients workspace tab opens.
+     - Verify current connection displays cyan **`[THIS APP]`** badge.
+   - [ ] Click **Slowlog** in top bar &rarr; Slowlog workspace tab opens and lists logged commands.
+   - [ ] Click **Topology** in top bar &rarr; Cluster Topology map opens and displays node links/slots.
 
 8. **Redis Benchmark & Latency Studio**:
    - [ ] Click **Benchmark** in the top navigation bar &rarr; Benchmark & Latency Studio opens.

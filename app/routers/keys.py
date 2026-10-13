@@ -17,7 +17,7 @@ from redis.exceptions import (
     ResponseError,
 )
 from app.logger import logger
-from app.dependencies import require_write_permission
+from app.dependencies import require_write_permission, get_target_conn_id
 from app.models import (
     KeyListResponse,
     ActiveConnectionStatus,
@@ -75,35 +75,35 @@ class KeyDeleteRequest(BaseModel):
 
 
 @router.get("/status", response_model=ActiveConnectionStatus)
-async def get_active_status():
+async def get_active_status(conn_id: Optional[str] = Depends(get_target_conn_id)):
     """Health check (PING) and status information for active Redis connection."""
-    return await redis_manager.get_status()
+    return await redis_manager.get_status(conn_id=conn_id)
 
 
 @router.get("/clients")
-async def get_connected_clients():
+async def get_connected_clients(conn_id: Optional[str] = Depends(get_target_conn_id)):
     """Retrieve list of connected clients with IP, port, age, idle, command, etc."""
     try:
-        return await redis_manager.get_clients()
+        return await redis_manager.get_clients(conn_id=conn_id)
     except Exception as e:
         raise_mapped_exception(e, "Failed to fetch clients")
 
 
 @router.delete("/clients/{client_id}", dependencies=[Depends(require_write_permission)])
-async def kill_client_endpoint(client_id: str):
+async def kill_client_endpoint(client_id: str, conn_id: Optional[str] = Depends(get_target_conn_id)):
     """Disconnect/kill a connected client by its ID."""
     try:
-        success = await redis_manager.kill_client(client_id)
+        success = await redis_manager.kill_client(client_id, conn_id=conn_id)
         return {"success": success, "client_id": client_id}
     except Exception as e:
         raise_mapped_exception(e, f"Failed to kill client {client_id}")
 
 
 @router.get("/topology", response_model=ClusterTopologyResponse)
-async def get_cluster_topology():
+async def get_cluster_topology(conn_id: Optional[str] = Depends(get_target_conn_id)):
     """Retrieve cluster nodes topology or master-replica nodes."""
     try:
-        return await redis_manager.get_topology()
+        return await redis_manager.get_topology(conn_id=conn_id)
     except Exception as e:
         raise_mapped_exception(e, "Failed to fetch topology")
 
@@ -115,7 +115,8 @@ async def list_keys(
     pattern: str = Query("*", description="Glob-style pattern to match"),
     cursor: str = Query("0", description="SCAN cursor: an integer for standalone, or a JSON object of per-node cursors for cluster"),
     count: int = Query(50, ge=1, le=10000, description="Page size estimate for SCAN"),
-    type: Optional[str] = Query(None, description="Filter by Redis type (string, hash, list, set, zset, ReJSON-RL)")
+    type: Optional[str] = Query(None, description="Filter by Redis type (string, hash, list, set, zset, ReJSON-RL)"),
+    conn_id: Optional[str] = Depends(get_target_conn_id)
 ):
     """Scan and list keys with type and TTL for the active Redis connection."""
     try:
@@ -123,7 +124,8 @@ async def list_keys(
             pattern=pattern,
             cursor=cursor,
             count=count,
-            type_filter=type
+            type_filter=type,
+            conn_id=conn_id
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
@@ -132,15 +134,18 @@ async def list_keys(
 
 
 @router.get("/keys/detail")
-async def get_key_detail_query(key: str = Query(..., description="Key name to inspect")):
+async def get_key_detail_query(
+    key: str = Query(..., description="Key name to inspect"),
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Retrieve detailed metadata and value content for a single Redis key via query parameter."""
     try:
-        detail = await redis_manager.get_key_detail(key)
+        detail = await redis_manager.get_key_detail(key, conn_id=conn_id)
         if not detail:
             # Try unquoted version in case frontend double encoded it
             unquoted = unquote(key)
             if unquoted != key:
-                detail = await redis_manager.get_key_detail(unquoted)
+                detail = await redis_manager.get_key_detail(unquoted, conn_id=conn_id)
         if not detail:
             raise HTTPException(status_code=404, detail=f"Key '{key}' does not exist or has expired.")
         return detail
@@ -149,14 +154,17 @@ async def get_key_detail_query(key: str = Query(..., description="Key name to in
 
 
 @router.get("/keys/{key_name:path}/detail")
-async def get_single_key_detail(key_name: str):
+async def get_single_key_detail(
+    key_name: str,
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Retrieve detailed metadata and value content for a single Redis key."""
     try:
-        detail = await redis_manager.get_key_detail(key_name)
+        detail = await redis_manager.get_key_detail(key_name, conn_id=conn_id)
         if not detail:
             unquoted = unquote(key_name)
             if unquoted != key_name:
-                detail = await redis_manager.get_key_detail(unquoted)
+                detail = await redis_manager.get_key_detail(unquoted, conn_id=conn_id)
         if not detail:
             raise HTTPException(status_code=404, detail=f"Key '{key_name}' does not exist or has expired.")
         return detail
@@ -170,13 +178,14 @@ async def get_hash_fields(
     cursor: int = Query(0, ge=0, description="HSCAN cursor (0 to start)"),
     count: int = Query(100, ge=1, le=500, description="Approximate number of fields per page"),
     match: Optional[str] = Query(None, description="Glob-style MATCH filter on field names"),
+    conn_id: Optional[str] = Depends(get_target_conn_id),
 ):
     """Page through a hash's fields with HSCAN; `cursor` 0 in the response means done."""
     try:
-        page = await redis_manager.scan_hash_fields(key_name, cursor=cursor, count=count, match=match)
+        page = await redis_manager.scan_hash_fields(key_name, cursor=cursor, count=count, match=match, conn_id=conn_id)
         unquoted = unquote(key_name)
         if page["total"] == 0 and unquoted != key_name:
-            page = await redis_manager.scan_hash_fields(unquoted, cursor=cursor, count=count, match=match)
+            page = await redis_manager.scan_hash_fields(unquoted, cursor=cursor, count=count, match=match, conn_id=conn_id)
         return page
     except Exception as e:
         raise_mapped_exception(e, f"Failed to scan hash fields for key '{key_name}'")
@@ -234,13 +243,14 @@ async def download_key_value(
     key_name: str,
     format: Optional[str] = Query(None, description="Output format (type-dependent): txt, csv, or json"),
     max_items: int = Query(DOWNLOAD_MAX_ITEMS, ge=1, le=1_000_000, description="Max entries to read for collection types"),
+    conn_id: Optional[str] = Depends(get_target_conn_id),
 ):
     """Download a key's full value as an attachment whose extension always matches its content."""
     try:
-        full = await redis_manager.get_key_full_value(key_name, max_items=max_items)
+        full = await redis_manager.get_key_full_value(key_name, max_items=max_items, conn_id=conn_id)
         unquoted = unquote(key_name)
         if full is None and unquoted != key_name:
-            full = await redis_manager.get_key_full_value(unquoted, max_items=max_items)
+            full = await redis_manager.get_key_full_value(unquoted, max_items=max_items, conn_id=conn_id)
         if full is None:
             raise HTTPException(status_code=404, detail=f"Key '{key_name}' does not exist or has expired.")
 
@@ -272,11 +282,15 @@ async def download_key_value(
 
 
 @router.put("/keys/{key_name:path}/ttl", dependencies=[Depends(require_write_permission)])
-async def update_key_ttl_endpoint(key_name: str, payload: TTLUpdateRequest):
+async def update_key_ttl_endpoint(
+    key_name: str,
+    payload: TTLUpdateRequest,
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Update TTL for a key. Pass seconds=-1 to persist the key."""
     key_name = unquote(key_name)
     try:
-        success = await redis_manager.update_key_ttl(key_name, payload.seconds)
+        success = await redis_manager.update_key_ttl(key_name, payload.seconds, conn_id=conn_id)
         if not success:
             raise HTTPException(status_code=404, detail="Key does not exist or TTL update failed")
         return {"success": True, "key": key_name, "ttl": payload.seconds}
@@ -285,23 +299,31 @@ async def update_key_ttl_endpoint(key_name: str, payload: TTLUpdateRequest):
 
 
 @router.put("/keys/{key_name:path}/field", dependencies=[Depends(require_write_permission)])
-async def set_hash_field_endpoint(key_name: str, payload: HashFieldSetRequest):
+async def set_hash_field_endpoint(
+    key_name: str,
+    payload: HashFieldSetRequest,
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Set or update a field inside a Hash key."""
     key_name = unquote(key_name)
     try:
-        result = await redis_manager.set_hash_field(key_name, payload.field, payload.value)
+        result = await redis_manager.set_hash_field(key_name, payload.field, payload.value, conn_id=conn_id)
         return {"success": True, "field": payload.field, "result": result}
     except Exception as e:
         raise_mapped_exception(e, f"Failed to set hash field for key '{key_name}'")
 
 
 @router.delete("/keys/{key_name:path}/field/{field_name:path}", dependencies=[Depends(require_write_permission)])
-async def delete_hash_field_endpoint(key_name: str, field_name: str):
+async def delete_hash_field_endpoint(
+    key_name: str,
+    field_name: str,
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Delete a field from a Hash key."""
     key_name = unquote(key_name)
     field_name = unquote(field_name)
     try:
-        deleted = await redis_manager.delete_hash_field(key_name, field_name)
+        deleted = await redis_manager.delete_hash_field(key_name, field_name, conn_id=conn_id)
         return {"success": True, "deleted": deleted}
     except Exception as e:
         raise_mapped_exception(e, f"Failed to delete hash field '{field_name}' from key '{key_name}'")
@@ -312,7 +334,8 @@ async def delete_key(
     key_name: str,
     confirmed: bool = Query(False, description="Explicit confirmation flag"),
     confirmation: Optional[str] = Query(None, description="Explicit confirmation word e.g. CONFIRM"),
-    body: Optional[KeyDeleteRequest] = None
+    body: Optional[KeyDeleteRequest] = None,
+    conn_id: Optional[str] = Depends(get_target_conn_id)
 ):
     """
     Safely delete a key from active Redis instance.
@@ -331,7 +354,7 @@ async def delete_key(
         )
 
     try:
-        client = await redis_manager.get_client()
+        client = await redis_manager.get_client(conn_id=conn_id)
         deleted = await client.delete(key_name)
         if deleted == 0:
             return {"success": False, "deleted": 0, "message": "Key did not exist"}
@@ -343,40 +366,48 @@ async def delete_key(
 # --- Phase 3 Endpoints: Slowlog & Memory Analysis ---
 
 @router.get("/slowlog", response_model=SlowlogResponse)
-async def get_slowlog_endpoint(limit: int = Query(100, ge=1, le=1000, description="Max entries to return")):
+async def get_slowlog_endpoint(
+    limit: int = Query(100, ge=1, le=1000, description="Max entries to return"),
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Retrieve slowlog queries across standalone instance or all cluster primary nodes."""
     try:
-        return await redis_manager.get_slowlog(limit=limit)
+        return await redis_manager.get_slowlog(limit=limit, conn_id=conn_id)
     except Exception as e:
         raise_mapped_exception(e, "Failed to fetch slowlog")
 
 
 @router.post("/slowlog/reset", dependencies=[Depends(require_write_permission)])
-async def reset_slowlog_endpoint():
+async def reset_slowlog_endpoint(conn_id: Optional[str] = Depends(get_target_conn_id)):
     """Clear the Redis SLOWLOG buffer."""
     try:
-        await redis_manager.reset_slowlog()
+        await redis_manager.reset_slowlog(conn_id=conn_id)
         return {"status": "ok", "message": "Slowlog buffer cleared successfully"}
     except Exception as e:
         raise_mapped_exception(e, "Failed to reset slowlog")
 
 
 @router.get("/memory/overview", response_model=MemoryOverviewResponse)
-async def get_memory_overview_endpoint():
+async def get_memory_overview_endpoint(conn_id: Optional[str] = Depends(get_target_conn_id)):
     """Retrieve memory usage summary, peak, fragmentation ratio, and cache hit ratio."""
     try:
-        return await redis_manager.get_memory_overview()
+        return await redis_manager.get_memory_overview(conn_id=conn_id)
     except Exception as e:
         raise_mapped_exception(e, "Failed to fetch memory overview")
 
 
 @router.post("/memory/analyze", response_model=MemoryAnalysisResponse)
-async def analyze_memory_endpoint(request: MemoryAnalysisRequest = Body(...)):
+async def analyze_memory_endpoint(
+    request: MemoryAnalysisRequest = Body(...),
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Sample keys non-blockingly using SCAN and profile memory hogs, data type breakdown, and bottlenecks."""
     try:
         return await redis_manager.analyze_memory(
             sample_size=request.sample_size,
-            pattern=request.pattern
+            pattern=request.pattern,
+            scan_mode=request.scan_mode,
+            conn_id=conn_id
         )
     except Exception as e:
         raise_mapped_exception(e, "Failed to analyze memory")
@@ -386,14 +417,21 @@ async def analyze_memory_endpoint(request: MemoryAnalysisRequest = Body(...)):
 async def export_keys_endpoint(
     pattern: str = Query("*", description="Glob pattern of keys to export"),
     type: Optional[str] = Query(None, description="Optional Redis type filter"),
-    format: str = Query("csv", description="Export format: csv or txt")
+    ttl_filter: Optional[str] = Query(None, description="Optional TTL filter: 'all', 'expiring', or 'persistent'"),
+    format: str = Query("csv", description="Export format: csv or txt"),
+    conn_id: Optional[str] = Depends(get_target_conn_id)
 ):
     """Export matched key names with type and TTL as CSV or TXT."""
     fmt = (format or "").strip().lower()
     if fmt not in ("csv", "txt"):
         raise HTTPException(status_code=400, detail=f"Unsupported export format '{format}'. Allowed: csv, txt")
     try:
-        keys_data = await redis_manager.export_keys(pattern=pattern, type_filter=type)
+        keys_data = await redis_manager.export_keys(
+            pattern=pattern,
+            type_filter=type,
+            ttl_filter=ttl_filter,
+            conn_id=conn_id
+        )
         if fmt == "csv":
             output = io.StringIO()
             writer = csv.writer(output, lineterminator="\n")
@@ -418,19 +456,26 @@ async def export_keys_endpoint(
 
 
 @router.post("/keys/bulk-delete/dry-run", response_model=BulkDeleteDryRunResponse)
-async def bulk_delete_dry_run_endpoint(request: BulkDeleteDryRunRequest = Body(...)):
+async def bulk_delete_dry_run_endpoint(
+    request: BulkDeleteDryRunRequest = Body(...),
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Dry-run simulate bulk deletion: count matched keys without deleting."""
     try:
         return await redis_manager.bulk_delete_dry_run(
             pattern=request.pattern,
-            type_filter=request.type_filter
+            type_filter=request.type_filter,
+            conn_id=conn_id
         )
     except Exception as e:
         raise_mapped_exception(e, "Failed to run bulk delete dry-run")
 
 
 @router.post("/keys/bulk-delete", response_model=BulkDeleteExecuteResponse, dependencies=[Depends(require_write_permission)])
-async def bulk_delete_execute_endpoint(request: BulkDeleteExecuteRequest = Body(...)):
+async def bulk_delete_execute_endpoint(
+    request: BulkDeleteExecuteRequest = Body(...),
+    conn_id: Optional[str] = Depends(get_target_conn_id)
+):
     """Execute bulk key deletion using UNLINK in batches per node with confirmation validation."""
     try:
         return await redis_manager.bulk_delete_execute(
@@ -438,7 +483,8 @@ async def bulk_delete_execute_endpoint(request: BulkDeleteExecuteRequest = Body(
             type_filter=request.type_filter,
             expected_count=request.expected_count,
             confirmed_count=request.confirmed_count,
-            confirmed_env=request.confirmed_env
+            confirmed_env=request.confirmed_env,
+            conn_id=conn_id
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
