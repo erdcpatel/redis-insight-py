@@ -131,8 +131,27 @@ async def redirect_classic():
 
 
 
-# Serve Frontend via FastAPI app.frontend()
+# Serve Frontend via FastAPI app.frontend() with fallback to StaticFiles
 DIST_DIR = Path(__file__).resolve().parent.parent / "dist"
 if DIST_DIR.exists():
-    app.frontend("/", directory=str(DIST_DIR), fallback="index.html")
+    if hasattr(app, "frontend"):
+        app.frontend("/", directory=str(DIST_DIR), fallback="index.html")
+    else:
+        from fastapi.staticfiles import StaticFiles
+        from fastapi.responses import FileResponse
+
+        assets_dir = DIST_DIR / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        @app.get("/{full_path:path}")
+        async def serve_frontend_fallback(full_path: str):
+            if full_path.startswith("api/") or full_path == "api":
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail="Not Found")
+            file_path = DIST_DIR / full_path
+            if file_path.is_file():
+                return FileResponse(file_path)
+            return FileResponse(DIST_DIR / "index.html")
+
 
