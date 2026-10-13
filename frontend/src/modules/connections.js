@@ -23,6 +23,30 @@ export async function loadConnections() {
     const connections = await connRes.json();
     state.cachedConnections = connections || [];
 
+    if (state.selectedConnectionId) {
+      const match = state.cachedConnections.find(c => c.id === state.selectedConnectionId);
+      if (match && match.is_connected) {
+        state.cachedConnections.forEach(c => {
+          c.is_selected = (c.id === state.selectedConnectionId);
+        });
+      } else {
+        const activeConn = state.cachedConnections.find(c => c.is_selected && c.is_connected) || state.cachedConnections.find(c => c.is_connected);
+        if (activeConn) {
+          state.selectedConnectionId = activeConn.id;
+          localStorage.setItem("redis_insight_selected_conn_id", activeConn.id);
+          state.cachedConnections.forEach(c => {
+            c.is_selected = (c.id === activeConn.id);
+          });
+        }
+      }
+    } else {
+      const activeConn = state.cachedConnections.find(c => c.is_selected && c.is_connected) || state.cachedConnections.find(c => c.is_connected);
+      if (activeConn) {
+        state.selectedConnectionId = activeConn.id;
+        localStorage.setItem("redis_insight_selected_conn_id", activeConn.id);
+      }
+    }
+
     if (limitRes.ok) {
       const limitData = await limitRes.json();
       state.currentLimit = limitData.limit || 2;
@@ -594,6 +618,8 @@ export async function connectCluster(connId) {
     if (!res.ok) {
       throw new Error(data.detail || "Failed to connect to cluster");
     }
+    state.selectedConnectionId = connId;
+    localStorage.setItem("redis_insight_selected_conn_id", connId);
     await loadConnections();
     if (onRefreshStatus) await onRefreshStatus();
     if (onResetAndScan) await onResetAndScan();
@@ -609,6 +635,18 @@ export async function disconnectCluster(connId) {
     if (!res.ok) {
       throw new Error(data.detail || "Failed to disconnect cluster");
     }
+
+    if (state.selectedConnectionId === connId) {
+      const nextConn = state.cachedConnections.find(c => c.is_connected && c.id !== connId);
+      if (nextConn) {
+        state.selectedConnectionId = nextConn.id;
+        localStorage.setItem("redis_insight_selected_conn_id", nextConn.id);
+      } else {
+        state.selectedConnectionId = null;
+        localStorage.removeItem("redis_insight_selected_conn_id");
+      }
+    }
+
     await loadConnections();
     if (onRefreshStatus) await onRefreshStatus();
 
@@ -631,6 +669,9 @@ export async function disconnectCluster(connId) {
 
 export async function selectCluster(connId) {
   try {
+    state.selectedConnectionId = connId;
+    localStorage.setItem("redis_insight_selected_conn_id", connId);
+
     const res = await fetch(`/api/connections/${connId}/select`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) {

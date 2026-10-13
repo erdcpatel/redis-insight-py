@@ -88,6 +88,7 @@ export const state = {
   pendingDeleteCallback: null,
 
   // Connections & Topology
+  selectedConnectionId: localStorage.getItem("redis_insight_selected_conn_id") || null,
   cachedConnections: [],
   currentEnvFilter: "ALL",
   currentConnSearch: "",

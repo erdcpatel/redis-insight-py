@@ -53,6 +53,38 @@ import {
   loadDelimitersForActiveConnection
 } from "./modules/keys.js";
 
+// Global fetch interceptor to inject X-Connection-ID header for multi-user session isolation
+const originalFetch = window.fetch;
+window.fetch = function (input, init) {
+  let url = "";
+  if (typeof input === "string") {
+    url = input;
+  } else if (input instanceof URL) {
+    url = input.toString();
+  } else if (input && typeof input.url === "string") {
+    url = input.url;
+  }
+
+  if (url.startsWith("/api/") || url.includes("/api/")) {
+    const connId = state.selectedConnectionId || localStorage.getItem("redis_insight_selected_conn_id");
+    if (connId) {
+      if (input instanceof Request) {
+        try {
+          input.headers.set("X-Connection-ID", connId);
+        } catch (_) {}
+      } else {
+        init = init || {};
+        const headers = new Headers(init.headers || {});
+        if (!headers.has("X-Connection-ID")) {
+          headers.set("X-Connection-ID", connId);
+        }
+        init = { ...init, headers };
+      }
+    }
+  }
+  return originalFetch.call(this, input, init);
+};
+
 // Wire module cross-callbacks
 registerConnectionsCallbacks(refreshStatus, resetAndScan);
 registerActionsResetAndScan(resetAndScan);
