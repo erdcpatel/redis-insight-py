@@ -1837,8 +1837,9 @@ This will clear recorded slow commands across all connected Redis instances.`))t
             `}
           </div>
 
-          <div class="conn-title-wrap">
+          <div class="conn-title-wrap" style="display: flex; align-items: center; gap: 0.35rem; min-width: 0; flex: 1;">
             <span class="conn-name" title="${p(r.name)}">${p(r.name)}</span>
+            <span class="badge-env ${c}" style="font-size: 0.62rem; padding: 0.05rem 0.35rem; flex-shrink: 0;">${d}</span>
           </div>
 
           <div class="conn-status-badge-wrap">
@@ -2119,9 +2120,9 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                 <span id="connectedCountDisplay">0</span>/<span id="connLimitDisplay">2</span>
               </span>
             </div>
-            <div class="limit-select-wrap">
+            <div class="limit-select-wrapper">
               <label for="connLimitSelect" class="limit-select-label">Max:</label>
-              <select id="connLimitSelect" class="conn-limit-select" title="Simultaneous connection limit (1-5)">
+              <select id="connLimitSelect" class="limit-select conn-limit-select" title="Simultaneous connection limit (1-5)">
                 <option value="1">1</option>
                 <option value="2" selected>2</option>
                 <option value="3">3</option>
@@ -2185,7 +2186,6 @@ This will clear recorded slow commands across all connected Redis instances.`))t
           <button type="button" class="ws-tab-btn active" id="tabBtnWorkspaceKeys" data-tab="keys" role="tab" aria-selected="true" title="Key Browser & Virtual Namespace Tree (Ctrl+1)">
             <i data-lucide="key" style="width: 13px; height: 13px;"></i>
             <span>Keys</span>
-            <span class="ws-tab-badge" id="tabBadgeKeys">0</span>
           </button>
           <button type="button" class="ws-tab-btn" id="btnOpenBenchmarkModal" data-tab="benchmark" role="tab" aria-selected="false" title="Redis Benchmark & Latency Studio (Ctrl+2)">
             <i data-lucide="zap" style="width: 13px; height: 13px; color: #f59e0b;"></i>
@@ -2202,12 +2202,10 @@ This will clear recorded slow commands across all connected Redis instances.`))t
           <button type="button" class="ws-tab-btn" id="tabBtnWorkspaceTopology" data-tab="topology" role="tab" aria-selected="false" title="Cluster Topology & Node Health (Ctrl+5)">
             <i data-lucide="layers" style="width: 13px; height: 13px; color: var(--accent-primary);"></i>
             <span>Cluster Topology</span>
-            <span class="ws-tab-badge" id="tabBadgeTopology">1 Node</span>
           </button>
           <button type="button" class="ws-tab-btn" id="tabBtnWorkspaceClients" data-tab="clients" role="tab" aria-selected="false" title="Connected Client Sessions (Ctrl+6)">
             <i data-lucide="users" style="width: 13px; height: 13px; color: #38bdf8;"></i>
             <span>Clients</span>
-            <span class="ws-tab-badge" id="tabBadgeClients">0</span>
           </button>
         </nav>
 
@@ -2257,11 +2255,6 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                       <span>Tree</span>
                     </button>
                   </div>
-                  <div class="actions-divider"></div>
-                  <span class="keys-target-capsule" id="keysTargetCapsule" title="Current Active Redis Target">
-                    <i data-lucide="server" style="width: 12px; height: 12px; color: #a78bfa;"></i>
-                    <span id="keysTargetText">Connecting...</span>
-                  </span>
                   <div class="actions-divider"></div>
                   <span class="safety-badge">
                     <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
@@ -2353,16 +2346,7 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                         <i data-lucide="lock" style="width: 11px; height: 11px; vertical-align: middle;"></i> READ ONLY
                       </span>
                     </div>
-                    <p class="modal-subtitle" id="benchmarkTargetSubtitle">
-                      Target: Connecting... | Ephemeral Namespace: __ri_bench__
-                    </p>
                   </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseBenchmarkModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
-                  </button>
                 </div>
               </div>
 
@@ -2564,17 +2548,12 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                   <i data-lucide="pie-chart" style="width: 20px; height: 20px; color: #a78bfa;"></i>
                   <div>
                     <h3 class="modal-title" style="margin: 0; line-height: 1.2;">Memory Analysis & BigKeys Profiler</h3>
-                    <p class="modal-subtitle" id="memoryTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshMemoryModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh Overview
-                  </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseMemoryModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
                   </button>
                 </div>
               </div>
@@ -2597,12 +2576,10 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                   <div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                       <h3 class="modal-title">Real-Time Slowlog & Latency Profiler</h3>
-                      <span class="badge-db" id="slowlogCountBadge">0</span>
                       <span class="badge-duration badge-duration-warning" id="slowlogThresholdBadge" style="font-size: 0.7rem; font-weight: 500;">
                         Threshold: &gt; 10ms
                       </span>
                     </div>
-                    <p class="modal-subtitle" id="slowlogTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -2613,10 +2590,6 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                   <button type="button" class="btn btn-danger" id="btnClearSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
                     Reset Slowlog
-                  </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseSlowlogModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
                   </button>
                 </div>
               </div>
@@ -2657,20 +2630,13 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                   <div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                       <h3 class="modal-title">Cluster Topology & Nodes</h3>
-                      <span class="badge-env badge-env-dev" id="topologyEnvBadge">DEV</span>
-                      <span class="badge-db" id="topologyNodesCountBadge">0 Nodes</span>
                     </div>
-                    <p class="modal-subtitle" id="topologyTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshTopologyModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh
-                  </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseTopologyModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
                   </button>
                 </div>
               </div>
@@ -2704,19 +2670,13 @@ This will clear recorded slow commands across all connected Redis instances.`))t
                   <div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                       <h3 class="modal-title">Connected Clients</h3>
-                      <span class="badge-db" id="clientsCountBadge" style="margin-left: 4px;">0</span>
                     </div>
-                    <p class="modal-subtitle" id="clientsTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshClientsModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh
-                  </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseClientsModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
                   </button>
                 </div>
               </div>

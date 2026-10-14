@@ -67,16 +67,12 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     await expect(modal).toHaveClass(/active/);
 
     // 5. Verify the modal renders all 6 nodes
-    const countBadge = page.locator('#topologyNodesCountBadge');
-    await expect(countBadge).toContainText('6 Nodes');
-
-    // Verify table has 6 node rows
     const rows = page.locator('#topologyTableContainer table tbody tr');
     await expect(rows).toHaveCount(6);
 
-    // 6. Close the modal
-    const closeBtn = page.locator('#btnCloseTopologyModal');
-    await closeBtn.click();
+    // 6. Switch back to Keys tab
+    const keysTab = page.locator('#tabBtnWorkspaceKeys');
+    await keysTab.click();
     await expect(modal).not.toHaveClass(/active/);
   });
 
@@ -135,8 +131,8 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
       await clientsBtn.click();
       const clientsModal = page.locator('#clientsListModal');
       await expect(clientsModal).toHaveClass(/active/);
-      const closeClientsBtn = page.locator('#btnCloseClientsModal');
-      await closeClientsBtn.click();
+      const keysTab = page.locator('#tabBtnWorkspaceKeys');
+      await keysTab.click();
       await expect(clientsModal).not.toHaveClass(/active/);
     }
 
@@ -146,8 +142,8 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
       await memBtn.click();
       const memModal = page.locator('#memoryModal');
       await expect(memModal).toHaveClass(/active/);
-      const closeMemBtn = page.locator('#btnCloseMemoryModal');
-      await closeMemBtn.click();
+      const keysTab = page.locator('#tabBtnWorkspaceKeys');
+      await keysTab.click();
       await expect(memModal).not.toHaveClass(/active/);
     }
   });
@@ -465,9 +461,9 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     const clusterTable = page.locator('#benchmarkClusterResults .cluster-matrix-table');
     await expect(clusterTable).toBeVisible({ timeout: 15000 });
 
-    // 6. Close Benchmark Modal
-    const btnCloseBench = page.locator('#btnCloseBenchmarkModal');
-    await btnCloseBench.click();
+    // 6. Switch back to Keys tab
+    const keysTab = page.locator('#tabBtnWorkspaceKeys');
+    await keysTab.click();
     await expect(benchModal).not.toHaveClass(/active/);
   });
 

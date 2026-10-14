@@ -67,7 +67,7 @@ test.describe('Cluster Switch Lifecycle & State Isolation', () => {
       await expect(btnFetchSlowlog).toBeVisible();
       await expect(page.locator('#slowlogTableContainer')).toContainText('Cluster Alpha Lifecycle');
       await btnFetchSlowlog.click();
-      await expect(page.locator('#slowlogCountBadge')).not.toHaveText('-');
+      await expect(page.locator('#slowlogFooterStats')).toBeVisible();
 
       // 5. Now switch cluster to Beta from the sidebar
       const betaCard = page.locator(`.conn-card[data-id="${conn2.id}"]`);
@@ -190,28 +190,22 @@ test.describe('Cluster Switch Lifecycle & State Isolation', () => {
     const snapDir = '/Users/dhavalpatel/.gemini/antigravity/brain/7f43d7c0-af33-419e-b2aa-bab690b5834a/snapshots';
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    // 1. Keys Browser with active target capsule
+    // 1. Keys Browser with active connection in top bar
     await page.goto('/');
     await expect(page.locator('#topConnContainer')).toBeVisible({ timeout: 10000 });
-    const keysCapsule = page.locator('#keysTargetCapsule');
-    await expect(keysCapsule).toBeVisible();
-    await expect(keysCapsule).toContainText('127.0.0.1');
+    await expect(page.locator('#topConnContainer')).toContainText('127.0.0.1');
     await page.screenshot({ path: `${snapDir}/01_keys_browser.png` });
 
-    // 2. Benchmark Studio with active target subtitle
+    // 2. Benchmark Studio
     const tabBench = page.locator('button[data-tab="benchmark"]');
     await tabBench.click();
-    const benchSubtitle = page.locator('#benchmarkTargetSubtitle');
-    await expect(benchSubtitle).toBeVisible();
-    await expect(benchSubtitle).toContainText('Target:');
+    await expect(page.locator('#benchmarkPaneProbe')).toBeVisible();
     await page.screenshot({ path: `${snapDir}/02_benchmark_studio.png` });
 
-    // 3. Memory Studio prompt state with target subtitle
+    // 3. Memory Studio prompt state
     const tabMemory = page.locator('button[data-tab="memory"]');
     await tabMemory.click();
-    const memSubtitle = page.locator('#memoryTargetSubtitle');
-    await expect(memSubtitle).toBeVisible();
-    await expect(memSubtitle).toContainText('Target:');
+    await expect(page.locator('#memoryModal')).toBeVisible();
     await page.screenshot({ path: `${snapDir}/03_memory_prompt.png` });
 
     // Load Memory Overview & Run Profiling
@@ -225,36 +219,30 @@ test.describe('Cluster Switch Lifecycle & State Isolation', () => {
     await expect(page.locator('#memoryProfilingContainer table').first()).toBeVisible({ timeout: 15000 });
     await page.screenshot({ path: `${snapDir}/04_memory_analyzed.png` });
 
-    // 4. Slowlog Profiler with target subtitle
+    // 4. Slowlog Profiler
     const tabSlowlog = page.locator('button[data-tab="slowlog"]');
     await tabSlowlog.click();
-    const slowSubtitle = page.locator('#slowlogTargetSubtitle');
-    await expect(slowSubtitle).toBeVisible();
-    await expect(slowSubtitle).toContainText('Target:');
+    await expect(page.locator('#slowlogModal')).toBeVisible();
     const btnFetchSlow = page.locator('#btnFetchSlowlogExplicit');
     if (await btnFetchSlow.isVisible()) {
       await btnFetchSlow.click();
     }
     await page.screenshot({ path: `${snapDir}/05_slowlog.png` });
 
-    // 5. Connected Clients with target subtitle
+    // 5. Connected Clients
     const tabClients = page.locator('button[data-tab="clients"]');
     await tabClients.click();
-    const clientsSubtitle = page.locator('#clientsTargetSubtitle');
-    await expect(clientsSubtitle).toBeVisible();
-    await expect(clientsSubtitle).toContainText('Target:');
+    await expect(page.locator('#clientsListModal')).toBeVisible();
     const btnFetchClients = page.locator('#btnFetchClientsExplicit');
     if (await btnFetchClients.isVisible()) {
       await btnFetchClients.click();
     }
     await page.screenshot({ path: `${snapDir}/06_clients.png` });
 
-    // 6. Cluster Topology with target subtitle
+    // 6. Cluster Topology
     const tabTopology = page.locator('button[data-tab="topology"]');
     await tabTopology.click();
-    const topoSubtitle = page.locator('#topologyTargetSubtitle');
-    await expect(topoSubtitle).toBeVisible();
-    await expect(topoSubtitle).toContainText('Target:');
+    await expect(page.locator('#clusterTopologyModal')).toBeVisible();
     await page.screenshot({ path: `${snapDir}/07_topology.png` });
 
     // 7. Stream Inspector snapshot
