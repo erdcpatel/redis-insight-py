@@ -102,6 +102,19 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 6. **Number & Metric Formatting**:
    - Always format large numbers with `.toLocaleString()` (e.g., `1,000`, `25,400`).
    - Format byte memory with standard units (`B`, `KB`, `MB`, `GB`) to 2 decimal places.
+7. **Zero Native Browser Popups & Glassmorphic Toast System**:
+   - **NEVER** use native blocking browser dialogs (`window.alert()`, `window.confirm()`, `window.prompt()`).
+   - Use `showToast(message, type, durationMs)` from `frontend/src/modules/toast.js` (`toast-success`, `toast-error`, `toast-warning`, `toast-info`).
+   - Copy buttons must use `triggerButtonFeedback(btn, "Copied!")` for in-place checkmark feedback and call `copyToClipboard(text)`, which includes a seamless fallback (`document.execCommand('copy')`) for unprivileged HTTP environments.
+8. **Large Keyspace Performance (100K - 1M Keys)**:
+   - Tables with >100 keys must use **virtual windowing** (`renderKeysFlatTable()`), rendering only ~60 visible rows with dynamic top/bottom spacers calculated at a fixed `44px` row height.
+   - Use event delegation on container elements (`#gridViewerContainer`) instead of attaching per-row click handlers.
+   - In Virtual Folder Tree View, lazily render sub-hierarchies only upon expansion (`isExpanded`), keeping collapsed DOM footprint minimal.
+   - Avoid calling heavy icon scan loops (`setupIcons()`) inside rapid virtual scroll rendering frames; inline lightweight SVGs for action buttons.
+9. **Visual Loading Indicators & Progress Shimmer**:
+   - Long-running scans must activate the animated glassmorphic shimmer bar (`#keysLoadingShimmer` / `.scan-progress-shimmer`) directly above the table.
+   - `#scanStatusText` must display an active spinning badge with live cursor progress (`Scanning cursor: <cursor>`).
+   - Initial scans must display a centered `.table-loading-card` with double-ring spinner instead of an empty table.
 
 ---
 
@@ -119,27 +132,26 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 
 ---
 
-## 5. Verification & Testing Workflow
+## 5. Mandatory Pre-Commit & Pre-Push Verification Checklist
 
-Before submitting any code changes or completing a task, always run the full verification pipeline:
+Every AI agent and human engineer **MUST** review and complete this checklist before committing or pushing changes:
 
-### 1. Build Frontend
-```bash
-cd frontend && npm run build
+```markdown
+### Pre-Commit & Pre-Push Checklist
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass; AirPlay port 7000 skipped if occupied).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 4. Documentation & Skills Synchronization:
+      - [ ] `AGENTS.md` updated with new rules, architectural conventions, or flags.
+      - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks, module APIs, or testing recipes.
+      - [ ] `docs/UI_UX_GUIDELINES.md` updated with any new UI components, styling classes, or interaction patterns.
+      - [ ] `README.md` updated if new configuration variables, endpoints, or features were introduced.
+      - [ ] `docs/LOCAL_TESTING.md` updated if local test prerequisites or commands changed.
+- [ ] 5. Git Branch Protection:
+      - [ ] Verify active branch is NOT `main` (`git branch --show-current`).
+      - [ ] Direct pushes to `main` are strictly forbidden.
+      - [ ] Push to feature branch (`git push -u origin <branch-name>`) and open PR via `gh pr create`.
 ```
-Ensure the build succeeds with 0 errors and generates files in `dist/assets/`.
-
-### 2. Backend Automated Tests
-```bash
-PYTHONPATH=. /Users/dhavalpatel/workspace/venv/py313/bin/pytest tests/
-```
-Verify that all tests pass (105+ passed, 1 skipped). Note: macOS AirPlay Receiver listens on port 7000 (`afs3-fileserver`), so cluster port 7000 tests gracefully skip when port 7000 is occupied.
-
-### 3. Playwright Browser E2E Tests
-```bash
-cd frontend && npx playwright test
-```
-Verify all 13+ tests pass (1 skipped for macOS AirPlay port 7000).
 
 ---
 
@@ -150,7 +162,7 @@ Verify all 13+ tests pass (1 skipped for macOS AirPlay port 7000).
    - GitHub branch protection is enforced on `main` (`enforce_admins: true`, PR review required, deletions and force-pushes blocked).
 2. **Feature Branching**:
    - Always create a dedicated branch (e.g. `feature/...`, `fix/...`, `docs/...`).
-   - Run the full verification pipeline (frontend build, pytest, Playwright) before pushing the branch.
+   - Complete the Mandatory Pre-Commit Checklist before pushing the branch.
 3. **Merge Exclusively via Pull Request**:
    - Push the feature branch to GitHub (`git push -u origin <branch-name>`).
    - Create a Pull Request against `main` using `gh pr create` or the GitHub interface.
@@ -162,4 +174,5 @@ Verify all 13+ tests pass (1 skipped for macOS AirPlay port 7000).
 
 For detailed architectural runbooks, consult the workspace skill:
 - **`redis-insight-dev`**: `.agents/skills/redis-insight-dev/SKILL.md` (deep architectural patterns, endpoint contracts, diagnostic profilers, cluster matrix recipes, and UI/UX design rules).
+
 

@@ -52,8 +52,10 @@ This skill provides comprehensive instructions, code patterns, architectural ref
   - **`slowlog.js`**: Slowlog fetching across cluster shards, latency badges, argument copy, and slowlog reset.
   - **`topology.js`**: Cluster node discovery table, master/replica hierarchy, slot allocation, and keyspace node distribution.
   - **`actions.js`**: Export modal logic (CSV/TXT with TTL filtering), bulk delete two-stage safety gate, and key deletions.
+  - **`toast.js`**: Glassmorphic non-blocking toast notifications (`showToast`), resilient `copyToClipboard` with fallback, and in-place feedback helpers.
 - **`frontend/src/style.css`**:
   - Modern dark glassmorphic styling, responsive grid, tab pane layouts, animations, and typography.
+
 
 ---
 
@@ -200,7 +202,7 @@ Expected: 105+ tests pass (1 skipped for macOS AirPlay port 7000).
 cd /Users/dhavalpatel/workspace/redis-insight-py/frontend
 npx playwright test
 ```
-Expected: 13+ tests pass (1 skipped for macOS AirPlay port 7000).
+Expected: 15+ tests pass (1 skipped for macOS AirPlay port 7000).
 
 ---
 
@@ -219,17 +221,50 @@ To add a new analytical diagnostic surface:
 
 ---
 
-## 8. Git Workflow & PR-Only Invariants
+## 8. UI/UX, Performance & Toast Standards
+
+1. **Zero Native Alerts**: Never use `window.alert()`, `window.confirm()`, or `window.prompt()`. Always use `showToast(msg, type)` from `frontend/src/modules/toast.js`.
+2. **In-Place Copy Feedback**: Use `triggerButtonFeedback(btn, "Copied!")` and `copyToClipboard(text)` which provides automatic fallback (`document.execCommand('copy')`) for unprivileged/HTTP environments.
+3. **Large Keyspace Performance (100K - 1M Keys)**:
+   - Tables with >100 keys use virtual windowing (`renderKeysFlatTable()`), rendering only ~60 visible rows with dynamic top/bottom spacers calculated at a fixed `44px` row height.
+   - Use event delegation on container elements (`#gridViewerContainer`) instead of attaching per-row click handlers.
+   - In Virtual Folder Tree View, lazily render sub-hierarchies only upon expansion (`isExpanded`), keeping collapsed DOM footprint minimal.
+4. **Visual Loading Shimmer**:
+   - Long-running scans activate the animated glassmorphic shimmer bar (`#keysLoadingShimmer` / `.scan-progress-shimmer`) directly above the table.
+   - `#scanStatusText` displays an active spinning badge with live cursor progress.
+
+---
+
+## 9. Mandatory Pre-Commit & Pre-Push Checklist
+
+Before committing or pushing any code, verify and complete this checklist:
+
+```markdown
+- [ ] 1. Frontend Build: `cd frontend && npm run build` (0 errors, dist updated).
+- [ ] 2. Backend Pytest: `PYTHONPATH=. pytest tests/` (105+ tests passed).
+- [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (15+ tests passed).
+- [ ] 4. Documentation & Skills Synchronization:
+      - `AGENTS.md` updated with any new architecture rules, flags, or modules.
+      - `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.
+      - `docs/UI_UX_GUIDELINES.md` updated with new UI components, styles, or patterns.
+      - `README.md` updated with new features, flags, or configs.
+      - `docs/LOCAL_TESTING.md` updated with any test changes.
+- [ ] 5. Git Branch Protection:
+      - Active branch is NOT `main` (`git branch --show-current`).
+      - Push to feature branch and open PR via `gh pr create`.
+```
+
+---
+
+## 10. Git Workflow & PR-Only Invariants
 
 1. **Zero Direct Pushes to `main`**:
    - `main` is protected on GitHub (`enforce_admins: true`, PR required, deletions and force pushes disabled).
    - Direct `git push origin main` will fail.
 2. **Branching & PR Process**:
    - Create a feature branch: `git checkout -b <branch-name>`.
-   - Complete verification:
-     - `cd frontend && npm run build`
-     - `PYTHONPATH=. pytest tests/`
-     - `cd frontend && npx playwright test`
+   - Complete the Mandatory Pre-Commit Checklist.
    - Push feature branch: `git push -u origin <branch-name>`.
    - Open a Pull Request: `gh pr create --title "..." --body "..."`.
+
 

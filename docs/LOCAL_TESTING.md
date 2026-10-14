@@ -12,7 +12,8 @@ The repository has three testing layers:
 |---|---|---|---|
 | **1. Unit & Component Tests** | `pytest` | `PYTHONPATH=. pytest tests/` | Fast unit tests with mocked Redis clients covering all endpoints, crypto, models, stream inspection, and cluster lifecycle (105+ tests). |
 | **2. Live Integration Tests** | `pytest` | `PYTHONPATH=. pytest tests/test_live_local.py` | Real end-to-end API tests against running standalone (port 6379) and 6-node Redis cluster (ports 7000–7005). |
-| **3. Browser E2E UI Tests** | `Playwright` | `cd frontend && npx playwright test` | Headless browser testing verifying UI rendering, cluster switching lifecycle, in-pane context subtitles, stream inspector, topology modal, diagnostic studios, and live interactions (13+ tests). |
+| **3. Browser E2E UI Tests** | `Playwright` | `cd frontend && npx playwright test` | Headless browser testing verifying UI rendering, cluster switching lifecycle, in-pane context subtitles, stream inspector, topology modal, diagnostic studios, virtual scrolling, and toast feedback (15+ tests). |
+
 
 ---
 
@@ -219,4 +220,36 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
      - Distinct pill chips for field-value pairs (`.stream-entry-pill`).
      - Live search filter input (`#streamFilterInput`) filters entries by ID or field content in real time with counter.
      - 1-click `Copy ID` and `Copy JSON` buttons animate with checkmark feedback.
+
+11. **Large Keyspace Virtual Scrolling**:
+   - [ ] Load 1,000+ keys &rarr; scroll through the table:
+     - Verify scrolling is buttery-smooth (60fps) with zero lag or freezing.
+     - Inspect DOM &rarr; verify `#keysTableViewport` mounts only ~60 active rows at any time with calculated spacer heights.
+     - Verify scanning displays the top shimmer bar (`#keysLoadingShimmer`) and active cursor spinner badge.
+
+12. **Toast Feedback & Zero Native Alerts**:
+   - [ ] Click "Copy Key" in Key Inspector &rarr; button switches in-place to green checkmark (`Key Copied!`) and a success toast appears in `#appToastContainer`.
+   - [ ] Verify NO native browser alert/confirm popup is triggered anywhere in the application.
+
+---
+
+## 6. Mandatory Pre-Commit & Pre-Push Checklist
+
+Before committing changes or opening a Pull Request, every engineer and AI agent must complete this checklist:
+
+```markdown
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 4. Documentation & Skills Synchronization:
+      - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
+      - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.
+      - [ ] `docs/UI_UX_GUIDELINES.md` updated with new UI components, styles, or patterns.
+      - [ ] `README.md` updated with new features, flags, or configs.
+      - [ ] `docs/LOCAL_TESTING.md` updated with any test changes.
+- [ ] 5. Git Branch Protection:
+      - [ ] Confirm active branch is NOT `main` (`git branch --show-current`).
+      - [ ] Push to feature branch and open PR via `gh pr create`.
+```
+
 

@@ -57,9 +57,12 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 ---
 
 ### 4. High-Performance Key Browsing & Inspector
-- **Responsive Glassmorphic Data Grid**: Blazing fast rendering and virtual scrolling for thousands of keys with custom type badges, live TTL tags, and direct row-level key inspection and deletion.
+- **Responsive Glassmorphic Data Grid with Virtual Scrolling**: Blazing fast rendering and virtual windowing for massive keyspaces (100K to 1M+ keys). Only ~60 active rows are mounted to the DOM at any time with fixed 44px row heights and event delegation, eliminating UI freezing and memory pressure.
+- **Visual Scan Progress Shimmer & Active Cursor Spinner**: Top animated shimmer progress bar (`.scan-progress-shimmer`) and dynamic spinning badge in `#scanStatusText` provide real-time cursor feedback during background SCAN sweeps.
+- **Glassmorphic Toast Notifications & In-Place Copy Feedback**: Completely eliminated native blocking `alert()` popups. Copying keys, string values, JSON structures, Stream entries, and Slowlog commands displays immediate green checkmark feedback (`Copied!`) and non-blocking auto-dismissing toast pills with resilient Clipboard API fallback.
 - **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.
-- **Configurable SCAN Batch Size**: Toggle requested keys per SCAN chunk (50, 100, 200, 500, or 1,000) directly from the toolbar to match network latency.
+- **Configurable SCAN Batch Size**: Toggle requested keys per SCAN chunk (50, 100, 200, 500, 1,000, or 10,000) directly from the toolbar to match network latency.
+
 - **Real-Time Auto-Refresh Pattern Watcher**:
   - Watch for keys matching your active pattern (e.g., `orders:*`) and data type filter automatically.
   - Configurable refresh interval: **5s (Safe Minimum)**, **10s (Default)**, **15s**, **30s**, or **60s**.
@@ -459,20 +462,28 @@ For complete instructions, pre-push verification checklists, and design rules, s
 
 ## Contributing & Pushing to GitHub
 
-The `main` branch is protected by GitHub branch rules (`enforce_admins: true`). Direct pushes to `main` are blocked to maintain codebase integrity. All changes must be contributed via feature branches and Pull Requests:
+The `main` branch is protected by GitHub branch rules (`enforce_admins: true`). Direct pushes to `main` are blocked to maintain codebase integrity. All changes must be contributed via feature branches and Pull Requests.
+
+### Mandatory Pre-Commit Checklist
+Before committing or submitting a PR, verify:
+- [ ] **Frontend Build**: `cd frontend && npm run build` (0 errors).
+- [ ] **Backend Tests**: `PYTHONPATH=. pytest tests/` (105+ tests passed).
+- [ ] **Playwright E2E**: `cd frontend && npx playwright test` (15+ tests passed).
+- [ ] **Docs & Skills Sync**: All new features, UX conventions, and flags are documented in `AGENTS.md`, `SKILL.md`, `UI_UX_GUIDELINES.md`, and `README.md`.
+- [ ] **Branch Safety**: Never commit directly to `main`.
 
 ```bash
 # 1. Create and switch to a feature branch
 git checkout -b feature/my-new-feature
 
-# 2. Stage and commit your changes
+# 2. Complete verification pipeline
+cd frontend && npm run build
+PYTHONPATH=. pytest tests/
+cd frontend && npx playwright test
+
+# 3. Stage and commit your changes
 git add .
 git commit -m "feat: describe the feature or enhancement"
-
-# 3. Run full verification pipeline
-npm --prefix frontend run build
-PYTHONPATH=. pytest tests/
-npm --prefix frontend run test:e2e
 
 # 4. Push your feature branch to GitHub
 git push -u origin feature/my-new-feature
@@ -480,6 +491,7 @@ git push -u origin feature/my-new-feature
 # 5. Open a Pull Request against main
 gh pr create --title "feat: describe the feature" --body "Summary of changes..."
 ```
+
 
 ---
 

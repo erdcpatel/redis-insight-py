@@ -200,17 +200,68 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
 
 ---
 
-## 6. UI/UX Pre-PR Verification Checklist
+## 6. Glassmorphic Toast System & Zero-Alert Standard
 
-Before opening any Pull Request:
+1. **Strict Prohibition of Native Browser Popups**:
+   - **NEVER** use `window.alert()`, `window.confirm()`, or `window.prompt()`. They freeze the browser event loop, look disconnected from the glassmorphic dark theme, and degrade UX.
+2. **Toast System (`frontend/src/modules/toast.js`)**:
+   - Use `showToast(message, type, durationMs)`:
+     - `success` (green): Successful copies, connection activations, exports.
+     - `error` (red): Failed network requests, command errors, copy failures.
+     - `warning` (amber): Rate limiting, read-only warnings, large dataset safety gates.
+     - `info` (blue): General background task updates.
+   - Toasts render in `#appToastContainer` (`.toast-container`) with backdrop blur, smooth slide-in/slide-out animations, and auto-dismiss after 2500ms (pauses on hover).
+3. **In-Place Copy Feedback (`triggerButtonFeedback`)**:
+   - All copy buttons (Key name, String value, JSON, Stream ID/JSON, BigKey, Slowlog command) must immediately switch in-place to `<svg> Check` + `Copied!` (or `Key Copied!`) for 1500ms.
+4. **Resilient `copyToClipboard()`**:
+   - Always call `copyToClipboard(text)` from `toast.js`. It utilizes modern `navigator.clipboard.writeText` when available in secure contexts and automatically falls back to hidden `document.execCommand('copy')` on unprivileged HTTP dev domains or automated test runners.
 
-1. [ ] **Responsive Test**: Shrink browser window to `1024px` and verify toolbars don't wrap awkwardly or overlap.
-2. [ ] **Control Sizing**: Verify no dropdown or input is excessively wide or misaligned.
-3. [ ] **Visual Feedback**: Verify hover states, active pulsing dots, and tooltip text work as expected.
-4. [ ] **Read-Only Mode Test**: Connect to a PROD or read-only connection and confirm `[🔒 READ ONLY]` badge appears, bulk delete is disabled, and mutation controls are hidden/locked.
-5. [ ] **Cluster Switch In-Pane Context**: Switch between clusters and verify `#keysTargetCapsule` and all modal subtitles update to the active connection name and endpoint.
-6. [ ] **Zero Auto-Command Invariant**: Switch clusters while viewing Memory, Slowlog, Clients, or Benchmark tabs; verify NO automatic Redis commands execute and the explicit prompt card is displayed.
-7. [ ] **Stream Inspector**: Inspect a Redis Stream key; verify timestamp formatting, relative duration tag (`1S AGO`), live search filter, and copy buttons work with visual feedback.
-8. [ ] **Automated E2E Suite**: Run `npx playwright test` in `frontend/` (13+ tests pass).
-9. [ ] **Backend Test Suite**: Run `pytest tests/` (105+ tests pass).
+---
+
+## 7. Large Keyspace Performance (100K to 1M Keys)
+
+1. **Virtual Windowing (`renderKeysFlatTable`)**:
+   - When displayed rows exceed 100, the table automatically activates virtual windowing.
+   - Only ~60 visible rows are mounted in `#keysTableViewport` at any given time based on scroll offset.
+   - Dynamic top and bottom spacers maintain precise scrollbar proportions based on `VIRTUAL_ROW_HEIGHT = 44px`.
+2. **Event Delegation**:
+   - Never register individual click listeners in loops across thousands of rows.
+   - Use a single delegated click listener on `#gridViewerContainer` matching `.key-row` or action buttons.
+3. **Lazy Tree View**:
+   - Virtual Folder Tree nodes only generate DOM children when the folder is expanded (`isExpanded`). Collapsed hierarchies consume near-zero DOM elements.
+4. **Lightweight Action SVGs**:
+   - Avoid calling heavy `setupIcons()` Lucide scans during scroll frames. Action icons rendered in virtual rows use lightweight inline SVGs.
+
+---
+
+## 8. Visual Scan Progress & Shimmer Bar
+
+1. **Shimmer Progress Bar**:
+   - During active Redis cursor sweeps, display the animated glassmorphic shimmer indicator (`#keysLoadingShimmer` / `.scan-progress-shimmer`) right above the table header.
+2. **Active Scan Spinner Badge**:
+   - `#scanStatusText` renders an animated spinning SVG badge and live cursor progress (`Scanning cursor: <cursor>`).
+3. **Initial Loading Card**:
+   - During the first keys fetch, render a centered `.table-loading-card` with double-ring spinner instead of an empty table.
+
+---
+
+## 9. Mandatory Pre-Commit & Pre-Push Checklist
+
+Before opening any Pull Request or committing changes, verify and complete this checklist:
+
+```markdown
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 4. Documentation & Skills Synchronization:
+      - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
+      - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.
+      - [ ] `docs/UI_UX_GUIDELINES.md` updated with new UI components, styles, or patterns.
+      - [ ] `README.md` updated if new configuration variables, endpoints, or features were introduced.
+      - [ ] `docs/LOCAL_TESTING.md` updated if local test prerequisites or commands changed.
+- [ ] 5. Git Branch Protection:
+      - [ ] Confirm active branch is NOT `main` (`git branch --show-current`).
+      - [ ] Push to feature branch and open PR via `gh pr create`.
+```
+
 
