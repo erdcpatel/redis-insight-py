@@ -449,8 +449,27 @@ function renderAppShell() {
                     </div>
                   </div>
                   <div id="benchmarkProbeResults" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
-                      Click <strong>Run Latency Probe</strong> to analyze network round-trip time vs Redis server processing delay.
+                    <div class="benchmark-metrics-grid" style="opacity: 0.65;">
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="activity" style="width: 12px; height: 12px; color: #38bdf8;"></i> Total Round-Trip (RTT)</div>
+                        <div class="val">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
+                        <div class="sub">Average client observed latency</div>
+                      </div>
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="cpu" style="width: 12px; height: 12px; color: #10b981;"></i> Redis Server CPU Time</div>
+                        <div class="val" style="color: #6ee7b7;">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
+                        <div class="sub">Isolated server execution delay</div>
+                      </div>
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="network" style="width: 12px; height: 12px; color: #38bdf8;"></i> Network Overhead</div>
+                        <div class="val" style="color: #38bdf8;">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
+                        <div class="sub">Transit & TCP stack overhead</div>
+                      </div>
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #f59e0b;"></i> Probe Throughput</div>
+                        <div class="val" style="color: #fbbf24;">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ops/s</span></div>
+                        <div class="sub">Click "Run Latency Probe" above to benchmark</div>
+                      </div>
                     </div>
                   </div>
                 </div>

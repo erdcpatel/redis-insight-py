@@ -3425,9 +3425,9 @@ body {
 }
 
 .benchmark-tab-btn.active {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.25);
+  color: var(--accent-primary);
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.3);
 }
 
 .benchmark-content-pane {

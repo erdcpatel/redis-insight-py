@@ -439,22 +439,6 @@ export function renderMemoryAnalysisUI(data) {
   };
 
   container.innerHTML = `
-    <!-- Cluster Target Banner -->
-    <div class="mem-target-cluster-banner" style="display: flex; align-items: center; justify-content: space-between; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: var(--radius-md); padding: 0.6rem 1rem; margin-bottom: 0.85rem; font-size: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
-      <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
-        <span style="display: inline-flex; align-items: center; gap: 0.35rem; color: #38bdf8; font-weight: 600;">
-          <i data-lucide="server" style="width: 14px; height: 14px;"></i>
-          ${escapeHtml(connName)}
-        </span>
-        <span style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.75rem;">(${escapeHtml(connHost)}:${connPort})</span>
-        <span class="badge-env badge-env-${env.toLowerCase()}">${env}</span>
-        <span style="color: var(--border-subtle);">|</span>
-        <span style="color: var(--text-secondary); font-size: 0.75rem;">Analyzed at ${escapeHtml(timeStr)}</span>
-      </div>
-      <span class="badge-db" style="font-size: 0.7rem; color: #4ade80; border-color: rgba(74, 222, 128, 0.3);">
-        <i data-lucide="shield-check" style="width: 11px; height: 11px; margin-right: 3px;"></i> Verified
-      </span>
-    </div>
     <!-- Summary Header Bar -->
     <div style="background: rgba(15,23,42,0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
       <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.825rem;">
@@ -472,6 +456,11 @@ export function renderMemoryAnalysisUI(data) {
           <span style="color: var(--text-muted);">Sampled Memory:</span>
           <strong style="color: #38bdf8; font-family: var(--font-mono); margin-left: 4px;">${data.sampled_memory_human}</strong>
         </div>
+        <div style="color: var(--border-subtle);">|</div>
+        <div>
+          <span style="color: var(--text-muted);">Analyzed:</span>
+          <span style="color: var(--text-secondary); margin-left: 4px;">${escapeHtml(timeStr)}</span>
+        </div>
       </div>
       <button type="button" class="btn btn-secondary" id="btnReRunProfiling" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
         <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
@@ -482,7 +471,7 @@ export function renderMemoryAnalysisUI(data) {
     <!-- TTL Space Reclaim Forecast Card -->
     ${data.ttl_forecast ? `
       <div class="mem-ttl-forecast-card">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.75rem;">
           <div>
             <span style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
               <i data-lucide="clock" style="width: 16px; height: 16px; color: #38bdf8;"></i>
@@ -497,36 +486,8 @@ export function renderMemoryAnalysisUI(data) {
           </span>
         </div>
 
-        <!-- 4 KPI Metrics -->
-        <div class="mem-ttl-kpi-grid">
-          <!-- Immediate 1h -->
-          <div class="mem-ttl-kpi-item" style="border-top: 2px solid #10b981;">
-            <div class="kpi-label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #10b981;"></i> &lt; 1 Hour Relief</div>
-            <div class="kpi-val" style="color: #10b981;">${data.ttl_forecast.reclaim_1h_human}</div>
-            <div class="kpi-sub">${data.ttl_forecast.reclaim_1h_percent}% of memory reclaimed</div>
-          </div>
-          <!-- 24h -->
-          <div class="mem-ttl-kpi-item" style="border-top: 2px solid #06b6d4;">
-            <div class="kpi-label"><i data-lucide="calendar" style="width: 12px; height: 12px; color: #06b6d4;"></i> 24-Hour Recovery</div>
-            <div class="kpi-val" style="color: #06b6d4;">${data.ttl_forecast.reclaim_24h_human}</div>
-            <div class="kpi-sub">${data.ttl_forecast.reclaim_24h_percent}% of memory reclaimed</div>
-          </div>
-          <!-- 7d -->
-          <div class="mem-ttl-kpi-item" style="border-top: 2px solid #3b82f6;">
-            <div class="kpi-label"><i data-lucide="trending-down" style="width: 12px; height: 12px; color: #3b82f6;"></i> 7-Day Recovery</div>
-            <div class="kpi-val" style="color: #3b82f6;">${data.ttl_forecast.reclaim_7d_human}</div>
-            <div class="kpi-sub">${data.ttl_forecast.reclaim_7d_percent}% of memory reclaimed</div>
-          </div>
-          <!-- Persistent -->
-          <div class="mem-ttl-kpi-item" style="border-top: 2px solid ${data.ttl_forecast.persistent_memory_percent > 30 ? '#f43f5e' : '#fbbf24'};">
-            <div class="kpi-label"><i data-lucide="alert-octagon" style="width: 12px; height: 12px; color: #f43f5e;"></i> No TTL (Persistent)</div>
-            <div class="kpi-val" style="color: ${data.ttl_forecast.persistent_memory_percent > 30 ? '#f43f5e' : '#fbbf24'};">${data.ttl_forecast.persistent_memory_human}</div>
-            <div class="kpi-sub">${data.ttl_forecast.persistent_keys_percent}% of keys (${data.ttl_forecast.persistent_keys_count.toLocaleString()})</div>
-          </div>
-        </div>
-
         <!-- Stacked Horizon Progress Bar -->
-        <div style="margin-top: 1.1rem;">
+        <div style="margin-bottom: 1rem;">
           <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.35rem;">
             <span>Expiration Horizon Distribution (by RAM Footprint)</span>
             <span>Total Profiled: ${data.ttl_forecast.total_memory_profiled_human}</span>
@@ -546,27 +507,27 @@ export function renderMemoryAnalysisUI(data) {
               `;
             }).join("")}
           </div>
+        </div>
 
-          <!-- Horizon Pills Legend -->
-          <div class="mem-horizon-pills-row">
-            ${(data.ttl_forecast.horizons || []).map(h => {
-              const colors = {
-                "< 1 Hour": "#10b981",
-                "1 - 24 Hours": "#06b6d4",
-                "1 - 7 Days": "#3b82f6",
-                "> 7 Days": "#8b5cf6",
-                "No Expiration (Persistent)": "#f43f5e"
-              };
-              const col = colors[h.label] || "#94a3b8";
-              return `
-                <div class="mem-horizon-pill" style="border-left: 3px solid ${col};">
-                  <div class="pill-title">${escapeHtml(h.label)}</div>
-                  <div class="pill-val" style="color: ${col};">${h.total_memory_human}</div>
-                  <div class="pill-meta">${h.key_count.toLocaleString()} keys (${h.memory_percentage}%)</div>
-                </div>
-              `;
-            }).join("")}
-          </div>
+        <!-- 5 Horizon Breakdown Cards (Single Unified Row) -->
+        <div class="mem-ttl-kpi-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+          ${(data.ttl_forecast.horizons || []).map(h => {
+            const colors = {
+              "< 1 Hour": "#10b981",
+              "1 - 24 Hours": "#06b6d4",
+              "1 - 7 Days": "#3b82f6",
+              "> 7 Days": "#8b5cf6",
+              "No Expiration (Persistent)": "#f43f5e"
+            };
+            const col = colors[h.label] || "#94a3b8";
+            return `
+              <div class="mem-ttl-kpi-item" style="border-top: 2px solid ${col};">
+                <div class="kpi-label">${escapeHtml(h.label)}</div>
+                <div class="kpi-val" style="color: ${col};">${h.total_memory_human}</div>
+                <div class="kpi-sub">${h.key_count.toLocaleString()} keys (${h.memory_percentage}%)</div>
+              </div>
+            `;
+          }).join("")}
         </div>
       </div>
     ` : ''}
