@@ -1816,7 +1816,6 @@ This will clear recorded slow commands across all connected Redis instances.`))t
           </div>
 
           <div class="conn-tags">
-            <span class="badge-env ${c}">${d}</span>
             ${l.read_only?'<span class="badge-readonly" title="Read-Only Mode: Mutating operations locked">🔒 RO</span>':""}
             ${u?'<span class="badge-conn-type badge-type-cluster">CLUSTER</span>':""}
             ${f?'<span class="badge-conn-type badge-type-sentinel">SENTINEL</span>':""}
