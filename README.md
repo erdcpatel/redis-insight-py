@@ -57,9 +57,12 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 ---
 
 ### 4. High-Performance Key Browsing & Inspector
-- **Responsive Glassmorphic Data Grid**: Blazing fast rendering and virtual scrolling for thousands of keys with custom type badges, live TTL tags, and direct row-level key inspection and deletion.
+- **Responsive Glassmorphic Data Grid with Virtual Scrolling**: Blazing fast rendering and virtual windowing for massive keyspaces (100K to 1M+ keys). Only ~60 active rows are mounted to the DOM at any time with fixed 44px row heights and event delegation, eliminating UI freezing and memory pressure.
+- **Visual Scan Progress Shimmer & Active Cursor Spinner**: Top animated shimmer progress bar (`.scan-progress-shimmer`) and dynamic spinning badge in `#scanStatusText` provide real-time cursor feedback during background SCAN sweeps.
+- **Glassmorphic Toast Notifications & In-Place Copy Feedback**: Completely eliminated native blocking `alert()` popups. Copying keys, string values, JSON structures, Stream entries, and Slowlog commands displays immediate green checkmark feedback (`Copied!`) and non-blocking auto-dismissing toast pills with resilient Clipboard API fallback.
 - **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.
-- **Configurable SCAN Batch Size**: Toggle requested keys per SCAN chunk (50, 100, 200, 500, or 1,000) directly from the toolbar to match network latency.
+- **Configurable SCAN Batch Size**: Toggle requested keys per SCAN chunk (50, 100, 200, 500, 1,000, or 10,000) directly from the toolbar to match network latency.
+
 - **Real-Time Auto-Refresh Pattern Watcher**:
   - Watch for keys matching your active pattern (e.g., `orders:*`) and data type filter automatically.
   - Configurable refresh interval: **5s (Safe Minimum)**, **10s (Default)**, **15s**, **30s**, or **60s**.
@@ -88,6 +91,11 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Automatically handles Redis hash tags `{...}` (e.g. `{user:100}:profile`).
 - **Comprehensive Key Inspector**:
   - Type-aware viewers for `string`, `hash`, `list`, `set`, `zset`, and `stream`.
+  - **Enhanced Redis Stream Inspector**:
+    - **Timestamp Parsing & Relative Duration**: Automatically extracts Unix millisecond timestamps from Stream IDs (`<timestamp_ms>-<seq>`), rendering formatted local ISO timestamps and high-contrast relative duration badges (e.g., `1S AGO`, `5M AGO`, `2D AGO`).
+    - **Interactive Live Search Filter**: Real-time client-side filter (`#streamFilterInput`) matching Stream IDs, field keys, and field values with instant count feedback (`Showing X of Y entries`).
+    - **High-Contrast Field Chips**: Fields and values are formatted into clean pill chips (`.stream-entry-pill`) for high density and readability.
+    - **1-Click Copy Controls**: Copy individual Entry IDs or full Entry JSON objects with animated checkmark confirmation (`Copied!`).
   - **Large Hash Pagination**: Hashes with thousands or millions of fields paginate smoothly (200 fields/page) with server-side field-level search.
   - **Raw Value Download**: Download key values directly as raw JSON/files with 1 click.
   - JSON formatting, search filtering within hash/list elements, and raw payload views.
@@ -237,6 +245,36 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ---
 
+### 14. Cluster Switch Lifecycle & Zero Auto-Command Firing
+- **Zero Auto-Command Invariant**:
+  - When switching clusters, **only the main landing screen (Keys Browser)** automatically triggers a keyspace scan.
+  - Diagnostic studios (**Memory Studio**, **Benchmark Studio**, **Slowlog Profiler**, **Connected Clients**, **Cluster Topology**) **never** execute background Redis commands or scans automatically upon cluster switch.
+  - Previous diagnostic metrics and cached tables are immediately cleared, and an explicit, informative prompt card is rendered showing the active cluster's name, host:port, node count, and an explicit action button (e.g. `Start Profiling`, `Load Slowlog`, `Inspect Clients`).
+- **In-Flight Cancellation via `AbortController`**:
+  - Any long-running keyspace or memory scan is tied to an `AbortController`.
+  - Switching clusters or exiting tabs instantly aborts the in-flight network request, eliminating race conditions or stale data overwriting the new cluster's view.
+- **In-Pane Context Identification Bars**:
+  - Every workspace view displays the active target cluster context (name, endpoint, environment badge, topology badge):
+    - **Keys Action Bar**: Displays `#keysTargetCapsule` right alongside View Mode and Safe SCAN controls.
+    - **Diagnostic Modals**: Display `.modal-subtitle` (e.g. `#memoryTargetSubtitle`, `#slowlogTargetSubtitle`, `#topologyTargetSubtitle`, `#clientsTargetSubtitle`) directly beneath the modal title.
+  - Guarantees operators always know which Redis cluster or standalone instance they are observing without checking the sidebar.
+
+---
+
+### 15. Configuration Flags & Environment Variables
+
+| Variable / Flag | Default | Scope | Description |
+| :--- | :--- | :--- | :--- |
+| `APP_READONLY` | `false` | Global | Enforces strict read-only mode across all connections. Disables bulk delete, key deletions, and TTL edits. |
+| `REDIS_ENCRYPTION_KEY` | *(Auto-generated)* | Backend | Fernet AES-128 encryption key for SQLite password storage. Stored locally in `.secret.key`. |
+| `REDIS_CONNECTIONS_FILE` | `config/connections.yaml` | Backend | Declarative YAML file defining connection endpoints, environments, and seed nodes. Synced on startup. |
+| `REDIS_MAX_CONNECTIONS` | `10` | Pool | Maximum concurrent active Redis client pools cached in multi-user container environments. |
+| `PORT` / `APP_PORT` / `UVICORN_PORT` | `8001` | Server | HTTP server listening port. |
+| `HOST` / `APP_HOST` / `UVICORN_HOST` | `0.0.0.0` | Server | HTTP server bind address. |
+| `environment: "PROD"` | — | Connection | Connections marked with `PROD` automatically default to `read_only: true` unless explicitly overridden. |
+
+---
+
 ## Architecture Overview
 
 ```
@@ -380,11 +418,11 @@ A comprehensive testing suite is provided to validate backend APIs, live cluster
 ./scripts/manage_local_redis.sh start-all
 ./scripts/manage_local_redis.sh seed
 
-# 2. Run all unit and live integration tests (85+ tests)
+# 2. Run all unit and live integration tests (105+ tests)
 PYTHONPATH=. pytest tests/
 
-# 3. Run Playwright End-to-End Browser UI tests
-./scripts/run_e2e_tests.sh
+# 3. Run Playwright End-to-End Browser UI tests (13+ tests)
+cd frontend && npx playwright test
 ```
 
 For complete instructions, pre-push verification checklists, and design rules, see [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md) and [docs/UI_UX_GUIDELINES.md](docs/UI_UX_GUIDELINES.md).
@@ -422,27 +460,38 @@ For complete instructions, pre-push verification checklists, and design rules, s
 
 ---
 
-## Pushing to GitHub
+## Contributing & Pushing to GitHub
 
-When you are ready to push to your GitHub repository:
+The `main` branch is protected by GitHub branch rules (`enforce_admins: true`). Direct pushes to `main` are blocked to maintain codebase integrity. All changes must be contributed via feature branches and Pull Requests.
+
+### Mandatory Pre-Commit Checklist
+Before committing or submitting a PR, verify:
+- [ ] **Frontend Build**: `cd frontend && npm run build` (0 errors).
+- [ ] **Backend Tests**: `PYTHONPATH=. pytest tests/` (105+ tests passed).
+- [ ] **Playwright E2E**: `cd frontend && npx playwright test` (15+ tests passed).
+- [ ] **Docs & Skills Sync**: All new features, UX conventions, and flags are documented in `AGENTS.md`, `SKILL.md`, `UI_UX_GUIDELINES.md`, and `README.md`.
+- [ ] **Branch Safety**: Never commit directly to `main`.
 
 ```bash
-# 1. Initialize git (if not already initialized)
-git init
+# 1. Create and switch to a feature branch
+git checkout -b feature/my-new-feature
 
-# 2. Stage all files (verifying .gitignore excludes .secret.key and connections.db)
+# 2. Complete verification pipeline
+cd frontend && npm run build
+PYTHONPATH=. pytest tests/
+cd frontend && npx playwright test
+
+# 3. Stage and commit your changes
 git add .
+git commit -m "feat: describe the feature or enhancement"
 
-# 3. Commit
-git commit -m "Initial commit: Redis Insight Py with cluster topology discovery"
+# 4. Push your feature branch to GitHub
+git push -u origin feature/my-new-feature
 
-# 4. Set branch to main
-git branch -M main
-
-# 5. Add remote and push
-git remote add origin https://github.com/erdcpatel/redis-insight-py.git
-git push -u origin main
+# 5. Open a Pull Request against main
+gh pr create --title "feat: describe the feature" --body "Summary of changes..."
 ```
+
 
 ---
 

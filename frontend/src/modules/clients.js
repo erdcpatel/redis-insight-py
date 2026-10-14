@@ -1,6 +1,7 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
+import { showToast } from "./toast.js";
 
 let onRefreshStatus = null;
 
@@ -8,9 +9,61 @@ export function registerClientsRefresh(refreshFn) {
   onRefreshStatus = refreshFn;
 }
 
+export function resetClientsState(conn) {
+  state.allConnectedClients = [];
+  state.clientsLoadedForConnId = null;
+
+  const countBadge = document.getElementById("clientsCountBadge");
+  const quickStats = document.getElementById("clientsQuickStats");
+  if (countBadge) countBadge.textContent = "0";
+  if (quickStats) quickStats.textContent = "";
+
+  renderClientsClusterPrompt(conn);
+}
+
+export function renderClientsClusterPrompt(conn) {
+  const container = document.getElementById("clientsTableContainer");
+  if (!container) return;
+
+  const targetConn = conn || state.cachedConnections.find(c => String(c.id) === String(state.selectedConnectionId) || c.is_selected) || null;
+  const connName = targetConn ? targetConn.name : (state.lastStatus?.connection_name || "Active Cluster");
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "127.0.0.1");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || 6379);
+  const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+
+  container.innerHTML = `
+    <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-secondary);">
+      <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); margin-bottom: 1rem;">
+        <i data-lucide="users" style="width: 24px; height: 24px; color: #38bdf8;"></i>
+      </div>
+      <div style="font-weight: 600; font-size: 1rem; color: var(--text-primary); margin-bottom: 0.35rem;">
+        Connected Clients for ${escapeHtml(connName)} (${escapeHtml(connHost)}:${connPort})
+        <span class="badge-env badge-env-${env.toLowerCase()}" style="margin-left: 0.4rem; vertical-align: middle;">${env}</span>
+      </div>
+      <p style="font-size: 0.82rem; color: var(--text-muted); max-width: 440px; margin: 0 auto 1.25rem; line-height: 1.5;">
+        Cluster switched. Diagnostics cache cleared. Click below to inspect active connected clients, query states, and ident flags.
+      </p>
+      <button type="button" class="btn btn-primary" id="btnFetchClientsExplicit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">
+        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+        Fetch Connected Clients
+      </button>
+    </div>
+  `;
+  setupIcons();
+
+  const btnFetch = document.getElementById("btnFetchClientsExplicit");
+  if (btnFetch) {
+    btnFetch.onclick = () => loadConnectedClients();
+  }
+}
+
 export async function openClientsModal() {
   switchWorkspaceTab("clients");
-  await loadConnectedClients();
+  if (state.clientsLoadedForConnId !== state.selectedConnectionId) {
+    renderClientsClusterPrompt();
+  } else {
+    renderClientsTable(state.allConnectedClients);
+  }
 }
 
 export function closeClientsModal() {
@@ -23,6 +76,8 @@ export async function loadConnectedClients() {
   const quickStats = document.getElementById("clientsQuickStats");
   const searchInput = document.getElementById("clientsSearchInput");
 
+  const targetConnId = state.selectedConnectionId;
+
   if (container) {
     container.innerHTML = `<div style="padding: 2.5rem; text-align: center; color: var(--text-muted);"><i data-lucide="refresh-cw" class="spin" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i><br>Fetching connected clients...</div>`;
     setupIcons();
@@ -31,7 +86,12 @@ export async function loadConnectedClients() {
   try {
     const res = await fetch("/api/clients");
     if (!res.ok) throw new Error("Failed to load connected clients");
-    state.allConnectedClients = await res.json();
+    const data = await res.json();
+
+    if (state.selectedConnectionId !== targetConnId) return;
+
+    state.allConnectedClients = data;
+    state.clientsLoadedForConnId = targetConnId;
 
     if (countBadge) countBadge.textContent = state.allConnectedClients.length;
     if (quickStats) quickStats.textContent = `${state.allConnectedClients.length} total connections`;
@@ -39,15 +99,19 @@ export async function loadConnectedClients() {
     if (searchInput) searchInput.value = "";
     renderClientsTable(state.allConnectedClients);
   } catch (err) {
+    if (state.selectedConnectionId !== targetConnId) return;
     if (container) {
       container.innerHTML = `
         <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
           <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
           <h4>Error loading clients</h4>
           <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnRetryClients" style="margin-top: 0.75rem;">Retry</button>
         </div>
       `;
       setupIcons();
+      const btnRetry = document.getElementById("btnRetryClients");
+      if (btnRetry) btnRetry.onclick = () => loadConnectedClients();
     }
   }
 }
@@ -141,7 +205,7 @@ export function renderClientsTable(clients) {
 
 export async function killConnectedClient(clientId, clientAddr) {
   if (state.lastStatus?.read_only) {
-    alert("Client disconnection is disabled in Read-Only mode.");
+    showToast("Client disconnection is disabled in Read-Only mode.", "warning");
     return;
   }
   if (!confirm(`Are you sure you want to disconnect client #${clientId} (${clientAddr})?`)) {
@@ -151,10 +215,11 @@ export async function killConnectedClient(clientId, clientAddr) {
     const res = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Failed to disconnect client");
+    showToast(`Disconnected client #${clientId}`, "success");
     await loadConnectedClients();
     if (onRefreshStatus) await onRefreshStatus();
   } catch (err) {
-    alert("Error disconnecting client: " + err.message);
+    showToast("Error disconnecting client: " + err.message, "error");
   }
 }
 

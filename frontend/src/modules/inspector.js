@@ -1,7 +1,19 @@
 import { state, escapeHtml, HASH_FIELDS_PAGE_SIZE } from "./state.js";
 import { setupIcons } from "./icons.js";
+import { showToast, copyToClipboard } from "./toast.js";
 
 let onDeleteKey = null;
+
+export function triggerButtonFeedback(btn, newText = "Copied!", durationMs = 1500) {
+  if (!btn) return;
+  const originalHtml = btn.innerHTML;
+  btn.classList.add("btn-copy-feedback", "copied");
+  btn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"></polyline></svg>${newText}`;
+  setTimeout(() => {
+    btn.classList.remove("copied");
+    btn.innerHTML = originalHtml;
+  }, durationMs);
+}
 
 export function registerInspectorDeleteKey(deleteFn) {
   onDeleteKey = deleteFn;
@@ -124,14 +136,14 @@ export function renderKeyDetailMeta(data) {
 
 export async function promptUpdateTTL(keyName, currentTtl) {
   if (state.lastStatus?.read_only) {
-    alert("TTL modification is disabled in Read-Only mode.");
+    showToast("TTL modification is disabled in Read-Only mode.", "warning");
     return;
   }
   const input = prompt(`Enter new TTL in seconds for '${keyName}':\n(-1 to persist with no expiration, or number of seconds)`, currentTtl > 0 ? currentTtl : "3600");
   if (input === null) return;
   const seconds = parseInt(input.trim(), 10);
   if (isNaN(seconds)) {
-    alert("Please enter a valid integer.");
+    showToast("Please enter a valid integer for TTL.", "warning");
     return;
   }
 
@@ -142,9 +154,10 @@ export async function promptUpdateTTL(keyName, currentTtl) {
       body: JSON.stringify({ seconds })
     });
     if (!res.ok) throw new Error("Failed to update TTL");
+    showToast(`Updated TTL for "${keyName}"`, "success");
     openKeyDetail(keyName);
   } catch (err) {
-    alert("Error updating TTL: " + err.message);
+    showToast("Error updating TTL: " + err.message, "error");
   }
 }
 
@@ -210,9 +223,14 @@ export function renderKeyDetailValue(data) {
     setupIcons();
     const btnCopy = document.getElementById("btnCopyJsonValue");
     if (btnCopy) {
-      btnCopy.addEventListener("click", () => {
-        navigator.clipboard.writeText(jsonStr);
-        alert("JSON copied to clipboard!");
+      btnCopy.addEventListener("click", async () => {
+        const ok = await copyToClipboard(jsonStr);
+        if (ok) {
+          showToast("JSON copied to clipboard", "success");
+          triggerButtonFeedback(btnCopy, "Copied!");
+        } else {
+          showToast("Failed to copy JSON to clipboard", "error");
+        }
       });
     }
     return;
@@ -233,15 +251,182 @@ export function renderKeyDetailValue(data) {
     setupIcons();
     const btnCopy = document.getElementById("btnCopyStringValue");
     if (btnCopy) {
-      btnCopy.addEventListener("click", () => {
-        navigator.clipboard.writeText(data.value || "");
-        alert("Value copied to clipboard!");
+      btnCopy.addEventListener("click", async () => {
+        const ok = await copyToClipboard(data.value || "");
+        if (ok) {
+          showToast("Value copied to clipboard", "success");
+          triggerButtonFeedback(btnCopy, "Copied!");
+        } else {
+          showToast("Failed to copy value to clipboard", "error");
+        }
       });
     }
     return;
   }
 
-  // 4. LIST / SET / ZSET
+  // 4. STREAM VIEW
+  if (lowerType === "stream") {
+    const entries = Array.isArray(data.value) ? data.value : [];
+
+    const formatRelativeTime = (timestampMs) => {
+      if (!timestampMs || isNaN(timestampMs)) return "";
+      const diffSec = Math.floor((Date.now() - timestampMs) / 1000);
+      if (diffSec < 0) return "just now";
+      if (diffSec < 60) return `${diffSec}s ago`;
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHours = Math.floor(diffMin / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays}d ago`;
+    };
+
+    bodyEl.innerHTML = `
+      <div class="stream-meta-bar">
+        <div class="stream-filter-box">
+          <i data-lucide="search" style="width: 13px; height: 13px; color: var(--text-muted); flex-shrink: 0;"></i>
+          <input type="text" id="streamFilterInput" placeholder="Filter stream entries by field name, value, or entry ID...">
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);" id="streamFilterCountText">
+            Showing ${entries.length} of ${(data.length || entries.length).toLocaleString()} entries
+          </span>
+          <span class="badge-db" style="color: #06b6d4; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 3px;">
+            <i data-lucide="activity" style="width: 11px; height: 11px;"></i> XREVRANGE (latest 50)
+          </span>
+        </div>
+      </div>
+
+      <div class="fields-table-container">
+        <table class="data-table" id="streamEntriesTable" style="width: 100%;">
+          <thead>
+            <tr>
+              <th style="width: 32%;">Entry ID & Timestamp</th>
+              <th style="width: 68%;">Fields & Values</th>
+            </tr>
+          </thead>
+          <tbody id="streamEntriesTbody">
+            ${entries.length === 0 ? `
+              <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                <i data-lucide="git-commit" style="width: 24px; height: 24px; color: var(--text-muted); margin-bottom: 0.5rem; display: inline-block;"></i>
+                <div>Stream is empty (0 entries)</div>
+              </td></tr>
+            ` : entries.map((item, idx) => {
+              const entryId = item.id || "";
+              const tsMatch = String(entryId).match(/^(\d{10,13})-/);
+              let tsFormatted = "";
+              let relFormatted = "";
+              if (tsMatch) {
+                try {
+                  const ms = parseInt(tsMatch[1], 10);
+                  tsFormatted = new Date(ms).toLocaleString();
+                  relFormatted = formatRelativeTime(ms);
+                } catch (_) {}
+              }
+              const fields = item.fields || {};
+              const fieldsEntries = Object.entries(fields);
+              const fieldsHtml = fieldsEntries.map(([k, v]) => `
+                <div class="stream-entry-pill" title="${escapeHtml(k)}: ${escapeHtml(String(v))}">
+                  <span class="pill-key">${escapeHtml(k)}:</span>
+                  <span class="pill-val">${escapeHtml(String(v))}</span>
+                </div>
+              `).join("");
+
+              const searchBlob = `${entryId} ${fieldsEntries.map(([k, v]) => `${k} ${v}`).join(" ")}`.toLowerCase();
+
+              return `
+                <tr class="stream-entry-row" data-search="${escapeHtml(searchBlob)}" style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                  <td style="padding: 0.65rem 1rem; vertical-align: top;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                      <span style="font-family: var(--font-mono); font-size: 0.82rem; color: #06b6d4; font-weight: 600;">${escapeHtml(entryId)}</span>
+                      <button type="button" class="stream-action-icon-btn btn-copy-stream-id" data-copy="${escapeHtml(entryId)}" title="Copy Entry ID">
+                        <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
+                      </button>
+                      <button type="button" class="stream-action-icon-btn btn-copy-stream-json" data-idx="${idx}" title="Copy entry JSON">
+                        <i data-lucide="code" style="width: 11px; height: 11px;"></i>
+                      </button>
+                    </div>
+                    ${tsFormatted ? `
+                      <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-sans); margin-top: 3px; display: flex; align-items: center; gap: 0.35rem;">
+                        <span>${escapeHtml(tsFormatted)}</span>
+                        ${relFormatted ? `<span class="badge-env" style="font-size: 0.62rem; padding: 0.05rem 0.3rem;">${escapeHtml(relFormatted)}</span>` : ''}
+                      </div>
+                    ` : ''}
+                  </td>
+                  <td style="padding: 0.65rem 1rem; vertical-align: top;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 2px;">
+                      ${fieldsHtml || '<span style="color: var(--text-muted); font-size: 0.78rem;">(no fields)</span>'}
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+    setupIcons();
+
+    // Stream Copy Event Listeners
+    bodyEl.querySelectorAll(".btn-copy-stream-id").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const text = btn.getAttribute("data-copy") || "";
+        const ok = await copyToClipboard(text);
+        if (ok) {
+          btn.innerHTML = `<i data-lucide="check" style="width: 11px; height: 11px; color: #10b981;"></i>`;
+          setupIcons();
+          setTimeout(() => {
+            btn.innerHTML = `<i data-lucide="copy" style="width: 11px; height: 11px;"></i>`;
+            setupIcons();
+          }, 1500);
+        }
+      });
+    });
+
+    bodyEl.querySelectorAll(".btn-copy-stream-json").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const idx = parseInt(btn.getAttribute("data-idx") || "-1", 10);
+        if (idx >= 0 && entries[idx]) {
+          const ok = await copyToClipboard(JSON.stringify(entries[idx], null, 2));
+          if (ok) {
+            btn.innerHTML = `<i data-lucide="check" style="width: 11px; height: 11px; color: #10b981;"></i>`;
+            setupIcons();
+            setTimeout(() => {
+              btn.innerHTML = `<i data-lucide="code" style="width: 11px; height: 11px;"></i>`;
+              setupIcons();
+            }, 1500);
+          }
+        }
+      });
+    });
+
+    // Stream Filter Event Listener
+    const filterInput = document.getElementById("streamFilterInput");
+    const countText = document.getElementById("streamFilterCountText");
+    if (filterInput) {
+      filterInput.addEventListener("input", () => {
+        const query = filterInput.value.trim().toLowerCase();
+        const rows = bodyEl.querySelectorAll(".stream-entry-row");
+        let visibleCount = 0;
+        rows.forEach(r => {
+          const blob = r.getAttribute("data-search") || "";
+          if (!query || blob.includes(query)) {
+            r.style.display = "";
+            visibleCount++;
+          } else {
+            r.style.display = "none";
+          }
+        });
+        if (countText) {
+          countText.textContent = `Showing ${visibleCount} of ${entries.length} entries`;
+        }
+      });
+    }
+
+    return;
+  }
+
+  // 5. LIST / SET / ZSET
   if (Array.isArray(data.value)) {
     const isZset = lowerType === "zset";
     bodyEl.innerHTML = `
@@ -396,7 +581,7 @@ export async function loadMoreHashFields({ reset = false, match } = {}) {
     st.total = Number(page.total ?? st.total);
     st.match = nextMatch || null;
   } catch (err) {
-    alert("Failed to load hash fields: " + err.message);
+    showToast("Failed to load hash fields: " + err.message, "error");
   } finally {
     st.loading = false;
     if (state.hashFieldsState === st) rerenderHashFields();
@@ -433,9 +618,10 @@ export function setupHashEventListeners(keyName) {
           body: JSON.stringify({ field, value: val })
         });
         if (!res.ok) throw new Error("Failed to set field");
+        showToast(`Added field "${field}" to hash`, "success");
         openKeyDetail(keyName);
       } catch (err) {
-        alert("Error setting field: " + err.message);
+        showToast("Error setting field: " + err.message, "error");
       }
     });
   }
@@ -453,9 +639,10 @@ export function attachHashDeleteHandlers(keyName) {
             method: "DELETE"
           });
           if (!res.ok) throw new Error("Failed to delete field");
+          showToast(`Deleted field "${field}"`, "success");
           openKeyDetail(keyName);
         } catch (err) {
-          alert("Error: " + err.message);
+          showToast("Error: " + err.message, "error");
         }
       }
     });
@@ -514,10 +701,12 @@ export async function downloadKeyValue(keyName, btn) {
     const fallback = keyName.replace(/[^A-Za-z0-9._-]+/g, "_") || "redis_key";
     await downloadResponseAsFile(res, fallback);
     if (res.headers.get("x-export-truncated") === "true") {
-      alert(`Download was capped: the key has ${Number(res.headers.get("x-export-total") || 0).toLocaleString()} entries, only the first portion was included.`);
+      showToast(`Download was capped: only the first portion was included.`, "warning");
+    } else {
+      showToast(`Downloaded value for "${keyName}"`, "success");
     }
   } catch (err) {
-    alert("Download failed: " + err.message);
+    showToast("Download failed: " + err.message, "error");
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -540,10 +729,15 @@ export function setupInspectorEventListeners() {
 
   const btnCopyKey = document.getElementById("btnCopyKeyName");
   if (btnCopyKey) {
-    btnCopyKey.addEventListener("click", () => {
+    btnCopyKey.addEventListener("click", async () => {
       if (state.activeDetailKey) {
-        navigator.clipboard.writeText(state.activeDetailKey);
-        alert(`Copied '${state.activeDetailKey}' to clipboard!`);
+        const ok = await copyToClipboard(state.activeDetailKey);
+        if (ok) {
+          showToast(`Copied key "${state.activeDetailKey}" to clipboard`, "success");
+          triggerButtonFeedback(btnCopyKey, "Key Copied!");
+        } else {
+          showToast("Failed to copy key to clipboard", "error");
+        }
       }
     });
   }

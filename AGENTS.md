@@ -62,6 +62,19 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 5. **Hybrid Read-Only Mode & PROD Protection**:
    - All mutating endpoints (`DELETE /api/keys/*`, `PUT /api/keys/*`, `DELETE /api/clients/*`, `POST /api/keys/bulk-delete`) **MUST** use the FastAPI dependency `require_write_permission`.
    - Connections with `environment: "PROD"` default to read-only mode to prevent accidental operational mishaps.
+6. **Zero Auto-Command Firing on Cluster Switch**:
+   - When switching clusters, **only the landing screen (Keys Browser)** automatically scans keys.
+   - Diagnostic tabs (**Memory Studio**, **Benchmark Studio**, **Slowlog Profiler**, **Connected Clients**, **Cluster Topology**) **MUST NEVER** automatically fire background Redis queries or scans.
+   - Diagnostic tabs must immediately reset to clean state and display a dedicated **Target Cluster Prompt Card** showing cluster name, endpoint, environment badge, and an explicit action button (e.g. *Load Memory Overview*, *Fetch Slowlog Entries*, *Fetch Connected Clients*, *Load Cluster Topology*).
+   - Any out-of-order response arriving from a previous cluster must be discarded (`state.selectedConnectionId !== targetConnId`).
+7. **In-Flight Cancellation (`AbortController`)**:
+   - Long-running keyspace scans (Memory Studio sampled/deep scans) must accept an `AbortSignal`.
+   - The UI must render a visible "Cancel Scan" button.
+   - Switching clusters while a scan is in-flight must cancel the running controller immediately without triggering error modals.
+8. **Stateless Multi-User Container Routing**:
+   - Containerized multi-user deployments isolate concurrent users via the `X-Connection-ID` HTTP header (or `?conn_id=` query param) using FastAPI dependency `get_target_conn_id`.
+   - The frontend `window.fetch` interceptor automatically injects `X-Connection-ID` for the active tab's selected cluster.
+   - Backend on-demand connection pool manages up to `REDIS_MAX_CONNECTIONS` (default 10) simultaneous client instances.
 
 ---
 
@@ -73,41 +86,93 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 2. **Workspace Tabs vs Dialog Modals**:
    - Deep diagnostic surfaces (Keys Browser, Benchmark Studio, Memory Studio, Slowlog Profiler, Topology Map, Connected Clients) live in `.ws-tab-pane` containers toggled by `.ws-tab-btn`.
    - Interactive dialogs (Connection Modal, Key Detail Modal, Bulk Delete, Deep Scan Safety Modal) remain centered dialog modals with backdrop blur.
-3. **Multi-Delimiter Tree Invariants**:
+3. **In-Pane Cluster Context Bars & Subtitles**:
+   - Every workspace pane must show the target cluster name, host:port, environment badge (`[LOCAL]`, `[DEV]`, `[UAT]`, `[PROD]`), mode (`CLUSTER` vs `STANDALONE`), and read-only status in its header subtitle (`.modal-subtitle`).
+   - The Keys Browser displays `#keysTargetCapsule` right alongside View Mode and Safe SCAN controls.
+   - Synchronize all pane context bars globally via `updateAllPaneClusterContexts(targetConn)` on every cluster switch and status poll.
+4. **Multi-Delimiter Tree Invariants**:
    - The Virtual Folder Tree supports multiple simultaneous delimiters with custom delimiter chips.
    - Always sort delimiters in **descending length order** before tokenizing keys (e.g. `::` must match before `:`).
    - Persist delimiter sets per connection in `localStorage` (`redis_insight_tree_delimiters_<connId>`).
-4. **Number & Metric Formatting**:
+5. **Redis Stream Inspector Standards**:
+   - Redis Stream values must never be cast as generic arrays (`[object Object]`).
+   - Parse millisecond timestamps from Stream IDs (`<timestamp>-<seq>`), rendering full date/time and relative time tags (`1S AGO`).
+   - Provide an instant client-side search/filter (`#streamFilterInput`) matching IDs, field names, and values with live count badges.
+   - Provide one-click copy buttons for Entry ID and full Entry JSON with visual checkmark feedback.
+6. **Number & Metric Formatting**:
    - Always format large numbers with `.toLocaleString()` (e.g., `1,000`, `25,400`).
    - Format byte memory with standard units (`B`, `KB`, `MB`, `GB`) to 2 decimal places.
+7. **Zero Native Browser Popups & Glassmorphic Toast System**:
+   - **NEVER** use native blocking browser dialogs (`window.alert()`, `window.confirm()`, `window.prompt()`).
+   - Use `showToast(message, type, durationMs)` from `frontend/src/modules/toast.js` (`toast-success`, `toast-error`, `toast-warning`, `toast-info`).
+   - Copy buttons must use `triggerButtonFeedback(btn, "Copied!")` for in-place checkmark feedback and call `copyToClipboard(text)`, which includes a seamless fallback (`document.execCommand('copy')`) for unprivileged HTTP environments.
+8. **Large Keyspace Performance (100K - 1M Keys)**:
+   - Tables with >100 keys must use **virtual windowing** (`renderKeysFlatTable()`), rendering only ~60 visible rows with dynamic top/bottom spacers calculated at a fixed `44px` row height.
+   - Use event delegation on container elements (`#gridViewerContainer`) instead of attaching per-row click handlers.
+   - In Virtual Folder Tree View, lazily render sub-hierarchies only upon expansion (`isExpanded`), keeping collapsed DOM footprint minimal.
+   - Avoid calling heavy icon scan loops (`setupIcons()`) inside rapid virtual scroll rendering frames; inline lightweight SVGs for action buttons.
+9. **Visual Loading Indicators & Progress Shimmer**:
+   - Long-running scans must activate the animated glassmorphic shimmer bar (`#keysLoadingShimmer` / `.scan-progress-shimmer`) directly above the table.
+   - `#scanStatusText` must display an active spinning badge with live cursor progress (`Scanning cursor: <cursor>`).
+   - Initial scans must display a centered `.table-loading-card` with double-ring spinner instead of an empty table.
 
 ---
 
-## 4. Verification & Testing Workflow
+## 4. Configuration, Environment Variables & Flags
 
-Before submitting any code changes or completing a task, always run the full verification pipeline:
-
-### 1. Build Frontend
-```bash
-cd frontend && npm run build
-```
-Ensure the build succeeds with 0 errors and generates files in `dist/assets/`.
-
-### 2. Backend Automated Tests
-```bash
-PYTHONPATH=. /Users/dhavalpatel/workspace/venv/py313/bin/pytest tests/
-```
-Verify that all tests pass (100+ passed, 1 skipped). Note: macOS AirPlay Receiver listens on port 7000 (`afs3-fileserver`), so cluster port 7000 tests gracefully skip when port 7000 is occupied.
-
-### 3. Playwright Browser E2E Tests
-```bash
-cd frontend && npx playwright test
-```
-Verify all 9 tests pass.
+| Flag / Environment Variable | Default | Description |
+| :--- | :--- | :--- |
+| `APP_READONLY` | `false` | When `true`, enforces strict global read-only mode across all connections. |
+| `REDIS_ENCRYPTION_KEY` | *(Auto-generated)* | Fernet AES-128 key for password encryption. Stored locally in `.secret.key`. |
+| `REDIS_CONNECTIONS_FILE` | `config/connections.yaml` | Path to declarative YAML connection definitions. Synced to SQLite on startup. |
+| `REDIS_MAX_CONNECTIONS` | `10` | Maximum concurrent active Redis client pools maintained in multi-user containers. |
+| `PORT` / `APP_PORT` / `UVICORN_PORT` | `8001` | HTTP server listening port. |
+| `HOST` / `APP_HOST` / `UVICORN_HOST` | `0.0.0.0` | HTTP server bind host. |
+| `environment: "PROD"` | — | Connections marked `PROD` automatically default to `read_only: true` unless explicitly overridden. |
 
 ---
 
-## 5. Skills & Specialized Guides
+## 5. Mandatory Pre-Commit & Pre-Push Verification Checklist
+
+Every AI agent and human engineer **MUST** review and complete this checklist before committing or pushing changes:
+
+```markdown
+### Pre-Commit & Pre-Push Checklist
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass; AirPlay port 7000 skipped if occupied).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 4. Documentation & Skills Synchronization:
+      - [ ] `AGENTS.md` updated with new rules, architectural conventions, or flags.
+      - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks, module APIs, or testing recipes.
+      - [ ] `docs/UI_UX_GUIDELINES.md` updated with any new UI components, styling classes, or interaction patterns.
+      - [ ] `README.md` updated if new configuration variables, endpoints, or features were introduced.
+      - [ ] `docs/LOCAL_TESTING.md` updated if local test prerequisites or commands changed.
+- [ ] 5. Git Branch Protection:
+      - [ ] Verify active branch is NOT `main` (`git branch --show-current`).
+      - [ ] Direct pushes to `main` are strictly forbidden.
+      - [ ] Push to feature branch (`git push -u origin <branch-name>`) and open PR via `gh pr create`.
+```
+
+---
+
+## 6. Git Workflow & PR-Only Invariants (Never Push to `main`)
+
+1. **Direct Pushes to `main` are Strictly Forbidden**:
+   - Never run `git push origin main` or commit directly to `main`.
+   - GitHub branch protection is enforced on `main` (`enforce_admins: true`, PR review required, deletions and force-pushes blocked).
+2. **Feature Branching**:
+   - Always create a dedicated branch (e.g. `feature/...`, `fix/...`, `docs/...`).
+   - Complete the Mandatory Pre-Commit Checklist before pushing the branch.
+3. **Merge Exclusively via Pull Request**:
+   - Push the feature branch to GitHub (`git push -u origin <branch-name>`).
+   - Create a Pull Request against `main` using `gh pr create` or the GitHub interface.
+   - All merges into `main` must go through a PR.
+
+---
+
+## 7. Skills & Specialized Guides
 
 For detailed architectural runbooks, consult the workspace skill:
-- **`redis-insight-dev`**: `.agents/skills/redis-insight-dev/SKILL.md` (deep architectural patterns, endpoint contracts, diagnostic profilers, cluster matrix recipes).
+- **`redis-insight-dev`**: `.agents/skills/redis-insight-dev/SKILL.md` (deep architectural patterns, endpoint contracts, diagnostic profilers, cluster matrix recipes, and UI/UX design rules).
+
+

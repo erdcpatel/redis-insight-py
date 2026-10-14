@@ -104,6 +104,63 @@ export function renderKeyspaceNodes(status) {
   setupIcons();
 }
 
+export function resetTopologyState(conn) {
+  state.currentTopologyData = null;
+  state.topologyLoadedForConnId = null;
+
+  const statsGrid = document.getElementById("topologyStatsGrid");
+  const nodesCountBadge = document.getElementById("topologyNodesCountBadge");
+  const tabBadgeTopology = document.getElementById("tabBadgeTopology");
+
+  if (statsGrid) statsGrid.innerHTML = "";
+  if (nodesCountBadge) nodesCountBadge.textContent = "-";
+  if (tabBadgeTopology) tabBadgeTopology.textContent = "-";
+
+  renderTopologyClusterPrompt(conn);
+}
+
+export function renderTopologyClusterPrompt(conn) {
+  const tableContainer = document.getElementById("topologyTableContainer");
+  const envBadge = document.getElementById("topologyEnvBadge");
+  if (!tableContainer) return;
+
+  const targetConn = conn || state.cachedConnections.find(c => String(c.id) === String(state.selectedConnectionId) || c.is_selected) || null;
+  const connName = targetConn ? targetConn.name : (state.lastStatus?.connection_name || "Active Cluster");
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "127.0.0.1");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || 6379);
+  const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+
+  if (envBadge) {
+    envBadge.textContent = env;
+    envBadge.className = `badge-env badge-env-${env.toLowerCase()}`;
+  }
+
+  tableContainer.innerHTML = `
+    <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-secondary);">
+      <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.25); margin-bottom: 1rem;">
+        <i data-lucide="network" style="width: 24px; height: 24px; color: #c084fc;"></i>
+      </div>
+      <div style="font-weight: 600; font-size: 1rem; color: var(--text-primary); margin-bottom: 0.35rem;">
+        Topology Map for ${escapeHtml(connName)} (${escapeHtml(connHost)}:${connPort})
+        <span class="badge-env badge-env-${env.toLowerCase()}" style="margin-left: 0.4rem; vertical-align: middle;">${env}</span>
+      </div>
+      <p style="font-size: 0.82rem; color: var(--text-muted); max-width: 440px; margin: 0 auto 1.25rem; line-height: 1.5;">
+        Cluster switched. Diagnostics cache cleared. Click below to inspect cluster nodes, primary/replica roles, and hash slot distribution.
+      </p>
+      <button type="button" class="btn btn-primary" id="btnFetchTopologyExplicit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">
+        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+        Load Cluster Topology
+      </button>
+    </div>
+  `;
+  setupIcons();
+
+  const btnFetch = document.getElementById("btnFetchTopologyExplicit");
+  if (btnFetch) {
+    btnFetch.onclick = () => loadTopologyData();
+  }
+}
+
 export async function openTopologyModal(connId = null) {
   switchWorkspaceTab("topology");
 
@@ -114,7 +171,14 @@ export async function openTopologyModal(connId = null) {
     }
   }
 
-  await loadTopologyData();
+  if (state.topologyLoadedForConnId !== state.selectedConnectionId) {
+    renderTopologyClusterPrompt();
+  } else if (state.currentTopologyData) {
+    renderTopologyStats(state.currentTopologyData);
+    renderTopologyNodes();
+  } else {
+    renderTopologyClusterPrompt();
+  }
 }
 
 export function closeTopologyModal() {
@@ -128,7 +192,8 @@ export async function loadTopologyData() {
   const tabBadgeTopology = document.getElementById("tabBadgeTopology");
   const envBadge = document.getElementById("topologyEnvBadge");
 
-  const activeConn = state.cachedConnections.find(c => c.is_active);
+  const targetConnId = state.selectedConnectionId;
+  const activeConn = state.cachedConnections.find(c => c.id === targetConnId || c.is_selected);
   if (activeConn && envBadge) {
     const env = (activeConn.env || "LOCAL").toUpperCase();
     envBadge.textContent = env;
@@ -149,7 +214,11 @@ export async function loadTopologyData() {
     const res = await fetch("/api/topology");
     if (!res.ok) throw new Error("Failed to load cluster topology");
     const data = await res.json();
+
+    if (state.selectedConnectionId !== targetConnId) return;
+
     state.currentTopologyData = data;
+    state.topologyLoadedForConnId = targetConnId;
 
     const label = `${data.total_nodes} Node${data.total_nodes !== 1 ? 's' : ''}`;
     if (nodesCountBadge) {
@@ -162,15 +231,19 @@ export async function loadTopologyData() {
     renderTopologyStats(data);
     renderTopologyNodes();
   } catch (err) {
+    if (state.selectedConnectionId !== targetConnId) return;
     if (tableContainer) {
       tableContainer.innerHTML = `
         <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
           <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
           <h4>Unable to retrieve topology</h4>
           <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-secondary);">${escapeHtml(err.message)}</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnRetryTopology" style="margin-top: 0.75rem;">Retry</button>
         </div>
       `;
       setupIcons();
+      const btnRetry = document.getElementById("btnRetryTopology");
+      if (btnRetry) btnRetry.onclick = () => loadTopologyData();
     }
   }
 }

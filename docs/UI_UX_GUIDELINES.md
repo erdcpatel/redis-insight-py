@@ -135,6 +135,52 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
 5. **Read-Only / PROD Lockout**:
    - In Read-Only mode or PROD environments, write benchmarks (`SET`, `HSET`) must be automatically locked out.
 
+### E. In-Pane Context Identification Standards
+
+1. **Eliminate Cross-Cluster Ambiguity**:
+   - In multi-cluster setups, switching clusters must immediately update the visual identity of every open or switchable view.
+   - Every workspace pane must render an in-pane context badge:
+     - **Keys Browser Action Bar**: `#keysTargetCapsule` rendered alongside View Mode and Safe SCAN controls, displaying target connection name and host/node badge.
+     - **Modal & Workspace Pane Subtitles**: `#memoryTargetSubtitle`, `#slowlogTargetSubtitle`, `#topologyTargetSubtitle`, `#clientsTargetSubtitle` inside `.modal-header`.
+2. **Context Subtitle Markup Pattern**:
+   ```html
+   <p class="modal-subtitle" id="memoryTargetSubtitle">
+     Target: <span class="context-conn-name">Billing Cluster</span>
+     <span class="context-conn-endpoint">127.0.0.1:7000 (6 Nodes)</span>
+     <span class="badge badge-env-dev">DEV</span>
+     <span class="badge badge-topology-cluster">CLUSTER</span>
+   </p>
+   ```
+3. **Centralized Update Hook**:
+   - All subtitles are driven by `updateAllPaneClusterContexts(targetConn)` in `frontend/src/modules/connections.js`.
+   - Always invoke this function on initial connection load, periodic status refresh, and whenever `notifyClusterSwitched` fires.
+
+### F. Redis Stream Inspector Standards
+
+1. **Human-Readable Timestamp Parsing**:
+   - Stream entry IDs follow the standard Redis format `<timestamp_ms>-<seq>` (e.g. `1760414000000-0`).
+   - Extract the millisecond timestamp, format it to local ISO date/time, and append a high-contrast relative duration badge (`1S AGO`, `5M AGO`, `2D AGO`).
+2. **Interactive Live Search Filter**:
+   - Provide an instant client-side search input (`#streamFilterInput`) inside `.stream-meta-bar`.
+   - Filter stream entries across Entry IDs, field names, and field values in real-time.
+   - Render a live count counter: `Showing X of Y entries`.
+3. **High-Contrast Field-Value Badges & Clipboard Feedback**:
+   - Group field-value pairs into compact chips (`.stream-entry-pill`).
+   - Include 1-click **Copy ID** and **Copy JSON** buttons for each entry.
+   - On copy, animate the icon to a green checkmark (`Check`) with visual feedback (`Copied!`), restoring original state after 1.5 seconds.
+
+### G. Zero Auto-Command Firing & Explicit Prompt Standards
+
+1. **Zero Auto-Command Invariant on Cluster Switch**:
+   - When switching clusters, **ONLY** the landing screen (Keys Browser) automatically queries Redis.
+   - Diagnostic studios (**Memory Studio**, **Benchmark Studio**, **Slowlog Profiler**, **Connected Clients**, **Cluster Topology**) **MUST NEVER** automatically fire Redis commands in the background.
+2. **Explicit User-Initiated Analysis Card**:
+   - When switching to a new cluster while a diagnostic tab is open, reset previous metrics and render an informative zero-fetch prompt card (`.memory-prompt-card` or equivalent).
+   - Display the new cluster's name, host:port endpoint, node count, and an explicit action button (e.g., `Start Profiling`, `Load Slowlog`, `Inspect Clients`).
+3. **In-Flight Cancellation via AbortController**:
+   - Any long-running fetch operation (e.g. keyspace scan or memory analysis) must track an `AbortController`.
+   - On cluster switch, immediately call `abortController.abort()` to cancel the in-flight network request and prevent race conditions or stale metrics from contaminating the newly selected cluster.
+
 ---
 
 ## 5. Read-Only Mode & Safety Guardrails
@@ -154,12 +200,68 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
 
 ---
 
-## 6. UI/UX Pre-PR Verification Checklist
+## 6. Glassmorphic Toast System & Zero-Alert Standard
 
-Before opening any Pull Request:
+1. **Strict Prohibition of Native Browser Popups**:
+   - **NEVER** use `window.alert()`, `window.confirm()`, or `window.prompt()`. They freeze the browser event loop, look disconnected from the glassmorphic dark theme, and degrade UX.
+2. **Toast System (`frontend/src/modules/toast.js`)**:
+   - Use `showToast(message, type, durationMs)`:
+     - `success` (green): Successful copies, connection activations, exports.
+     - `error` (red): Failed network requests, command errors, copy failures.
+     - `warning` (amber): Rate limiting, read-only warnings, large dataset safety gates.
+     - `info` (blue): General background task updates.
+   - Toasts render in `#appToastContainer` (`.toast-container`) with backdrop blur, smooth slide-in/slide-out animations, and auto-dismiss after 2500ms (pauses on hover).
+3. **In-Place Copy Feedback (`triggerButtonFeedback`)**:
+   - All copy buttons (Key name, String value, JSON, Stream ID/JSON, BigKey, Slowlog command) must immediately switch in-place to `<svg> Check` + `Copied!` (or `Key Copied!`) for 1500ms.
+4. **Resilient `copyToClipboard()`**:
+   - Always call `copyToClipboard(text)` from `toast.js`. It utilizes modern `navigator.clipboard.writeText` when available in secure contexts and automatically falls back to hidden `document.execCommand('copy')` on unprivileged HTTP dev domains or automated test runners.
 
-1. [ ] **Responsive Test**: Shrink browser window to `1024px` and verify toolbars don't wrap awkwardly or overlap.
-2. [ ] **Control Sizing**: Verify no dropdown or input is excessively wide or misaligned.
-3. [ ] **Visual Feedback**: Verify hover states, active pulsing dots, and tooltip text work as expected.
-4. [ ] **Read-Only Mode Test**: Connect to a PROD or read-only connection and confirm `[🔒 READ ONLY]` badge appears, bulk delete is disabled, and mutation controls are hidden/locked.
-5. [ ] **Automated E2E Suite**: Run `./scripts/run_e2e_tests.sh` to ensure Playwright browser tests pass.
+---
+
+## 7. Large Keyspace Performance (100K to 1M Keys)
+
+1. **Virtual Windowing (`renderKeysFlatTable`)**:
+   - When displayed rows exceed 100, the table automatically activates virtual windowing.
+   - Only ~60 visible rows are mounted in `#keysTableViewport` at any given time based on scroll offset.
+   - Dynamic top and bottom spacers maintain precise scrollbar proportions based on `VIRTUAL_ROW_HEIGHT = 44px`.
+2. **Event Delegation**:
+   - Never register individual click listeners in loops across thousands of rows.
+   - Use a single delegated click listener on `#gridViewerContainer` matching `.key-row` or action buttons.
+3. **Lazy Tree View**:
+   - Virtual Folder Tree nodes only generate DOM children when the folder is expanded (`isExpanded`). Collapsed hierarchies consume near-zero DOM elements.
+4. **Lightweight Action SVGs**:
+   - Avoid calling heavy `setupIcons()` Lucide scans during scroll frames. Action icons rendered in virtual rows use lightweight inline SVGs.
+
+---
+
+## 8. Visual Scan Progress & Shimmer Bar
+
+1. **Shimmer Progress Bar**:
+   - During active Redis cursor sweeps, display the animated glassmorphic shimmer indicator (`#keysLoadingShimmer` / `.scan-progress-shimmer`) right above the table header.
+2. **Active Scan Spinner Badge**:
+   - `#scanStatusText` renders an animated spinning SVG badge and live cursor progress (`Scanning cursor: <cursor>`).
+3. **Initial Loading Card**:
+   - During the first keys fetch, render a centered `.table-loading-card` with double-ring spinner instead of an empty table.
+
+---
+
+## 9. Mandatory Pre-Commit & Pre-Push Checklist
+
+Before opening any Pull Request or committing changes, verify and complete this checklist:
+
+```markdown
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 4. Documentation & Skills Synchronization:
+      - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
+      - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.
+      - [ ] `docs/UI_UX_GUIDELINES.md` updated with new UI components, styles, or patterns.
+      - [ ] `README.md` updated if new configuration variables, endpoints, or features were introduced.
+      - [ ] `docs/LOCAL_TESTING.md` updated if local test prerequisites or commands changed.
+- [ ] 5. Git Branch Protection:
+      - [ ] Confirm active branch is NOT `main` (`git branch --show-current`).
+      - [ ] Push to feature branch and open PR via `gh pr create`.
+```
+
+

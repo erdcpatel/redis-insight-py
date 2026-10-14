@@ -2,11 +2,15 @@ import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
 import { resetAndScan } from "./keys.js";
+import { copyToClipboard } from "./toast.js";
 
 // Callbacks set during registration
 let onInspectKey = null;
 let onDeleteKey = null;
 let onRefreshStatus = null;
+
+// AbortController for in-flight memory profiling requests
+let activeMemoryAnalysisAbortController = null;
 
 export function registerMemoryKeyHandlers(inspectFn, deleteFn, refreshStatusFn) {
   onInspectKey = inspectFn;
@@ -14,14 +18,76 @@ export function registerMemoryKeyHandlers(inspectFn, deleteFn, refreshStatusFn) 
   onRefreshStatus = refreshStatusFn;
 }
 
+export function resetMemoryState(conn) {
+  if (activeMemoryAnalysisAbortController) {
+    try {
+      activeMemoryAnalysisAbortController.abort();
+    } catch (_) {}
+    activeMemoryAnalysisAbortController = null;
+  }
+  state.isMemoryProfilingRunning = false;
+  state.currentMemoryOverview = null;
+  state.currentMemoryAnalysis = null;
+  state.memoryLoadedForConnId = null;
+
+  renderMemoryOverviewClusterPrompt(conn);
+  renderMemoryProfilingSafeguardUI({
+    notice: "Cluster switched. Diagnostic caches cleared. Click below to profile the active cluster."
+  });
+}
+
+export function renderMemoryOverviewClusterPrompt(conn) {
+  const container = document.getElementById("memoryOverviewContainer");
+  if (!container) return;
+
+  const targetConn = conn || state.cachedConnections.find(c => String(c.id) === String(state.selectedConnectionId) || c.is_selected) || null;
+  const connName = targetConn ? targetConn.name : (state.lastStatus?.connection_name || "Active Cluster");
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "127.0.0.1");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || 6379);
+  const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+
+  container.innerHTML = `
+    <div class="mem-cluster-prompt-card" style="padding: 1.5rem; text-align: center; background: rgba(15,23,42,0.6); border: 1px dashed var(--border-subtle); border-radius: 8px;">
+      <div style="display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; justify-content: center;">
+        <i data-lucide="server" style="width: 16px; height: 16px; color: #a78bfa;"></i>
+        <strong style="color: var(--text-primary); font-size: 0.95rem;">${escapeHtml(connName)}</strong>
+        <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);">(${escapeHtml(connHost)}:${connPort})</span>
+        <span class="badge-env badge-env-${env.toLowerCase()}">${env}</span>
+      </div>
+      <p style="margin: 0.25rem 0 1rem; font-size: 0.8rem; color: var(--text-muted); max-width: 460px; margin-left: auto; margin-right: auto;">
+        Cluster metrics ready. Click below to query live used memory, fragmentation ratio, and cache hit metrics.
+      </p>
+      <button type="button" class="btn btn-primary" id="btnLoadMemoryOverviewExplicit" style="padding: 0.45rem 1.15rem; font-size: 0.82rem;">
+        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+        <span>Load Memory Overview</span>
+      </button>
+    </div>
+  `;
+  setupIcons();
+
+  const btnLoad = document.getElementById("btnLoadMemoryOverviewExplicit");
+  if (btnLoad) {
+    btnLoad.addEventListener("click", () => {
+      loadMemoryOverview();
+    });
+  }
+}
+
 export async function openMemoryModal() {
   switchWorkspaceTab("memory");
-  await loadMemoryOverview();
 
-  if (!state.currentMemoryAnalysis) {
-    renderMemoryProfilingSafeguardUI();
+  if (state.memoryLoadedForConnId !== state.selectedConnectionId) {
+    renderMemoryOverviewClusterPrompt();
+  } else if (state.currentMemoryOverview) {
+    renderMemoryOverviewUI(state.currentMemoryOverview);
   } else {
+    renderMemoryOverviewClusterPrompt();
+  }
+
+  if (state.currentMemoryAnalysis && state.currentMemoryAnalysis._target_conn_id === state.selectedConnectionId) {
     renderMemoryAnalysisUI(state.currentMemoryAnalysis);
+  } else {
+    renderMemoryProfilingSafeguardUI();
   }
 }
 
@@ -33,6 +99,7 @@ export async function loadMemoryOverview() {
   const container = document.getElementById("memoryOverviewContainer");
   if (!container) return;
 
+  const targetConnId = state.selectedConnectionId;
   container.innerHTML = `
     <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
       <i data-lucide="refresh-cw" class="spin" style="width: 20px; height: 20px; margin-bottom: 0.5rem; color: #a78bfa;"></i><br>
@@ -44,16 +111,28 @@ export async function loadMemoryOverview() {
   try {
     const res = await fetch("/api/memory/overview");
     if (!res.ok) throw new Error("Failed to fetch memory overview");
-    state.currentMemoryOverview = await res.json();
+    const data = await res.json();
+    
+    // Ignore out-of-order response if cluster switched in the meantime
+    if (state.selectedConnectionId !== targetConnId) {
+      return;
+    }
+
+    state.currentMemoryOverview = data;
+    state.memoryLoadedForConnId = targetConnId;
     renderMemoryOverviewUI(state.currentMemoryOverview);
   } catch (err) {
+    if (state.selectedConnectionId !== targetConnId) return;
     container.innerHTML = `
       <div style="padding: 1.5rem; text-align: center; color: var(--accent-danger);">
         <i data-lucide="alert-circle" style="width: 24px; height: 24px; margin-bottom: 0.5rem;"></i>
         <p style="font-size: 0.85rem;">Error loading memory overview: ${escapeHtml(err.message)}</p>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnRetryMemOverview" style="margin-top: 0.5rem;">Retry</button>
       </div>
     `;
     setupIcons();
+    const btnRetry = document.getElementById("btnRetryMemOverview");
+    if (btnRetry) btnRetry.onclick = () => loadMemoryOverview();
   }
 }
 
@@ -129,11 +208,25 @@ export function renderMemoryOverviewUI(data) {
   setupIcons();
 }
 
-export function renderMemoryProfilingSafeguardUI() {
+export function renderMemoryProfilingSafeguardUI(options = {}) {
   const container = document.getElementById("memoryProfilingContainer");
   if (!container) return;
 
+  const targetConn = state.cachedConnections.find(c => String(c.id) === String(state.selectedConnectionId) || c.is_selected) || null;
+  const connName = targetConn ? targetConn.name : (state.lastStatus?.connection_name || "Active Cluster");
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "127.0.0.1");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || 6379);
+  const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+  const notice = options?.notice;
+
   container.innerHTML = `
+    ${notice ? `
+      <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: var(--radius-md); padding: 0.65rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: #38bdf8;">
+        <i data-lucide="info" style="width: 15px; height: 15px; flex-shrink: 0;"></i>
+        <span>${escapeHtml(notice)}</span>
+      </div>
+    ` : ''}
+
     <!-- Educational Explainer -->
     <div class="mem-info-banner">
       <i data-lucide="info" style="width: 20px; height: 20px; color: #38bdf8; flex-shrink: 0; margin-top: 2px;"></i>
@@ -147,9 +240,17 @@ export function renderMemoryProfilingSafeguardUI() {
     </div>
 
     <div class="mem-safeguard-box">
-      <div class="mem-safeguard-header">
-        <i data-lucide="shield-check" style="width: 22px; height: 22px; color: #38bdf8;"></i>
-        <span>Non-Blocking Keyspace Profiling & TTL Forecast</span>
+      <div class="mem-safeguard-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <i data-lucide="shield-check" style="width: 22px; height: 22px; color: #38bdf8;"></i>
+          <span>Non-Blocking Keyspace Profiling & TTL Forecast</span>
+        </div>
+        <div style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); padding: 0.2rem 0.6rem; border-radius: 4px;">
+          <span style="color: var(--text-muted);">Target:</span>
+          <strong style="color: var(--accent-primary);">${escapeHtml(connName)}</strong>
+          <span style="color: var(--text-muted); font-family: var(--font-mono);">(${escapeHtml(connHost)}:${connPort})</span>
+          <span class="badge-env badge-env-${env.toLowerCase()}">${env}</span>
+        </div>
       </div>
       <div class="mem-safeguard-body">
         Profiling samples keys using cursor-based <code>SCAN</code>, reads byte footprints with <code>MEMORY USAGE</code>, and projects when RAM will be freed based on expiration horizons.
@@ -229,6 +330,15 @@ export async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*", sca
   const container = document.getElementById("memoryProfilingContainer");
   if (!container) return;
 
+  if (activeMemoryAnalysisAbortController) {
+    try {
+      activeMemoryAnalysisAbortController.abort();
+    } catch (_) {}
+  }
+  activeMemoryAnalysisAbortController = new AbortController();
+  const currentSignal = activeMemoryAnalysisAbortController.signal;
+  const targetConnId = state.selectedConnectionId;
+
   state.isMemoryProfilingRunning = true;
   const isDeep = scanMode === "full";
   container.innerHTML = `
@@ -237,42 +347,85 @@ export async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*", sca
       <h3 style="color: var(--text-primary); font-size: 1.1rem; margin-bottom: 0.4rem;">
         ${isDeep ? 'Running Deep Non-Blocking Cluster Scan...' : 'Analyzing Redis Keyspace...'}
       </h3>
-      <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 520px; margin: 0 auto; line-height: 1.5;">
+      <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 520px; margin: 0 auto 1.25rem; line-height: 1.5;">
         ${isDeep ? 'Scanning across cluster primary nodes using non-blocking cursors with bounded concurrency pool and calculating TTL space reclaim forecast...' : `Scanning sample of up to <strong>${sampleSize.toLocaleString()}</strong> keys (pattern <code>${escapeHtml(pattern)}</code>) and measuring memory allocations...`}
       </p>
+      <button type="button" class="btn btn-secondary" id="btnCancelMemoryProfiling" style="padding: 0.4rem 1rem; font-size: 0.8rem; border-color: rgba(239, 68, 68, 0.4); color: #f87171;">
+        <i data-lucide="x-circle" style="width: 14px; height: 14px;"></i>
+        Cancel Scan
+      </button>
     </div>
   `;
   setupIcons();
+
+  const btnCancel = document.getElementById("btnCancelMemoryProfiling");
+  if (btnCancel) {
+    btnCancel.onclick = () => {
+      if (activeMemoryAnalysisAbortController) {
+        try {
+          activeMemoryAnalysisAbortController.abort();
+        } catch (_) {}
+      }
+    };
+  }
 
   try {
     const res = await fetch("/api/memory/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sample_size: sampleSize, pattern: pattern, scan_mode: scanMode })
+      body: JSON.stringify({ sample_size: sampleSize, pattern: pattern, scan_mode: scanMode }),
+      signal: currentSignal
     });
     if (!res.ok) throw new Error("Failed to complete memory profiling");
-    state.currentMemoryAnalysis = await res.json();
+    const data = await res.json();
+
+    // Discard response if connection was changed during profiling
+    if (state.selectedConnectionId !== targetConnId) {
+      console.warn("Discarding memory profiling response for switched cluster:", targetConnId);
+      return;
+    }
+
+    data._target_conn_id = targetConnId;
+    data._analyzed_at = new Date().toISOString();
+    state.currentMemoryAnalysis = data;
     state.isMemoryProfilingRunning = false;
     renderMemoryAnalysisUI(state.currentMemoryAnalysis);
   } catch (err) {
     state.isMemoryProfilingRunning = false;
-    container.innerHTML = `
-      <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
-        <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
-        <h4>Memory Profiling Failed</h4>
-        <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
-        <button type="button" class="btn btn-secondary" id="btnRetryProfiling" style="margin-top: 1rem;">Try Again</button>
-      </div>
-    `;
-    setupIcons();
-    const btnRetry = document.getElementById("btnRetryProfiling");
-    if (btnRetry) btnRetry.addEventListener("click", renderMemoryProfilingSafeguardUI);
+    if (err.name === "AbortError") {
+      renderMemoryProfilingSafeguardUI({ notice: "Memory scan was cancelled." });
+      return;
+    }
+    if (state.selectedConnectionId === targetConnId) {
+      container.innerHTML = `
+        <div style="padding: 2.5rem; text-align: center; color: var(--accent-danger);">
+          <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
+          <h4>Memory Profiling Failed</h4>
+          <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
+          <button type="button" class="btn btn-secondary" id="btnRetryProfiling" style="margin-top: 1rem;">Back to Profiling Safeguards</button>
+        </div>
+      `;
+      setupIcons();
+      const btnRetry = document.getElementById("btnRetryProfiling");
+      if (btnRetry) btnRetry.onclick = () => renderMemoryProfilingSafeguardUI();
+    }
+  } finally {
+    if (activeMemoryAnalysisAbortController && activeMemoryAnalysisAbortController.signal === currentSignal) {
+      activeMemoryAnalysisAbortController = null;
+    }
   }
 }
 
 export function renderMemoryAnalysisUI(data) {
   const container = document.getElementById("memoryProfilingContainer");
   if (!container || !data) return;
+
+  const targetConn = state.cachedConnections.find(c => String(c.id) === String(data._target_conn_id || state.selectedConnectionId) || c.is_selected) || null;
+  const connName = targetConn ? targetConn.name : (state.lastStatus?.connection_name || "Active Cluster");
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "127.0.0.1");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || 6379);
+  const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+  const timeStr = data._analyzed_at ? new Date(data._analyzed_at).toLocaleTimeString() : new Date().toLocaleTimeString();
 
   const typeColorMap = {
     string: "#38bdf8",
@@ -286,6 +439,22 @@ export function renderMemoryAnalysisUI(data) {
   };
 
   container.innerHTML = `
+    <!-- Cluster Target Banner -->
+    <div class="mem-target-cluster-banner" style="display: flex; align-items: center; justify-content: space-between; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: var(--radius-md); padding: 0.6rem 1rem; margin-bottom: 0.85rem; font-size: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+        <span style="display: inline-flex; align-items: center; gap: 0.35rem; color: #38bdf8; font-weight: 600;">
+          <i data-lucide="server" style="width: 14px; height: 14px;"></i>
+          ${escapeHtml(connName)}
+        </span>
+        <span style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.75rem;">(${escapeHtml(connHost)}:${connPort})</span>
+        <span class="badge-env badge-env-${env.toLowerCase()}">${env}</span>
+        <span style="color: var(--border-subtle);">|</span>
+        <span style="color: var(--text-secondary); font-size: 0.75rem;">Analyzed at ${escapeHtml(timeStr)}</span>
+      </div>
+      <span class="badge-db" style="font-size: 0.7rem; color: #4ade80; border-color: rgba(74, 222, 128, 0.3);">
+        <i data-lucide="shield-check" style="width: 11px; height: 11px; margin-right: 3px;"></i> Verified
+      </span>
+    </div>
     <!-- Summary Header Bar -->
     <div style="background: rgba(15,23,42,0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
       <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.825rem;">
@@ -675,11 +844,12 @@ export function attachBigKeyRowHandlers() {
   });
 
   document.querySelectorAll(".btn-copy-bigkey").forEach(btn => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const k = btn.getAttribute("data-key");
       if (k) {
-        navigator.clipboard.writeText(k).then(() => {
+        const ok = await copyToClipboard(k);
+        if (ok) {
           btn.classList.add("copied");
           btn.innerHTML = `<i data-lucide="check" style="width: 11px; height: 11px;"></i>`;
           setupIcons();
@@ -688,7 +858,7 @@ export function attachBigKeyRowHandlers() {
             btn.innerHTML = `<i data-lucide="copy" style="width: 11px; height: 11px;"></i>`;
             setupIcons();
           }, 1500);
-        });
+        }
       }
     });
   });

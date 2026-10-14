@@ -1,6 +1,7 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
+import { showToast } from "./toast.js";
 
 let currentBenchmarkTab = "probe";
 let isBenchmarkRunning = false;
@@ -115,10 +116,77 @@ export function renderHistogramHtml(histogram) {
   `;
 }
 
+export function resetBenchmarkState(conn) {
+  isBenchmarkRunning = false;
+
+  const targetConn = conn || state.cachedConnections.find(c => c.id === state.selectedConnectionId || c.is_selected);
+  const connName = targetConn ? targetConn.name : "Active Cluster";
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || "");
+  const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+
+  const subtitle = document.getElementById("benchmarkTargetSubtitle");
+  if (subtitle) {
+    subtitle.textContent = `Active Target: ${connName} (${connHost}:${connPort}) [${env}] | Engine: AsyncIO Native | Namespace: __ri_bench__`;
+  }
+
+  const pResults = document.getElementById("benchmarkProbeResults");
+  if (pResults) {
+    pResults.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">
+        <i data-lucide="activity" style="width: 28px; height: 28px; color: #38bdf8; margin-bottom: 0.75rem; opacity: 0.85;"></i>
+        <div style="font-weight: 600; color: var(--text-main);">Ready to probe latency on ${escapeHtml(connName)}</div>
+        <div style="font-size: 0.78rem; margin-top: 0.25rem;">Select probe count and click 'Run Latency Probe' to measure network transit vs Redis CPU</div>
+      </div>
+    `;
+  }
+
+  const cResults = document.getElementById("benchmarkCommandResults");
+  if (cResults) {
+    cResults.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">
+        <i data-lucide="zap" style="width: 28px; height: 28px; color: #10b981; margin-bottom: 0.75rem; opacity: 0.85;"></i>
+        <div style="font-weight: 600; color: var(--text-main);">Ready to benchmark synthetic commands on ${escapeHtml(connName)}</div>
+        <div style="font-size: 0.78rem; margin-top: 0.25rem;">Select command preset, concurrency, and pipeline depth, then click 'Run Commands Benchmark'</div>
+      </div>
+    `;
+  }
+
+  const lResults = document.getElementById("benchmarkLuaResults");
+  if (lResults) {
+    lResults.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">
+        <i data-lucide="code" style="width: 28px; height: 28px; color: #f59e0b; margin-bottom: 0.75rem; opacity: 0.85;"></i>
+        <div style="font-weight: 600; color: var(--text-main);">Ready to profile Lua script on ${escapeHtml(connName)}</div>
+        <div style="font-size: 0.78rem; margin-top: 0.25rem;">Select preset script or type custom script, then click 'Execute & Profile Lua'</div>
+      </div>
+    `;
+  }
+
+  const clResults = document.getElementById("benchmarkClusterResults");
+  if (clResults) {
+    clResults.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">
+        <i data-lucide="layers" style="width: 28px; height: 28px; color: #c084fc; margin-bottom: 0.75rem; opacity: 0.85;"></i>
+        <div style="font-weight: 600; color: var(--text-main);">Ready to benchmark multi-node cluster matrix on ${escapeHtml(connName)}</div>
+        <div style="font-size: 0.78rem; margin-top: 0.25rem;">Probes every cluster master node simultaneously to measure node-by-node latency distribution</div>
+      </div>
+    `;
+  }
+
+  refreshBenchmarkUI();
+  setupIcons();
+}
+
 export function refreshBenchmarkUI() {
   const subtitle = document.getElementById("benchmarkTargetSubtitle");
-  if (subtitle && state.lastStatus) {
-    subtitle.textContent = `Active Target: ${state.lastStatus.host}:${state.lastStatus.port} (${state.lastStatus.env || "LOCAL"}) | Engine: AsyncIO Native | Namespace: __ri_bench__`;
+  if (subtitle) {
+    const targetConn = state.cachedConnections.find(c => c.id === state.selectedConnectionId || c.is_selected);
+    const connName = targetConn ? targetConn.name : (state.lastStatus?.host ? `${state.lastStatus.host}:${state.lastStatus.port}` : "Active Target");
+    const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "");
+    const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || "");
+    const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+    subtitle.textContent = `Active Target: ${connName} (${connHost}:${connPort}) [${env}] | Engine: AsyncIO Native | Namespace: __ri_bench__`;
   }
 
   const roBadge = document.getElementById("benchmarkReadOnlyBadge");
@@ -405,7 +473,7 @@ export async function runLuaBenchmark() {
   const args = rawArgs.split(",").map(a => a.trim()).filter(Boolean);
 
   if (!script.trim()) {
-    alert("Please enter a Lua script to execute and profile.");
+    showToast("Please enter a Lua script to execute and profile.", "warning");
     return;
   }
 

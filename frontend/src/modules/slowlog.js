@@ -1,6 +1,60 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
+import { showToast, copyToClipboard } from "./toast.js";
+
+export function resetSlowlogState(conn) {
+  state.allSlowlogEntries = [];
+  state.slowlogLoadedForConnId = null;
+
+  const countBadge = document.getElementById("slowlogCountBadge");
+  const thresholdBadge = document.getElementById("slowlogThresholdBadge");
+  const footerStats = document.getElementById("slowlogFooterStats");
+  const nodeFilter = document.getElementById("slowlogNodeFilterContainer");
+
+  if (countBadge) countBadge.textContent = "0";
+  if (thresholdBadge) thresholdBadge.textContent = "-";
+  if (footerStats) footerStats.textContent = "";
+  if (nodeFilter) nodeFilter.innerHTML = "";
+
+  renderSlowlogClusterPrompt(conn);
+}
+
+export function renderSlowlogClusterPrompt(conn) {
+  const container = document.getElementById("slowlogTableContainer");
+  if (!container) return;
+
+  const targetConn = conn || state.cachedConnections.find(c => String(c.id) === String(state.selectedConnectionId) || c.is_selected) || null;
+  const connName = targetConn ? targetConn.name : (state.lastStatus?.connection_name || "Active Cluster");
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "127.0.0.1");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || 6379);
+  const env = targetConn ? (targetConn.env || "LOCAL").toUpperCase() : (state.lastStatus?.env || "LOCAL").toUpperCase();
+
+  container.innerHTML = `
+    <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-secondary);">
+      <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); margin-bottom: 1rem;">
+        <i data-lucide="clock" style="width: 24px; height: 24px; color: #38bdf8;"></i>
+      </div>
+      <div style="font-weight: 600; font-size: 1rem; color: var(--text-primary); margin-bottom: 0.35rem;">
+        Slowlog for ${escapeHtml(connName)} (${escapeHtml(connHost)}:${connPort})
+        <span class="badge-env badge-env-${env.toLowerCase()}" style="margin-left: 0.4rem; vertical-align: middle;">${env}</span>
+      </div>
+      <p style="font-size: 0.82rem; color: var(--text-muted); max-width: 440px; margin: 0 auto 1.25rem; line-height: 1.5;">
+        Cluster switched. Diagnostics cache cleared. Click below to inspect query latency logs across this Redis instance/cluster.
+      </p>
+      <button type="button" class="btn btn-primary" id="btnFetchSlowlogExplicit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">
+        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+        Fetch Slowlog Entries
+      </button>
+    </div>
+  `;
+  setupIcons();
+
+  const btnFetch = document.getElementById("btnFetchSlowlogExplicit");
+  if (btnFetch) {
+    btnFetch.onclick = () => loadSlowlog();
+  }
+}
 
 export async function openSlowlogModal() {
   switchWorkspaceTab("slowlog");
@@ -20,7 +74,11 @@ export async function openSlowlogModal() {
   const searchInput = document.getElementById("slowlogSearchInput");
   if (searchInput) searchInput.value = "";
 
-  await loadSlowlog();
+  if (state.slowlogLoadedForConnId !== state.selectedConnectionId) {
+    renderSlowlogClusterPrompt();
+  } else {
+    filterAndRenderSlowlog();
+  }
 }
 
 export function closeSlowlogModal() {
@@ -32,6 +90,8 @@ export async function loadSlowlog() {
   const countBadge = document.getElementById("slowlogCountBadge");
   const thresholdBadge = document.getElementById("slowlogThresholdBadge");
   const footerStats = document.getElementById("slowlogFooterStats");
+
+  const targetConnId = state.selectedConnectionId;
 
   if (container) {
     container.innerHTML = `
@@ -47,7 +107,11 @@ export async function loadSlowlog() {
     const res = await fetch("/api/slowlog?limit=250");
     if (!res.ok) throw new Error("Failed to fetch slowlog");
     const data = await res.json();
+
+    if (state.selectedConnectionId !== targetConnId) return;
+
     state.allSlowlogEntries = data.entries || [];
+    state.slowlogLoadedForConnId = targetConnId;
 
     if (countBadge) countBadge.textContent = state.allSlowlogEntries.length;
     if (thresholdBadge && data.slower_than_us !== null && data.slower_than_us !== undefined) {
@@ -61,15 +125,19 @@ export async function loadSlowlog() {
     buildSlowlogNodeFilter(state.allSlowlogEntries);
     filterAndRenderSlowlog();
   } catch (err) {
+    if (state.selectedConnectionId !== targetConnId) return;
     if (container) {
       container.innerHTML = `
         <div style="padding: 2rem; text-align: center; color: var(--accent-danger);">
           <i data-lucide="alert-circle" style="width: 28px; height: 28px; margin-bottom: 0.5rem;"></i>
           <h4>Error Loading Slowlog</h4>
           <p style="font-size: 0.85rem; margin-top: 0.25rem;">${escapeHtml(err.message)}</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnRetrySlowlog" style="margin-top: 0.75rem;">Retry</button>
         </div>
       `;
       setupIcons();
+      const btnRetry = document.getElementById("btnRetrySlowlog");
+      if (btnRetry) btnRetry.onclick = () => loadSlowlog();
     }
   }
 }
@@ -208,11 +276,12 @@ export function renderSlowlogTable(entries) {
   setupIcons();
 
   document.querySelectorAll(".btn-copy-slowlog-cmd").forEach(btn => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const c = btn.getAttribute("data-cmd");
       if (c) {
-        navigator.clipboard.writeText(c).then(() => {
+        const ok = await copyToClipboard(c);
+        if (ok) {
           btn.classList.add("copied");
           btn.innerHTML = `<i data-lucide="check" style="width: 12px; height: 12px;"></i>`;
           setupIcons();
@@ -221,7 +290,7 @@ export function renderSlowlogTable(entries) {
             btn.innerHTML = `<i data-lucide="copy" style="width: 12px; height: 12px;"></i>`;
             setupIcons();
           }, 1500);
-        });
+        }
       }
     });
   });
@@ -229,7 +298,7 @@ export function renderSlowlogTable(entries) {
 
 export async function clearSlowlog() {
   if (state.lastStatus?.read_only) {
-    alert("Slowlog reset is disabled in Read-Only mode.");
+    showToast("Slowlog reset is disabled in Read-Only mode.", "warning");
     return;
   }
   if (!confirm("Are you sure you want to reset the Redis Slowlog buffer?\n\nThis will clear recorded slow commands across all connected Redis instances.")) {
@@ -239,9 +308,10 @@ export async function clearSlowlog() {
   try {
     const res = await fetch("/api/slowlog/reset", { method: "POST" });
     if (!res.ok) throw new Error("Failed to reset slowlog");
+    showToast("Slowlog buffer reset successfully", "success");
     await loadSlowlog();
   } catch (err) {
-    alert("Error resetting slowlog: " + err.message);
+    showToast("Error resetting slowlog: " + err.message, "error");
   }
 }
 
