@@ -178,12 +178,12 @@ function renderAppShell() {
             </div>
             <div class="limit-select-wrapper">
               <label for="connLimitSelect" class="limit-select-label">Max:</label>
-              <select id="connLimitSelect" class="limit-select conn-limit-select" title="Simultaneous connection limit (1-5)">
+              <select id="connLimitSelect" class="limit-select conn-limit-select" title="Simultaneous connection limit (1-10)">
                 <option value="1">1</option>
-                <option value="2" selected>2</option>
+                <option value="2">2</option>
                 <option value="3">3</option>
-                <option value="4">4</option>
                 <option value="5">5</option>
+                <option value="10" selected>10</option>
               </select>
             </div>
           </div>

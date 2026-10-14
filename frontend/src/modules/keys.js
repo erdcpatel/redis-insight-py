@@ -1068,10 +1068,9 @@ export function updateScanUI() {
 
   if (btnScanNext) {
     btnScanNext.disabled = isScanning || isComplete;
+    btnScanNext.style.display = isComplete ? "none" : "inline-flex";
     btnScanNext.innerHTML = isScanning
       ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...`
-      : isComplete
-      ? `<i data-lucide="check-circle-2" style="width: 13px; height: 13px;"></i> All Keys Loaded`
       : `<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Load More`;
     setupIcons();
   }
