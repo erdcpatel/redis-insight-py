@@ -97,7 +97,7 @@ export async function loadConnectedClients() {
     if (quickStats) quickStats.textContent = `${state.allConnectedClients.length} total connections`;
 
     if (searchInput) searchInput.value = "";
-    renderClientsTable(state.allConnectedClients);
+    filterAndRenderClients();
   } catch (err) {
     if (state.selectedConnectionId !== targetConnId) return;
     if (container) {
@@ -114,6 +114,27 @@ export async function loadConnectedClients() {
       if (btnRetry) btnRetry.onclick = () => loadConnectedClients();
     }
   }
+}
+
+let hideInternalClients = false;
+
+export function filterAndRenderClients() {
+  const searchInput = document.getElementById("clientsSearchInput");
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  let filtered = state.allConnectedClients || [];
+  if (hideInternalClients) {
+    filtered = filtered.filter(c => !c.is_current_app);
+  }
+  if (q) {
+    filtered = filtered.filter(c =>
+      (c.addr || "").toLowerCase().includes(q) ||
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.user || "").toLowerCase().includes(q) ||
+      (c.cmd || "").toLowerCase().includes(q) ||
+      String(c.id).includes(q)
+    );
+  }
+  renderClientsTable(filtered);
 }
 
 export function renderClientsTable(clients) {
@@ -161,7 +182,6 @@ export function renderClientsTable(clients) {
             </td>
             <td style="padding: 0.65rem 0.85rem;">
               <div class="client-ip-cell">${escapeHtml(c.addr)}</div>
-              <div class="client-sub-text">Target: ${escapeHtml(c.laddr || "localhost")}</div>
             </td>
             <td style="padding: 0.65rem 0.85rem; font-family: var(--font-mono); font-size: 0.82rem;">
               DB${c.db}
@@ -236,17 +256,23 @@ export function setupClientsEventListeners() {
   const searchInput = document.getElementById("clientsSearchInput");
   if (searchInput) {
     searchInput.addEventListener("input", () => {
-      const q = searchInput.value.trim().toLowerCase();
-      const filtered = q
-        ? state.allConnectedClients.filter(c =>
-            (c.addr || "").toLowerCase().includes(q) ||
-            (c.name || "").toLowerCase().includes(q) ||
-            (c.user || "").toLowerCase().includes(q) ||
-            (c.cmd || "").toLowerCase().includes(q) ||
-            String(c.id).includes(q)
-          )
-        : state.allConnectedClients;
-      renderClientsTable(filtered);
+      filterAndRenderClients();
+    });
+  }
+
+  const btnHideInternal = document.getElementById("btnToggleHideInternalClients");
+  if (btnHideInternal) {
+    btnHideInternal.addEventListener("click", () => {
+      hideInternalClients = !hideInternalClients;
+      btnHideInternal.classList.toggle("active", hideInternalClients);
+      if (hideInternalClients) {
+        btnHideInternal.style.borderColor = "var(--accent-primary)";
+        btnHideInternal.style.color = "var(--accent-primary)";
+      } else {
+        btnHideInternal.style.borderColor = "";
+        btnHideInternal.style.color = "";
+      }
+      filterAndRenderClients();
     });
   }
 }

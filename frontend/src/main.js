@@ -731,7 +731,10 @@ function renderAppShell() {
               </div>
 
               <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="topologyTableContainer">
-                <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching cluster nodes...</div>
+                <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
+                  <i data-lucide="network" style="width: 28px; height: 28px; opacity: 0.35; margin-bottom: 0.5rem;"></i>
+                  <div>Click <strong>Load Cluster Topology</strong> or refresh to inspect nodes</div>
+                </div>
               </div>
             </div>
           </div>
@@ -756,10 +759,16 @@ function renderAppShell() {
                 </div>
               </div>
 
-              <div style="padding: 0.85rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                <div class="search-group" style="flex: 1; max-width: 450px;">
-                  <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
-                  <input type="text" id="clientsSearchInput" class="search-input" placeholder="Search by IP, port, client name, user, or cmd..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+              <div style="padding: 0.85rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 280px; max-width: 600px;">
+                  <div class="search-group" style="flex: 1;">
+                    <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+                    <input type="text" id="clientsSearchInput" class="search-input" placeholder="Search by IP, port, client name, user, or cmd..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnToggleHideInternalClients" style="font-size: 0.72rem; padding: 0.35rem 0.65rem; white-space: nowrap;" title="Filter out background and internal connections initiated by this tool">
+                    <i data-lucide="eye-off" style="width: 12px; height: 12px;"></i>
+                    <span>Hide Internal (This App)</span>
+                  </button>
                 </div>
                 <div id="clientsQuickStats" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
                   Loading...

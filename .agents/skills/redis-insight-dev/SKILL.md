@@ -148,10 +148,11 @@ When grouping keys in the Virtual Folder tree:
 
 ## 4. UI/UX Architecture & In-Pane Identity
 
-1. **In-Pane Cluster Context Bars**:
-   - Every workspace pane must show the target cluster name, host:port, environment badge (`[LOCAL]`, `[DEV]`, `[UAT]`, `[PROD]`), mode (`CLUSTER` vs `STANDALONE`), and read-only status in its header subtitle (`.modal-subtitle`).
-   - The Keys Browser displays `#keysTargetCapsule` right alongside View Mode and Safe SCAN controls.
-   - Centralized function `updateAllPaneClusterContexts(targetConn)` must be invoked on status poll and cluster switch.
+1. **Global Context Single Source of Truth & Zero Redundancy**:
+   - Active cluster metadata (cluster name, host:port, DB, environment badge, topology status) is retained **solely in the Global Top Header Bar** (`#topConnContainer`) and Left Sidebar.
+   - Sub-headers, subtitle badge clusters, and inner target capsules are stripped from workspace tab panes to reclaim vertical screen space and prevent state drift.
+   - Global vitals capsule in the top-right navbar serves as the single authoritative source for telemetry; navigation tabs and section H1 headers do not duplicate count badges.
+   - Key inspection uses an ergonomic right **Slide-Over Drawer** (`#keyDetailModal`), leaving the keys table visible and interactive.
 2. **Redis Stream Inspector Standards**:
    - Parse millisecond timestamps from Stream IDs (`<timestamp>-<seq>`), rendering full date/time and relative time tags (`1S AGO`).
    - Provide an instant client-side search/filter (`#streamFilterInput`) matching IDs, field names, and values with live count badges.
