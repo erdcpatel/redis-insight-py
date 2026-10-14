@@ -452,9 +452,13 @@ function renderTableRowHtml(r) {
          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
        </button>`;
 
-  const ttlHtml = r.ttl_seconds === -1
-    ? `<span class="badge-persistent" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">∞ No TTL</span>`
-    : `<span class="badge-expiring" style="color: var(--accent-warning); font-size: 0.78rem;">⏳ ${escapeHtml(r.status)}</span>`;
+  const ttlExpirationHtml = r.ttl_seconds === -1
+    ? `<span class="badge-persistent" style="background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.72rem; font-weight: 500; display: inline-flex; align-items: center; gap: 4px;">
+         <span style="font-size: 0.82rem;">∞</span> Persistent
+       </span>`
+    : `<span class="badge-expiring" style="background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+         <span>⏳</span> ${r.ttl_seconds}s
+       </span>`;
 
   return `
     <tr class="key-row" data-key="${encodedKey}" style="border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer; height: ${VIRTUAL_ROW_HEIGHT}px;">
@@ -464,11 +468,8 @@ function renderTableRowHtml(r) {
       <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase;">
         <span class="badge-db">${escapeHtml(r.type)}</span>
       </td>
-      <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary);">
-        ${r.ttl_seconds === -1 ? '<span style="color: var(--text-muted);">None</span>' : `${r.ttl_seconds}s`}
-      </td>
       <td style="padding: 0.65rem 1rem; font-size: 0.8rem;">
-        ${ttlHtml}
+        ${ttlExpirationHtml}
       </td>
       <td style="padding: 0.65rem 1rem; text-align: right;" onclick="event.stopPropagation()">
         ${actionHtml}
@@ -537,8 +538,7 @@ export function renderKeysFlatTable() {
             <tr>
               <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
               <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL (SEC)</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">STATUS</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
               <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
             </tr>
           </thead>
@@ -563,8 +563,7 @@ export function renderKeysFlatTable() {
               <tr>
                 <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
                 <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
-                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL (SEC)</th>
-                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">STATUS</th>
+                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
                 <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
               </tr>
             </thead>
@@ -675,10 +674,9 @@ export function renderKeysTreeView() {
           </span>
           <span class="badge-db" style="margin-left: 0.35rem; font-size: 0.68rem; text-transform: uppercase;">${escapeHtml(r.type)}</span>
           ${r.ttl_seconds === -1
-            ? `<span class="badge-persistent" style="margin-left: 0.35rem; font-size: 0.65rem; padding: 0.08rem 0.35rem; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600;">∞ No TTL</span>`
-            : `<span class="tree-key-ttl" title="Expires in ${r.ttl_seconds}s">⏳ ${r.ttl_seconds}s</span>`
+            ? `<span class="badge-persistent" style="margin-left: 0.35rem; font-size: 0.65rem; padding: 0.08rem 0.35rem; border-radius: 4px; background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); font-weight: 500;">∞ Persistent</span>`
+            : `<span class="tree-key-ttl" style="margin-left: 0.35rem; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 4px; padding: 0.08rem 0.35rem; font-size: 0.65rem; font-weight: 600;" title="Expires in ${r.ttl_seconds}s">⏳ ${r.ttl_seconds}s</span>`
           }
-          <span class="tree-key-status" style="color: ${r.ttl_seconds === -1 ? 'var(--text-muted)' : 'var(--accent-warning)'};">${escapeHtml(r.status)}</span>
           <div class="tree-key-actions" onclick="event.stopPropagation()">
             ${state.lastStatus?.read_only ? `
               <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
@@ -1063,7 +1061,7 @@ export function updateScanUI() {
     statusText.innerHTML = `
       ${isScanning ? '<span style="color: var(--accent-primary); display: inline-flex; align-items: center; gap: 5px; margin-right: 6px;"><span class="spin" style="display: inline-block;">↻</span> Scanning chunk...</span>' : ''}
       Loaded <strong>${state.totalScanned.toLocaleString()}</strong> keys
-      ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>`}
+      ${isComplete ? '<span style="color: var(--text-muted); margin-left: 6px; font-weight: 400;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>`}
       | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(state.dbTotalKeys || 0).toLocaleString()}</strong>
     `;
   }
