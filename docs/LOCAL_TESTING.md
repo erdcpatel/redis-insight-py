@@ -10,9 +10,9 @@ The repository has three testing layers:
 
 | Layer | Runner | Command | Description |
 |---|---|---|---|
-| **1. Unit & Component Tests** | `pytest` | `PYTHONPATH=. pytest tests/` | Fast unit tests with mocked Redis clients covering all endpoints, crypto, models, and edge cases. |
+| **1. Unit & Component Tests** | `pytest` | `PYTHONPATH=. pytest tests/` | Fast unit tests with mocked Redis clients covering all endpoints, crypto, models, stream inspection, and cluster lifecycle (105+ tests). |
 | **2. Live Integration Tests** | `pytest` | `PYTHONPATH=. pytest tests/test_live_local.py` | Real end-to-end API tests against running standalone (port 6379) and 6-node Redis cluster (ports 7000–7005). |
-| **3. Browser E2E UI Tests** | `Playwright` | `./scripts/run_e2e_tests.sh` | Headless browser testing verifying UI rendering, top vitals capsule ("6 Nodes" vs "1 Node"), Topology modal, diagnostics modals, and live interactions. |
+| **3. Browser E2E UI Tests** | `Playwright` | `cd frontend && npx playwright test` | Headless browser testing verifying UI rendering, cluster switching lifecycle, in-pane context subtitles, stream inspector, topology modal, diagnostic studios, and live interactions (13+ tests). |
 
 ---
 
@@ -110,13 +110,16 @@ npm --prefix frontend run test:e2e
 ```
 
 The E2E tests automatically spin up the server if not already running, launch Chromium, and assert:
-1. Page layout and navbar load properly.
+1. Page layout, sidebar connections, and top vitals bar load properly.
 2. 6-Node Cluster connection displays **"6 Nodes"** on the top vitals bar.
 3. Clicking **"6 Nodes"** opens the Cluster Topology modal and renders all 6 nodes in the table.
 4. Standalone connection displays **"1 Node"** on the top vitals bar.
-5. Connected Clients and Memory Analysis modals open and close cleanly.
-6. Batch size selection supports up to 10,000 keys and Auto-refresh offers 5m interval.
-7. Read-Only Mode displays `[🔒 READ ONLY]` badge and disables/locks bulk delete and mutating controls.
+5. Cluster switching updates `#keysTargetCapsule` and all workspace pane subtitles (`#memoryTargetSubtitle`, `#slowlogTargetSubtitle`, etc.) immediately.
+6. Diagnostic tabs (Memory, Benchmark, Slowlog, Clients, Topology) enforce the **Zero Auto-Command Firing** invariant, rendering an explicit prompt card rather than firing background Redis queries.
+7. Stream Key Inspector displays parsed timestamps, relative duration badges (`1S AGO`), real-time search filtering, and one-click copy buttons.
+8. Connected Clients and Memory Analysis modals open, prompt, and profile cleanly.
+9. Batch size selection supports up to 10,000 keys and Auto-refresh offers 5m interval.
+10. Read-Only Mode displays `[🔒 READ ONLY]` badge and disables/locks bulk delete and mutating controls.
 
 ---
 
@@ -203,4 +206,17 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] **Level 2 (Commands)**: Switch to **Core Command Suite** tab &rarr; click **Start Benchmark** &rarr; verifies throughput ops/s, avg latency, P99, and auto-cleaned ephemeral keys count.
    - [ ] **Level 3 (Lua Profiler)**: Switch to **Lua Script Profiler** tab &rarr; test preloaded sample script &rarr; click **Execute & Profile** &rarr; verifies return value and non-blocking / atomicity warning banner.
    - [ ] **Level 4 (Cluster Matrix)**: Switch to **Cluster Matrix** tab &rarr; click **Evaluate Cluster Latency Matrix** &rarr; verifies side-by-side node latency, P99, and health status across all cluster primaries.
+
+9. **Cluster Switch Lifecycle & Zero Auto-Command Firing**:
+   - [ ] Switch from Standalone to 6-Node Cluster in sidebar &rarr; verify `#keysTargetCapsule` immediately updates to display `6 Nodes`.
+   - [ ] Switch to Memory Studio &rarr; verify previous metrics are cleared and a zero-fetch prompt card (`Start Profiling`) is displayed with cluster name and endpoint.
+   - [ ] Click `Start Profiling` &rarr; verify memory scan begins and can be cancelled without errors.
+   - [ ] Switch to Slowlog & Clients tabs &rarr; verify prompt cards appear without auto-firing commands until explicitly clicked.
+
+10. **Redis Stream Key Inspector**:
+   - [ ] Inspect a stream key (e.g. `test:stream:events`) &rarr; verify stream entries display:
+     - Parsed local ISO timestamp and high-contrast relative duration badge (`1S AGO`).
+     - Distinct pill chips for field-value pairs (`.stream-entry-pill`).
+     - Live search filter input (`#streamFilterInput`) filters entries by ID or field content in real time with counter.
+     - 1-click `Copy ID` and `Copy JSON` buttons animate with checkmark feedback.
 

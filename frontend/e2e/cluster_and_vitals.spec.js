@@ -478,6 +478,11 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     const clientsModal = page.locator('#clientsListModal');
     await expect(clientsModal).toHaveClass(/active/);
 
+    const btnFetch = page.locator('#btnFetchClientsExplicit');
+    if (await btnFetch.isVisible()) {
+      await btnFetch.click();
+    }
+
     const clientRows = page.locator('#clientsTableContainer table tbody tr');
     await expect(clientRows.first()).toBeVisible({ timeout: 10000 });
 

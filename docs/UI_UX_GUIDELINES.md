@@ -135,6 +135,52 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
 5. **Read-Only / PROD Lockout**:
    - In Read-Only mode or PROD environments, write benchmarks (`SET`, `HSET`) must be automatically locked out.
 
+### E. In-Pane Context Identification Standards
+
+1. **Eliminate Cross-Cluster Ambiguity**:
+   - In multi-cluster setups, switching clusters must immediately update the visual identity of every open or switchable view.
+   - Every workspace pane must render an in-pane context badge:
+     - **Keys Browser Action Bar**: `#keysTargetCapsule` rendered alongside View Mode and Safe SCAN controls, displaying target connection name and host/node badge.
+     - **Modal & Workspace Pane Subtitles**: `#memoryTargetSubtitle`, `#slowlogTargetSubtitle`, `#topologyTargetSubtitle`, `#clientsTargetSubtitle` inside `.modal-header`.
+2. **Context Subtitle Markup Pattern**:
+   ```html
+   <p class="modal-subtitle" id="memoryTargetSubtitle">
+     Target: <span class="context-conn-name">Billing Cluster</span>
+     <span class="context-conn-endpoint">127.0.0.1:7000 (6 Nodes)</span>
+     <span class="badge badge-env-dev">DEV</span>
+     <span class="badge badge-topology-cluster">CLUSTER</span>
+   </p>
+   ```
+3. **Centralized Update Hook**:
+   - All subtitles are driven by `updateAllPaneClusterContexts(targetConn)` in `frontend/src/modules/connections.js`.
+   - Always invoke this function on initial connection load, periodic status refresh, and whenever `notifyClusterSwitched` fires.
+
+### F. Redis Stream Inspector Standards
+
+1. **Human-Readable Timestamp Parsing**:
+   - Stream entry IDs follow the standard Redis format `<timestamp_ms>-<seq>` (e.g. `1760414000000-0`).
+   - Extract the millisecond timestamp, format it to local ISO date/time, and append a high-contrast relative duration badge (`1S AGO`, `5M AGO`, `2D AGO`).
+2. **Interactive Live Search Filter**:
+   - Provide an instant client-side search input (`#streamFilterInput`) inside `.stream-meta-bar`.
+   - Filter stream entries across Entry IDs, field names, and field values in real-time.
+   - Render a live count counter: `Showing X of Y entries`.
+3. **High-Contrast Field-Value Badges & Clipboard Feedback**:
+   - Group field-value pairs into compact chips (`.stream-entry-pill`).
+   - Include 1-click **Copy ID** and **Copy JSON** buttons for each entry.
+   - On copy, animate the icon to a green checkmark (`Check`) with visual feedback (`Copied!`), restoring original state after 1.5 seconds.
+
+### G. Zero Auto-Command Firing & Explicit Prompt Standards
+
+1. **Zero Auto-Command Invariant on Cluster Switch**:
+   - When switching clusters, **ONLY** the landing screen (Keys Browser) automatically queries Redis.
+   - Diagnostic studios (**Memory Studio**, **Benchmark Studio**, **Slowlog Profiler**, **Connected Clients**, **Cluster Topology**) **MUST NEVER** automatically fire Redis commands in the background.
+2. **Explicit User-Initiated Analysis Card**:
+   - When switching to a new cluster while a diagnostic tab is open, reset previous metrics and render an informative zero-fetch prompt card (`.memory-prompt-card` or equivalent).
+   - Display the new cluster's name, host:port endpoint, node count, and an explicit action button (e.g., `Start Profiling`, `Load Slowlog`, `Inspect Clients`).
+3. **In-Flight Cancellation via AbortController**:
+   - Any long-running fetch operation (e.g. keyspace scan or memory analysis) must track an `AbortController`.
+   - On cluster switch, immediately call `abortController.abort()` to cancel the in-flight network request and prevent race conditions or stale metrics from contaminating the newly selected cluster.
+
 ---
 
 ## 5. Read-Only Mode & Safety Guardrails
@@ -162,4 +208,9 @@ Before opening any Pull Request:
 2. [ ] **Control Sizing**: Verify no dropdown or input is excessively wide or misaligned.
 3. [ ] **Visual Feedback**: Verify hover states, active pulsing dots, and tooltip text work as expected.
 4. [ ] **Read-Only Mode Test**: Connect to a PROD or read-only connection and confirm `[🔒 READ ONLY]` badge appears, bulk delete is disabled, and mutation controls are hidden/locked.
-5. [ ] **Automated E2E Suite**: Run `./scripts/run_e2e_tests.sh` to ensure Playwright browser tests pass.
+5. [ ] **Cluster Switch In-Pane Context**: Switch between clusters and verify `#keysTargetCapsule` and all modal subtitles update to the active connection name and endpoint.
+6. [ ] **Zero Auto-Command Invariant**: Switch clusters while viewing Memory, Slowlog, Clients, or Benchmark tabs; verify NO automatic Redis commands execute and the explicit prompt card is displayed.
+7. [ ] **Stream Inspector**: Inspect a Redis Stream key; verify timestamp formatting, relative duration tag (`1S AGO`), live search filter, and copy buttons work with visual feedback.
+8. [ ] **Automated E2E Suite**: Run `npx playwright test` in `frontend/` (13+ tests pass).
+9. [ ] **Backend Test Suite**: Run `pytest tests/` (105+ tests pass).
+

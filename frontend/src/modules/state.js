@@ -54,7 +54,13 @@ export const state = {
   currentMemoryOverview: null,
   currentMemoryAnalysis: null,
   isMemoryProfilingRunning: false,
+  memoryLoadedForConnId: null,
   bigkeysSearchQuery: "",
+
+  // Diagnostic Screen Isolation Trackers
+  slowlogLoadedForConnId: null,
+  clientsLoadedForConnId: null,
+  topologyLoadedForConnId: null,
 
   // Keys Scanning
   currentCursor: 0,
@@ -88,7 +94,12 @@ export const state = {
   pendingDeleteCallback: null,
 
   // Connections & Topology
-  selectedConnectionId: localStorage.getItem("redis_insight_selected_conn_id") || null,
+  selectedConnectionId: (() => {
+    const raw = localStorage.getItem("redis_insight_selected_conn_id");
+    if (!raw) return null;
+    const num = Number(raw);
+    return !isNaN(num) && String(num) === raw.trim() ? num : raw;
+  })(),
   cachedConnections: [],
   currentEnvFilter: "ALL",
   currentConnSearch: "",

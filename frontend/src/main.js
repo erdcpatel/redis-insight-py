@@ -3,21 +3,26 @@ import { setupIcons } from "./modules/icons.js";
 import { initWorkspaceTabs, switchWorkspaceTab, registerTabLoader } from "./modules/tabs.js";
 import {
   refreshBenchmarkUI,
+  resetBenchmarkState,
   setupBenchmarkEventListeners
 } from "./modules/benchmark.js";
 import {
   openMemoryModal,
   loadMemoryOverview,
+  resetMemoryState,
   setupMemoryEventListeners,
   registerMemoryKeyHandlers
 } from "./modules/memory.js";
 import {
+  openSlowlogModal,
   loadSlowlog,
+  resetSlowlogState,
   setupSlowlogEventListeners
 } from "./modules/slowlog.js";
 import {
   openTopologyModal,
   loadTopologyData,
+  resetTopologyState,
   openKeyspaceModal,
   updateBulkDeleteToolbarVisibility,
   setupTopologyEventListeners,
@@ -26,6 +31,7 @@ import {
 import {
   openClientsModal,
   loadConnectedClients,
+  resetClientsState,
   setupClientsEventListeners,
   registerClientsRefresh
 } from "./modules/clients.js";
@@ -35,7 +41,9 @@ import {
   connectCluster,
   disconnectCluster,
   setupConnectionsEventListeners,
-  registerConnectionsCallbacks
+  registerConnectionsCallbacks,
+  registerClusterSwitchedCallback,
+  updateAllPaneClusterContexts
 } from "./modules/connections.js";
 import {
   openKeyDetail,
@@ -93,12 +101,21 @@ registerMemoryKeyHandlers(openKeyDetail, triggerDeleteConfirmation, refreshStatu
 registerClientsRefresh(refreshStatus);
 registerTopologyClusterConnect(connectCluster);
 
-// Register tab lazy loaders
+// Centralized cluster-switched lifecycle handler: resets diagnostic state without firing auto-commands
+registerClusterSwitchedCallback((conn) => {
+  resetMemoryState(conn);
+  resetBenchmarkState(conn);
+  resetSlowlogState(conn);
+  resetClientsState(conn);
+  resetTopologyState(conn);
+});
+
+// Register tab lazy loaders - tabs render clean safeguard/prompt UI until user explicitly requests data
 registerTabLoader("benchmark", () => refreshBenchmarkUI());
-registerTabLoader("memory", () => loadMemoryOverview());
-registerTabLoader("slowlog", () => loadSlowlog());
-registerTabLoader("topology", () => loadTopologyData());
-registerTabLoader("clients", () => loadConnectedClients());
+registerTabLoader("memory", () => openMemoryModal());
+registerTabLoader("slowlog", () => openSlowlogModal());
+registerTabLoader("topology", () => openTopologyModal());
+registerTabLoader("clients", () => openClientsModal());
 
 function renderAppShell() {
   const app = document.getElementById("app");
@@ -298,6 +315,11 @@ function renderAppShell() {
                     </button>
                   </div>
                   <div class="actions-divider"></div>
+                  <span class="keys-target-capsule" id="keysTargetCapsule" title="Current Active Redis Target">
+                    <i data-lucide="server" style="width: 12px; height: 12px; color: #a78bfa;"></i>
+                    <span id="keysTargetText">Connecting...</span>
+                  </span>
+                  <div class="actions-divider"></div>
                   <span class="safety-badge">
                     <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
                     <span id="scanChunkLabel">Safe SCAN (50)</span>
@@ -367,7 +389,10 @@ function renderAppShell() {
                     </button>
                   </div>
                 </div>
-                <div id="gridViewerContainer" style="width: 100%; height: 100%;"></div>
+                <div class="keys-grid-wrapper" style="width: 100%; height: 100%; position: relative;">
+                  <div class="scan-progress-shimmer" id="keysLoadingShimmer"></div>
+                  <div id="gridViewerContainer" style="width: 100%; height: 100%;"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -596,7 +621,7 @@ function renderAppShell() {
                   <i data-lucide="pie-chart" style="width: 20px; height: 20px; color: #a78bfa;"></i>
                   <div>
                     <h3 class="modal-title" style="margin: 0; line-height: 1.2;">Memory Analysis & BigKeys Profiler</h3>
-                    <p style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Real-time memory diagnostics, data type allocation, and safe key profiling.</p>
+                    <p class="modal-subtitle" id="memoryTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -626,11 +651,16 @@ function renderAppShell() {
               <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 0.65rem;">
                   <i data-lucide="activity" style="width: 20px; height: 20px; color: #38bdf8;"></i>
-                  <h3 class="modal-title">Real-Time Slowlog & Latency Profiler</h3>
-                  <span class="badge-db" id="slowlogCountBadge">0</span>
-                  <span class="badge-duration badge-duration-warning" id="slowlogThresholdBadge" style="font-size: 0.7rem; font-weight: 500;">
-                    Threshold: &gt; 10ms
-                  </span>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <h3 class="modal-title">Real-Time Slowlog & Latency Profiler</h3>
+                      <span class="badge-db" id="slowlogCountBadge">0</span>
+                      <span class="badge-duration badge-duration-warning" id="slowlogThresholdBadge" style="font-size: 0.7rem; font-weight: 500;">
+                        Threshold: &gt; 10ms
+                      </span>
+                    </div>
+                    <p class="modal-subtitle" id="slowlogTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
+                  </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
@@ -681,9 +711,14 @@ function renderAppShell() {
               <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                   <i data-lucide="layers" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
-                  <h3 class="modal-title">Cluster Topology & Nodes</h3>
-                  <span class="badge-env badge-env-dev" id="topologyEnvBadge">DEV</span>
-                  <span class="badge-db" id="topologyNodesCountBadge">0 Nodes</span>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <h3 class="modal-title">Cluster Topology & Nodes</h3>
+                      <span class="badge-env badge-env-dev" id="topologyEnvBadge">DEV</span>
+                      <span class="badge-db" id="topologyNodesCountBadge">0 Nodes</span>
+                    </div>
+                    <p class="modal-subtitle" id="topologyTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
+                  </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshTopologyModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
@@ -723,8 +758,13 @@ function renderAppShell() {
               <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                   <i data-lucide="users" style="width: 20px; height: 20px; color: var(--accent-primary);"></i>
-                  <h3 class="modal-title">Connected Clients</h3>
-                  <span class="badge-db" id="clientsCountBadge" style="margin-left: 4px;">0</span>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <h3 class="modal-title">Connected Clients</h3>
+                      <span class="badge-db" id="clientsCountBadge" style="margin-left: 4px;">0</span>
+                    </div>
+                    <p class="modal-subtitle" id="clientsTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
+                  </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshClientsModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
@@ -1219,6 +1259,7 @@ export async function refreshStatus() {
       state.lastStatus = s;
       loadDelimitersForActiveConnection(s.connection_id || activeConn?.id);
       updateBulkDeleteToolbarVisibility();
+      updateAllPaneClusterContexts(activeConn);
 
       if (connContainer) {
         const envVal = (s.env || activeConn?.env || "LOCAL").toUpperCase();

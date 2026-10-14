@@ -91,6 +91,48 @@ async def delete_key(
     ...
 ```
 
+### D. Cluster Switching Lifecycle & Zero Auto-Command Firing
+- When a user switches to another cluster:
+  - **ONLY** the landing screen (Keys Browser) automatically refreshes keys.
+  - All diagnostic tabs (**Memory Studio**, **Benchmark Studio**, **Slowlog Profiler**, **Connected Clients**, **Cluster Topology**) **MUST NEVER** automatically fire background Redis queries or scans.
+  - Every diagnostic module must export a `reset<Feature>State(conn)` and a `render<Feature>ClusterPrompt(conn)` function registered with `registerClusterSwitchedCallback`.
+  - When invoked, reset any active in-flight requests, clear cached tables/metrics, and render an explicit prompt card displaying the newly active cluster's identity.
+  - To prevent Frankenstein views caused by network race conditions, every async response handler must verify:
+    ```javascript
+    if (state.selectedConnectionId !== targetConnId) {
+      console.warn("Discarding response for switched cluster:", targetConnId);
+      return;
+    }
+    ```
+
+### E. In-Flight Scan Cancellation via AbortController
+- Keyspace analysis and memory profiling operations can take several seconds across large clusters.
+- Always initialize an `AbortController` before triggering network requests:
+  ```javascript
+  if (activeMemoryAnalysisAbortController) {
+    try { activeMemoryAnalysisAbortController.abort(); } catch (_) {}
+  }
+  activeMemoryAnalysisAbortController = new AbortController();
+  const currentSignal = activeMemoryAnalysisAbortController.signal;
+  ```
+- Pass `signal: currentSignal` in `fetch(url, { signal })`.
+- Catch `AbortError` explicitly and restore safe state without displaying error modals:
+  ```javascript
+  if (err.name === "AbortError") {
+    renderMemoryProfilingSafeguardUI({ notice: "Memory scan was cancelled." });
+    return;
+  }
+  ```
+
+### F. Stateless Multi-User Connection Scoping
+- In multi-user container environments, Redis connections are routed statelessly:
+  - Backend uses FastAPI dependency `get_target_conn_id`:
+    1. Inspects `X-Connection-ID` header.
+    2. Inspects `conn_id` query parameter.
+    3. Falls back to SQLite active connection.
+  - The frontend `window.fetch` interceptor automatically attaches `X-Connection-ID: <activeId>` on all outgoing calls.
+  - Client instance pools are cached up to `REDIS_MAX_CONNECTIONS` (default 10) in `redis_manager.py`.
+
 ---
 
 ## 3. Delimiter & Key Tokenization Rules
@@ -102,7 +144,37 @@ When grouping keys in the Virtual Folder tree:
 
 ---
 
-## 4. Local Testing & Verification Runbook
+## 4. UI/UX Architecture & In-Pane Identity
+
+1. **In-Pane Cluster Context Bars**:
+   - Every workspace pane must show the target cluster name, host:port, environment badge (`[LOCAL]`, `[DEV]`, `[UAT]`, `[PROD]`), mode (`CLUSTER` vs `STANDALONE`), and read-only status in its header subtitle (`.modal-subtitle`).
+   - The Keys Browser displays `#keysTargetCapsule` right alongside View Mode and Safe SCAN controls.
+   - Centralized function `updateAllPaneClusterContexts(targetConn)` must be invoked on status poll and cluster switch.
+2. **Redis Stream Inspector Standards**:
+   - Parse millisecond timestamps from Stream IDs (`<timestamp>-<seq>`), rendering full date/time and relative time tags (`1S AGO`).
+   - Provide an instant client-side search/filter (`#streamFilterInput`) matching IDs, field names, and values with live count badges.
+   - Provide one-click copy buttons for Entry ID and full Entry JSON with visual checkmark feedback.
+3. **Number & Memory Formatting**:
+   - Format numbers using `.toLocaleString()` (e.g., `1,000`, `25,400`).
+   - Format byte memory with standard binary units (`B`, `KB`, `MB`, `GB`) to 2 decimal places.
+
+---
+
+## 5. Configuration, Flags & Environment Variables
+
+| Variable / Flag | Default | Description |
+| :--- | :--- | :--- |
+| `APP_READONLY` | `false` | Global read-only enforcement across all connections. |
+| `REDIS_ENCRYPTION_KEY` | *(Auto-generated)* | Fernet AES-128 key for password encryption. Stored locally in `.secret.key`. |
+| `REDIS_CONNECTIONS_FILE` | `config/connections.yaml` | Path to declarative YAML connections file. Synced to SQLite on startup. |
+| `REDIS_MAX_CONNECTIONS` | `10` | Maximum concurrent active Redis client pools maintained in multi-user containers. |
+| `PORT` / `APP_PORT` / `UVICORN_PORT` | `8001` | HTTP server listening port. |
+| `HOST` / `APP_HOST` / `UVICORN_HOST` | `0.0.0.0` | HTTP server bind host. |
+| `environment: "PROD"` | — | Connections marked `PROD` automatically default to `read_only: true` unless explicitly overridden. |
+
+---
+
+## 6. Local Testing & Verification Runbook
 
 ### Environment Setup
 - Python 3.13 venv path: `/Users/dhavalpatel/workspace/venv/py313/bin/python`
@@ -121,22 +193,43 @@ npm run build
 cd /Users/dhavalpatel/workspace/redis-insight-py
 PYTHONPATH=. /Users/dhavalpatel/workspace/venv/py313/bin/pytest tests/
 ```
-Expected: 100+ tests pass.
+Expected: 105+ tests pass (1 skipped for macOS AirPlay port 7000).
 
 ### Run Playwright Browser E2E Tests
 ```bash
 cd /Users/dhavalpatel/workspace/redis-insight-py/frontend
 npx playwright test
 ```
-Expected: 9 tests pass.
+Expected: 13+ tests pass (1 skipped for macOS AirPlay port 7000).
 
 ---
 
-## 5. Adding New Analytical Workspace Tabs
+## 7. Adding New Analytical Workspace Tabs
 
 To add a new analytical diagnostic surface:
-1. In `frontend/src/main.js`, add a tab navigation button in `#wsTabBar` with class `.ws-tab-btn` and `data-tab="<tabName>"`.
-2. Add a corresponding tab pane element with class `.ws-tab-pane` and ID `#paneWorkspace<TabName>` inside `#wsTabPanesContainer`.
-3. In `frontend/src/modules/<feature>.js`, export an activation function called when the tab is switched to.
-4. Ensure switching between tabs pauses background timers for other tabs and resumes when switched back.
-5. In `frontend/e2e/`, add Playwright test asserting tab switching and rendering.
+1. In `frontend/src/main.js`, add a tab navigation button in `#workspaceTabsBar` with class `.ws-tab-btn` and `data-tab="<tabName>"`.
+2. Add a corresponding tab pane element with class `.ws-tab-pane ws-dashboard-pane modal-backdrop` and ID `#<feature>Modal` inside `.workspace-container`.
+3. In `frontend/src/modules/<feature>.js`, export:
+   - `open<Feature>Modal()`: activates the tab and checks if data needs to be loaded.
+   - `reset<Feature>State(conn)`: resets state on cluster switch and displays prompt card.
+   - `render<Feature>ClusterPrompt(conn)`: displays zero-fetch prompt card with target cluster name, host:port, and explicit query button.
+4. Wire `reset<Feature>State` into `registerClusterSwitchedCallback` in `main.js`.
+5. Ensure `updateAllPaneClusterContexts` sets `#<feature>TargetSubtitle` with active cluster badges.
+6. In `frontend/e2e/`, add Playwright E2E assertions for tab switching, prompt display, and explicit query execution.
+
+---
+
+## 8. Git Workflow & PR-Only Invariants
+
+1. **Zero Direct Pushes to `main`**:
+   - `main` is protected on GitHub (`enforce_admins: true`, PR required, deletions and force pushes disabled).
+   - Direct `git push origin main` will fail.
+2. **Branching & PR Process**:
+   - Create a feature branch: `git checkout -b <branch-name>`.
+   - Complete verification:
+     - `cd frontend && npm run build`
+     - `PYTHONPATH=. pytest tests/`
+     - `cd frontend && npx playwright test`
+   - Push feature branch: `git push -u origin <branch-name>`.
+   - Open a Pull Request: `gh pr create --title "..." --body "..."`.
+

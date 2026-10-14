@@ -437,6 +437,46 @@ export function getFilteredKeysRows() {
   return state.keysTableRows;
 }
 
+const VIRTUAL_ROW_HEIGHT = 44;
+const VIRTUAL_BUFFER = 20;
+
+function renderTableRowHtml(r) {
+  const encodedKey = encodeURIComponent(r.key);
+  const isReadOnly = Boolean(state.lastStatus?.read_only);
+
+  const actionHtml = isReadOnly
+    ? `<span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
+         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+       </span>`
+    : `<button type="button" class="btn-icon danger btn-delete-key-table" data-key="${encodedKey}" title="Delete key">
+         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+       </button>`;
+
+  const ttlHtml = r.ttl_seconds === -1
+    ? `<span class="badge-persistent" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">∞ No TTL</span>`
+    : `<span class="badge-expiring" style="color: var(--accent-warning); font-size: 0.78rem;">⏳ ${escapeHtml(r.status)}</span>`;
+
+  return `
+    <tr class="key-row" data-key="${encodedKey}" style="border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer; height: ${VIRTUAL_ROW_HEIGHT}px;">
+      <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px;">
+        <span class="btn-inspect-key" data-key="${encodedKey}" title="${escapeHtml(r.key)}">${escapeHtml(r.key)}</span>
+      </td>
+      <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase;">
+        <span class="badge-db">${escapeHtml(r.type)}</span>
+      </td>
+      <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary);">
+        ${r.ttl_seconds === -1 ? '<span style="color: var(--text-muted);">None</span>' : `${r.ttl_seconds}s`}
+      </td>
+      <td style="padding: 0.65rem 1rem; font-size: 0.8rem;">
+        ${ttlHtml}
+      </td>
+      <td style="padding: 0.65rem 1rem; text-align: right;" onclick="event.stopPropagation()">
+        ${actionHtml}
+      </td>
+    </tr>
+  `;
+}
+
 export function renderKeysFlatTable() {
   const container = document.getElementById("gridViewerContainer");
   if (!container) return;
@@ -444,6 +484,17 @@ export function renderKeysFlatTable() {
   const rowsToDisplay = getFilteredKeysRows();
 
   if (rowsToDisplay.length === 0) {
+    if (state.isScanning && state.keysTableRows.length === 0) {
+      container.innerHTML = `
+        <div class="table-loading-card">
+          <div class="spinner-ring"></div>
+          <div style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">Scanning Keyspace...</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">Fetching keys matching "<code>${escapeHtml(state.currentPattern)}</code>" from Redis</div>
+        </div>
+      `;
+      return;
+    }
+
     if (state.keysTableRows.length > 0) {
       container.innerHTML = `
         <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
@@ -474,73 +525,82 @@ export function renderKeysFlatTable() {
     `;
     return;
   }
-  container.innerHTML = `
-    <div style="overflow-y: auto; height: 100%; width: 100%; padding: 0.5rem;">
-      <table class="data-table" style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL (SEC)</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">STATUS</th>
-            <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsToDisplay.map(r => `
-            <tr class="key-row" data-key="${encodeURIComponent(r.key)}" style="border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;">
-              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-primary); font-weight: 500;">
-                <span class="btn-inspect-key" data-key="${encodeURIComponent(r.key)}">${escapeHtml(r.key)}</span>
-              </td>
-              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase;">
-                <span class="badge-db">${r.type}</span>
-              </td>
-              <td style="padding: 0.65rem 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary);">
-                ${r.ttl_seconds === -1 ? '<span style="color: var(--text-muted);">None</span>' : `${r.ttl_seconds}s`}
-              </td>
-              <td style="padding: 0.65rem 1rem; font-size: 0.8rem;">
-                ${r.ttl_seconds === -1
-                  ? `<span class="badge-persistent" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">∞ No TTL</span>`
-                  : `<span class="badge-expiring" style="color: var(--accent-warning); font-size: 0.78rem;">⏳ ${r.status}</span>`
-                }
-              </td>
-              <td style="padding: 0.65rem 1rem; text-align: right;" onclick="event.stopPropagation()">
-                ${state.lastStatus?.read_only ? `
-                  <span title="Read-Only Mode: Deletion locked" style="color: var(--text-muted); opacity: 0.45; display: inline-flex; align-items: center; padding: 4px;">
-                    <i data-lucide="lock" style="width: 13px; height: 13px;"></i>
-                  </span>
-                ` : `
-                  <button type="button" class="btn-icon danger btn-delete-key-table" data-key="${encodeURIComponent(r.key)}" title="Delete key">
-                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                  </button>
-                `}
-              </td>
+
+  const totalRows = rowsToDisplay.length;
+  const isVirtual = totalRows > 100;
+
+  if (!isVirtual) {
+    container.innerHTML = `
+      <div style="overflow-y: auto; height: 100%; width: 100%; padding: 0.5rem;" id="keysTableViewport">
+        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL (SEC)</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">STATUS</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
             </tr>
-          `).join("")}
-        </tbody>
-      </table>
+          </thead>
+          <tbody id="keysTableBody">
+            ${rowsToDisplay.map(renderTableRowHtml).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+    return;
+  }
+
+  const totalHeight = totalRows * VIRTUAL_ROW_HEIGHT;
+  const initialEnd = Math.min(totalRows, 60);
+
+  container.innerHTML = `
+    <div class="virtual-scroll-viewport" id="keysTableViewport" style="overflow-y: auto; height: 100%; width: 100%; padding: 0.5rem; position: relative;">
+      <div class="virtual-scroll-spacer" style="height: ${totalHeight}px; width: 100%; position: relative;">
+        <div class="virtual-scroll-content" id="virtualScrollContent" style="position: absolute; top: 0px; left: 0; right: 0;">
+          <table class="data-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
+                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
+                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL (SEC)</th>
+                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">STATUS</th>
+                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="keysTableBody">
+              ${rowsToDisplay.slice(0, initialEnd).map(renderTableRowHtml).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   `;
 
+  const viewport = document.getElementById("keysTableViewport");
+  const content = document.getElementById("virtualScrollContent");
+  const tbody = document.getElementById("keysTableBody");
 
-  setupIcons();
+  let lastStart = 0;
+  let lastEnd = initialEnd;
 
-  container.querySelectorAll(".key-row").forEach(row => {
-    row.addEventListener("click", () => {
-      const k = decodeURIComponent(row.getAttribute("data-key"));
-      openKeyDetail(k);
-    });
-  });
+  if (viewport && content && tbody) {
+    viewport.addEventListener("scroll", () => {
+      const scrollTop = viewport.scrollTop;
+      const viewportHeight = viewport.clientHeight || 600;
+      const startIndex = Math.max(0, Math.floor(scrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_BUFFER);
+      const visibleCount = Math.ceil(viewportHeight / VIRTUAL_ROW_HEIGHT);
+      const endIndex = Math.min(totalRows, startIndex + visibleCount + VIRTUAL_BUFFER * 2);
 
-  container.querySelectorAll(".btn-delete-key-table").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const k = decodeURIComponent(btn.getAttribute("data-key"));
-      triggerDeleteConfirmation(k, () => {
-        resetAndScan();
-      });
-    });
-  });
+      if (startIndex !== lastStart || endIndex !== lastEnd) {
+        lastStart = startIndex;
+        lastEnd = endIndex;
+        const offsetY = startIndex * VIRTUAL_ROW_HEIGHT;
+        content.style.top = `${offsetY}px`;
+        tbody.innerHTML = rowsToDisplay.slice(startIndex, endIndex).map(renderTableRowHtml).join("");
+      }
+    }, { passive: true });
+  }
 }
 
 export function renderKeysTreeView() {
@@ -645,16 +705,18 @@ export function renderKeysTreeView() {
     const encodedId = encodeURIComponent(folder.id);
 
     let innerChildren = "";
-    for (const sub of folder.folders.values()) {
-      innerChildren += renderFolderNode(sub, depth + 1);
-    }
-    for (const k of folder.keys) {
-      if (isFiltered) {
-        if (!k.key.toLowerCase().includes(q) && !(k.leafName && k.leafName.toLowerCase().includes(q))) {
-          continue;
-        }
+    if (isExpanded) {
+      for (const sub of folder.folders.values()) {
+        innerChildren += renderFolderNode(sub, depth + 1);
       }
-      innerChildren += renderTreeKeyRow(k, depth + 1);
+      for (const k of folder.keys) {
+        if (isFiltered) {
+          if (!k.key.toLowerCase().includes(q) && !(k.leafName && k.leafName.toLowerCase().includes(q))) {
+            continue;
+          }
+        }
+        innerChildren += renderTreeKeyRow(k, depth + 1);
+      }
     }
 
     return `
@@ -752,8 +814,8 @@ export function renderKeysTreeView() {
               </div>
             </div>
           </div>
-          <div class="tree-summary-pill" id="treeSummaryPill">
-            ${totalFolders.toLocaleString()} ${totalFolders === 1 ? 'Namespace' : 'Namespaces'} &bull; ${state.keysTableRows.length.toLocaleString()} ${state.keysTableRows.length === 1 ? 'Key' : 'Keys'}
+          <div class="tree-summary-pill" id="treeSummaryPill" title="${totalFolders.toLocaleString()} total namespaces parsed">
+            ${totalFolders.toLocaleString()} ${totalFolders === 1 ? 'Namespace' : 'Namespaces'}
           </div>
         </div>
         <div class="tree-toolbar-right">
@@ -810,23 +872,6 @@ export function renderKeysTreeView() {
         state.currentPattern = prefix + "*";
         resetAndScan();
       }
-    });
-  });
-
-  container.querySelectorAll(".tree-leaf").forEach(row => {
-    row.addEventListener("click", () => {
-      const k = decodeURIComponent(row.getAttribute("data-key"));
-      openKeyDetail(k);
-    });
-  });
-
-  container.querySelectorAll(".btn-delete-key-table").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const k = decodeURIComponent(btn.getAttribute("data-key"));
-      triggerDeleteConfirmation(k, () => {
-        resetAndScan();
-      });
     });
   });
 
@@ -1005,11 +1050,18 @@ export function updateScanChunkLabel() {
 export function updateScanUI() {
   const statusText = document.getElementById("scanStatusText");
   const btnScanNext = document.getElementById("btnScanNext");
+  const shimmer = document.getElementById("keysLoadingShimmer");
 
+  const isScanning = Boolean(state.isScanning);
   const isComplete = state.scanComplete;
+
+  if (shimmer) {
+    shimmer.classList.toggle("active", isScanning);
+  }
 
   if (statusText) {
     statusText.innerHTML = `
+      ${isScanning ? '<span style="color: var(--accent-primary); display: inline-flex; align-items: center; gap: 5px; margin-right: 6px;"><span class="spin" style="display: inline-block;">↻</span> Scanning chunk...</span>' : ''}
       Loaded <strong>${state.totalScanned.toLocaleString()}</strong> keys
       ${isComplete ? '<span style="color: var(--accent-success); margin-left: 6px;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>`}
       | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(state.dbTotalKeys || 0).toLocaleString()}</strong>
@@ -1017,8 +1069,8 @@ export function updateScanUI() {
   }
 
   if (btnScanNext) {
-    btnScanNext.disabled = state.isScanning || isComplete;
-    btnScanNext.innerHTML = state.isScanning
+    btnScanNext.disabled = isScanning || isComplete;
+    btnScanNext.innerHTML = isScanning
       ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...`
       : isComplete
       ? `<i data-lucide="check-circle-2" style="width: 13px; height: 13px;"></i> All Keys Loaded`
@@ -1028,6 +1080,33 @@ export function updateScanUI() {
 }
 
 export function setupKeysEventListeners() {
+  const container = document.getElementById("gridViewerContainer");
+  if (container) {
+    container.addEventListener("click", (e) => {
+      const delBtn = e.target.closest(".btn-delete-key-table");
+      if (delBtn) {
+        e.stopPropagation();
+        const k = decodeURIComponent(delBtn.getAttribute("data-key"));
+        triggerDeleteConfirmation(k, () => {
+          resetAndScan();
+        });
+        return;
+      }
+      const inspectKey = e.target.closest(".btn-inspect-key");
+      if (inspectKey) {
+        e.stopPropagation();
+        const k = decodeURIComponent(inspectKey.getAttribute("data-key"));
+        openKeyDetail(k);
+        return;
+      }
+      const row = e.target.closest(".key-row");
+      if (row) {
+        const k = decodeURIComponent(row.getAttribute("data-key"));
+        openKeyDetail(k);
+        return;
+      }
+    });
+  }
   const searchInput = document.getElementById("keySearchInput");
   let searchDebounce = null;
   if (searchInput) {

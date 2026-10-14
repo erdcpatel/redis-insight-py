@@ -1,6 +1,7 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { saveBlobAsFile, downloadResponseAsFile } from "./inspector.js";
+import { showToast } from "./toast.js";
 
 let onResetAndScan = null;
 
@@ -10,7 +11,7 @@ export function registerActionsResetAndScan(fn) {
 
 export function triggerDeleteConfirmation(keyName, onSuccess) {
   if (state.lastStatus?.read_only) {
-    alert("Key deletion is disabled in Read-Only mode.");
+    showToast("Key deletion is disabled in Read-Only mode.", "warning");
     return;
   }
   state.pendingDeleteKey = keyName;
@@ -48,12 +49,13 @@ export function triggerDeleteConfirmation(keyName, onSuccess) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Failed to delete key");
 
+        showToast(`Key "${keyName}" deleted permanently`, "success");
         if (modal) modal.classList.remove("active");
         if (state.pendingDeleteCallback) {
           state.pendingDeleteCallback();
         }
       } catch (err) {
-        alert("Error deleting key: " + err.message);
+        showToast("Error deleting key: " + err.message, "error");
       } finally {
         btnSubmit.disabled = false;
         btnSubmit.textContent = "Delete Permanently";
@@ -141,9 +143,10 @@ export function setupActionsEventListeners() {
             }
 
             await downloadResponseAsFile(res, defaultFilename, format);
+            showToast(`Exported keys matching "${state.currentPattern || "*"}"`, "success");
             closeExport();
           } catch (err) {
-            alert(`Export failed: ${err.message}`);
+            showToast(`Export failed: ${err.message}`, "error");
           } finally {
             btnExecuteExport.disabled = false;
             btnExecuteExport.innerHTML = `<i data-lucide="download" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Download`;
@@ -159,7 +162,7 @@ export function setupActionsEventListeners() {
           : state.keysTableRows;
 
         if (rowsToExport.length === 0) {
-          alert("No keys matching filters loaded in browser to export.");
+          showToast("No keys matching filters loaded in browser to export.", "warning");
           return;
         }
 
@@ -219,7 +222,7 @@ export function setupActionsEventListeners() {
   if (btnOpenBulkDeleteModal && modalBulkDelete) {
     btnOpenBulkDeleteModal.addEventListener("click", async () => {
       if (state.lastStatus?.read_only) {
-        alert("Bulk Delete is disabled in Read-Only mode.");
+        showToast("Bulk Delete is disabled in Read-Only mode.", "warning");
         return;
       }
       const pattern = state.currentPattern || "*";
@@ -334,11 +337,11 @@ export function setupActionsEventListeners() {
           }
 
           const result = await res.json();
-          alert(`Bulk delete complete!\n${result.message} (Duration: ${result.duration_ms}ms)`);
+          showToast(`Bulk delete complete: ${result.message} (${result.duration_ms}ms)`, "success", 4000);
           closeBulkDelete();
           if (onResetAndScan) onResetAndScan();
         } catch (err) {
-          alert(`Bulk delete error: ${err.message}`);
+          showToast(`Bulk delete error: ${err.message}`, "error");
           btnConfirmBulkDelete.disabled = false;
           btnConfirmBulkDelete.innerHTML = `<i data-lucide="trash-2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i> Unlink Keys`;
           setupIcons();

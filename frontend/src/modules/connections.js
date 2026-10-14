@@ -1,16 +1,97 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { openTopologyModal } from "./topology.js";
+import { showToast } from "./toast.js";
 
 let editingConnectionId = null;
 let configuredClusterNodes = [];
 
 let onRefreshStatus = null;
 let onResetAndScan = null;
+let onClusterSwitchedCallbacks = [];
 
 export function registerConnectionsCallbacks(refreshStatusFn, resetAndScanFn) {
   onRefreshStatus = refreshStatusFn;
   onResetAndScan = resetAndScanFn;
+}
+
+export function registerClusterSwitchedCallback(cb) {
+  if (typeof cb === "function") {
+    onClusterSwitchedCallbacks.push(cb);
+  }
+}
+
+export function updateAllPaneClusterContexts(conn) {
+  const targetConn = conn || state.cachedConnections.find(c => c.id === state.selectedConnectionId || c.is_selected) || null;
+  const connName = targetConn ? targetConn.name : (state.lastStatus?.connection_name || "Active Target");
+  const connHost = targetConn ? targetConn.host : (state.lastStatus?.host || "127.0.0.1");
+  const connPort = targetConn ? targetConn.port : (state.lastStatus?.port || 6379);
+  const env = (targetConn ? (targetConn.env || "LOCAL") : (state.lastStatus?.env || "LOCAL")).toUpperCase();
+  const connType = targetConn ? (targetConn.conn_type || "standalone") : (state.lastStatus?.is_cluster ? "cluster" : "standalone");
+  const isCluster = connType === "cluster" || state.lastStatus?.is_cluster;
+  const isReadOnly = state.lastStatus?.read_only;
+
+  const html = `
+    <span>Target:</span>
+    <strong class="context-conn-name" style="color: var(--text-primary); font-weight: 600;">${escapeHtml(connName)}</strong>
+    <span class="context-conn-endpoint" style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.72rem;">(${escapeHtml(connHost)}:${connPort})</span>
+    <span class="badge-env badge-env-${env.toLowerCase()}" style="font-size: 0.65rem; padding: 0.1rem 0.35rem;">${env}</span>
+    <span class="top-conn-tag" style="font-size: 0.65rem; padding: 0.1rem 0.35rem;">${isCluster ? 'CLUSTER' : 'STANDALONE'}</span>
+    ${isReadOnly ? `<span class="badge-readonly" style="font-size: 0.65rem; padding: 0.1rem 0.35rem;"><i data-lucide="lock" style="width: 10px; height: 10px; vertical-align: middle;"></i> READ ONLY</span>` : ''}
+  `;
+
+  // 1. Benchmark Studio
+  const benchSubtitle = document.getElementById("benchmarkTargetSubtitle");
+  if (benchSubtitle) {
+    benchSubtitle.innerHTML = html + ` <span style="color: var(--text-muted); font-size: 0.7rem;">| Namespace: __ri_bench__</span>`;
+  }
+
+  // 2. Memory Studio
+  const memSubtitle = document.getElementById("memoryTargetSubtitle");
+  if (memSubtitle) {
+    memSubtitle.innerHTML = html;
+  }
+
+  // 3. Slowlog Profiler
+  const slowSubtitle = document.getElementById("slowlogTargetSubtitle");
+  if (slowSubtitle) {
+    slowSubtitle.innerHTML = html;
+  }
+
+  // 4. Cluster Topology
+  const topoSubtitle = document.getElementById("topologyTargetSubtitle");
+  if (topoSubtitle) {
+    topoSubtitle.innerHTML = html;
+  }
+
+  // 5. Connected Clients
+  const clientsSubtitle = document.getElementById("clientsTargetSubtitle");
+  if (clientsSubtitle) {
+    clientsSubtitle.innerHTML = html;
+  }
+
+  // 6. Keys Action Bar Capsule
+  const keysCapsuleText = document.getElementById("keysTargetText");
+  if (keysCapsuleText) {
+    keysCapsuleText.innerHTML = `
+      <span class="target-conn-name">${escapeHtml(connName)}</span>
+      <span class="target-endpoint">(${escapeHtml(connHost)}:${connPort})</span>
+    `;
+  }
+
+  setupIcons();
+}
+
+export function notifyClusterSwitched(connId) {
+  const targetConn = state.cachedConnections.find(c => c.id === connId) || null;
+  updateAllPaneClusterContexts(targetConn);
+  for (const cb of onClusterSwitchedCallbacks) {
+    try {
+      cb(targetConn);
+    } catch (e) {
+      console.warn("Error running cluster-switched callback:", e);
+    }
+  }
 }
 
 export async function loadConnections() {
@@ -608,7 +689,7 @@ export async function testConfigParams(conn) {
 export async function connectCluster(connId) {
   const connectedTotal = state.cachedConnections.filter(c => c.is_connected && c.id !== connId).length;
   if (connectedTotal >= state.currentLimit) {
-    alert(`Connection limit reached: Maximum ${state.currentLimit} connected cluster(s) allowed at a time.\nPlease disconnect an existing cluster first or increase the limit in the sidebar.`);
+    showToast(`Connection limit reached: Maximum ${state.currentLimit} connected cluster(s) allowed. Please disconnect an existing cluster first.`, "warning", 4500);
     return;
   }
 
@@ -621,10 +702,12 @@ export async function connectCluster(connId) {
     state.selectedConnectionId = connId;
     localStorage.setItem("redis_insight_selected_conn_id", connId);
     await loadConnections();
+    notifyClusterSwitched(connId);
+    showToast(`Connected to cluster successfully`, "success");
     if (onRefreshStatus) await onRefreshStatus();
     if (onResetAndScan) await onResetAndScan();
   } catch (err) {
-    alert("Connection error: " + err.message);
+    showToast("Connection error: " + err.message, "error");
   }
 }
 
@@ -648,6 +731,7 @@ export async function disconnectCluster(connId) {
     }
 
     await loadConnections();
+    notifyClusterSwitched(state.selectedConnectionId);
     if (onRefreshStatus) await onRefreshStatus();
 
     const stillConnected = state.cachedConnections.some(c => c.is_connected && c.id !== connId);
@@ -663,7 +747,7 @@ export async function disconnectCluster(connId) {
       if (onResetAndScan) await onResetAndScan();
     }
   } catch (err) {
-    alert("Disconnect error: " + err.message);
+    showToast("Disconnect error: " + err.message, "error");
   }
 }
 
@@ -684,10 +768,11 @@ export async function selectCluster(connId) {
     state.activeDetailData = null;
 
     await loadConnections();
+    notifyClusterSwitched(connId);
     if (onRefreshStatus) await onRefreshStatus();
     if (onResetAndScan) await onResetAndScan();
   } catch (err) {
-    alert("Switch error: " + err.message);
+    showToast("Switch error: " + err.message, "error");
   }
 }
 
@@ -715,11 +800,12 @@ export async function deleteConnection(connId) {
   try {
     const res = await fetch(`/api/connections/${connId}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete");
+    showToast("Connection deleted", "success");
     await loadConnections();
     if (onRefreshStatus) await onRefreshStatus();
     if (onResetAndScan) await onResetAndScan();
   } catch (err) {
-    alert("Delete error: " + err.message);
+    showToast("Delete error: " + err.message, "error");
   }
 }
 
@@ -1258,10 +1344,11 @@ export function setupConnectionsEventListeners() {
         configuredClusterNodes = [];
         renderConfiguredClusterNodes();
         await loadConnections();
+        showToast("Connection saved successfully", "success");
         if (onRefreshStatus) await onRefreshStatus();
         if (onResetAndScan) await onResetAndScan();
       } catch (err) {
-        alert("Error saving: " + err.message);
+        showToast("Error saving: " + err.message, "error");
       }
     });
   }
