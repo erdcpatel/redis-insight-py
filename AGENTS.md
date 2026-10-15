@@ -132,6 +132,9 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 14. **IndexedDB Local Keyspace Cache**:
     - Browser `IndexedDB` (`redis_insight_keys_cache`) stores loaded keys per connection ID and DB.
     - Automatically restores keys on page load or connection switch with status indicator (`#keysCacheStatusPill`), eliminating repeated scans across sessions while providing a 1-click cache purge option.
+15. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
+    - `.keys-actions-bar` uses `flex-wrap: wrap; gap: 0.45rem;` to ensure buttons (`Batch`, `Load More`, `Namespaces`, `Export`, `Bulk Delete`) never clip or require horizontal scrolling.
+    - Status telemetry is formatted compactly (`Loaded X / Y keys`) to preserve screen real estate.
 
 ---
 

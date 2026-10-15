@@ -287,6 +287,13 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
    - Automatically restores keys on page load or connection switch without network delay.
    - Renders a clean `#keysCacheStatusPill` with 1-click `Clear` link.
 
+5. **Responsive Keys Actions Bar & Compact Telemetry**:
+   - The keys actions bar (`.keys-actions-bar`) enforces zero horizontal clipping and zero horizontal scrolling on all desktop resolutions:
+     - `flex-wrap: wrap; gap: 0.45rem;` allows graceful wrapping onto balanced rows on narrower screens.
+     - Status telemetry uses compact notation (`Loaded X / Y keys (All)`) to conserve horizontal space.
+     - Uniform toolbar action buttons (`.btn-toolbar-action`) with standardized padding (`0.26rem 0.52rem`) keep controls aligned and compact.
+
+
 ---
 
 ## 11. Mandatory Pre-Commit & Pre-Push Checklist

@@ -340,8 +340,8 @@ function renderAppShell() {
                   </div>
                   <div class="actions-divider"></div>
                   <span class="safety-badge">
-                    <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
-                    <span id="scanChunkLabel">Safe SCAN (50)</span>
+                    <i data-lucide="shield-check" style="width: 12px; height: 12px;"></i>
+                    <span id="scanChunkLabel">Safe (50)</span>
                   </span>
                   <span id="scanStatusText" class="scan-status-text">Scanning keys...</span>
                   <span id="keysCacheStatusPill" class="cache-status-pill" style="display: none;"></span>
@@ -365,7 +365,7 @@ function renderAppShell() {
                     </select>
                   </div>
 
-                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnResetScan" title="Reload keys matching pattern immediately" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnResetScan" title="Reload keys matching pattern immediately">
                     <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
                     <span>Refresh</span>
                   </button>
@@ -376,23 +376,23 @@ function renderAppShell() {
                   <select id="scanBatchSizeSelect" class="batch-size-select" title="Keys requested per SCAN batch (applies to the next Load More)">
                     ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n.toLocaleString()}</option>`).join("")}
                   </select>
-                  <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext" style="font-size: 0.75rem; padding: 0.32rem 0.75rem;">
-                    <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
+                  <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext">
+                    <i data-lucide="arrow-down-circle" style="width: 12px; height: 12px;"></i>
                     <span>Load More</span>
                   </button>
 
                   <div class="actions-divider"></div>
 
-                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenNamespaceModal" title="Analyze namespace distribution & key hygiene on loaded keys (0 Redis calls)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenNamespaceModal" title="Analyze namespace distribution & key hygiene on loaded keys (0 Redis calls)">
                     <i data-lucide="pie-chart" style="width: 12px; height: 12px; color: #a78bfa;"></i>
                     <span>Namespaces</span>
                   </button>
 
-                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)">
                     <i data-lucide="download" style="width: 12px; height: 12px;"></i>
                     <span>Export</span>
                   </button>
-                  <button type="button" class="btn btn-secondary btn-toolbar-action btn-danger-action" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                  <button type="button" class="btn btn-secondary btn-toolbar-action btn-danger-action" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)">
                     <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     <span>Bulk Delete</span>
                   </button>

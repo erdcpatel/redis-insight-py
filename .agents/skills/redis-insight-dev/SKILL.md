@@ -244,6 +244,9 @@ To add a new analytical diagnostic surface:
    - **Keyspace Namespace & Hygiene Studio** (`#namespaceModal`) displays prefix distribution with one-click filtering, and flags key naming anti-patterns (spaces, double/trailing colons, long keys).
 9. **IndexedDB Local Keyspace Cache**:
    - Stores loaded keys in browser `IndexedDB` (`redis_insight_keys_cache`), restoring keys instantly on page load or connection switch with status indicator (`#keysCacheStatusPill`) and 1-click cache purge.
+10. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
+   - `.keys-actions-bar` uses `flex-wrap: wrap; gap: 0.45rem;` to ensure buttons (`Batch`, `Load More`, `Namespaces`, `Export`, `Bulk Delete`) never clip or require horizontal scrolling.
+   - Status telemetry is formatted compactly (`Loaded X / Y keys`) to preserve screen real estate.
 
 ---
 

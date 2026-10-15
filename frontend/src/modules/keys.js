@@ -1246,7 +1246,7 @@ export function renderKeysTable() {
 
 export function updateScanChunkLabel() {
   const label = document.getElementById("scanChunkLabel");
-  if (label) label.textContent = `Safe SCAN (Chunk ${state.scanBatchSize.toLocaleString()})`;
+  if (label) label.textContent = `Safe (${state.scanBatchSize.toLocaleString()})`;
 }
 
 export function updateSearchScopeUI() {
@@ -1351,10 +1351,9 @@ export function updateScanUI() {
 
   if (statusText) {
     statusText.innerHTML = `
-      ${isScanning ? '<span style="color: var(--accent-primary); display: inline-flex; align-items: center; gap: 5px; margin-right: 6px;"><span class="spin" style="display: inline-block;">↻</span> Scanning chunk...</span>' : ''}
-      Loaded <strong>${state.totalScanned.toLocaleString()}</strong> keys
-      ${isCeilingReached ? '<span style="color: #fbbf24; margin-left: 6px; font-weight: 500;">(Ceiling Reached)</span>' : isComplete ? '<span style="color: var(--text-muted); margin-left: 6px; font-weight: 400;">(All Keys Loaded)</span>' : describeScanProgress(state.currentCursor) ? `<span style="color: var(--text-muted); margin-left: 4px;">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>` : ""}
-      | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(state.dbTotalKeys || 0).toLocaleString()}</strong>
+      ${isScanning ? '<span style="color: var(--accent-primary); display: inline-flex; align-items: center; gap: 4px; margin-right: 4px;"><span class="spin" style="display: inline-block;">↻</span> Scanning...</span>' : ''}
+      Loaded <strong>${state.totalScanned.toLocaleString()}</strong> / <strong>${Number(state.dbTotalKeys || 0).toLocaleString()}</strong> keys
+      ${isCeilingReached ? '<span style="color: #fbbf24; margin-left: 4px; font-weight: 500;">(Ceiling)</span>' : isComplete ? '<span style="color: var(--text-muted); margin-left: 4px; font-weight: 400;">(All)</span>' : describeScanProgress(state.currentCursor) ? `<span style="color: var(--text-muted); margin-left: 4px;">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>` : ""}
     `;
   }
 
