@@ -1914,6 +1914,13 @@ body {
   font-weight: 700;
 }
 
+.slowlog-time-btn.active {
+  background: #38bdf8 !important;
+  color: #07090e !important;
+  border-color: #38bdf8 !important;
+  font-weight: 700;
+}
+
 /* Cluster Topology Modal Card */
 .topology-modal-card {
   background: var(--bg-surface);

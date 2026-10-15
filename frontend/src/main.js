@@ -706,14 +706,25 @@ function renderAppShell() {
                   <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
                   <input type="text" id="slowlogSearchInput" class="search-input" placeholder="Search by command, arguments, or client IP..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Min Latency:</span>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn active" data-min-duration="0">All</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="1">&gt; 1ms</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="5">&gt; 5ms</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="10">&gt; 10ms</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="50">&gt; 50ms</button>
-                  <div id="slowlogNodeFilterContainer" style="display: inline-flex; align-items: center; margin-left: 0.5rem;"></div>
+                <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
+                  <div style="display: inline-flex; align-items: center; gap: 0.3rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Time Window:</span>
+                    <button type="button" class="env-pill-btn slowlog-time-btn active" data-time-window="all">All</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="5m">5m</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="15m">15m</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="1h">1h</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="24h">24h</button>
+                  </div>
+                  <div class="actions-divider" style="height: 18px; margin: 0 0.15rem;"></div>
+                  <div style="display: inline-flex; align-items: center; gap: 0.3rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Min Latency:</span>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn active" data-min-duration="0">All</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="1">&gt; 1ms</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="5">&gt; 5ms</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="10">&gt; 10ms</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="50">&gt; 50ms</button>
+                  </div>
+                  <div id="slowlogNodeFilterContainer" style="display: inline-flex; align-items: center;"></div>
                 </div>
               </div>
 

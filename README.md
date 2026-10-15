@@ -144,6 +144,9 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 ### 7. Real-Time Slowlog & Latency Profiler
 - **Cluster-Wide Slowlog Aggregation**: Executes `SLOWLOG GET` across standalone instances or aggregates slow command entries from all primary cluster nodes.
 - **Microsecond Precision**: Displays execution duration in milliseconds and microseconds, timestamp, caller IP/client name, command arguments, and target node.
+- **Time Horizon Filter & Relative Time Tags**:
+  - Interactive Time Window selector (`All`, `5m`, `15m`, `1h`, `24h`) with cyan active indicator to inspect slow commands executed within the last $X$ minutes.
+  - High-contrast relative time tags (`15s ago`, `2m ago`, `1h ago`) rendered directly below the ISO timestamp for instant cognitive orientation.
 - **Visual Latency Threshold Badges**:
   - `< 10ms`: Subtle green/cyan badge.
   - `10ms - 50ms`: Amber warning badge.

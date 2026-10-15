@@ -49,7 +49,7 @@ This skill provides comprehensive instructions, code patterns, architectural ref
   - **`memory.js`**: Memory overview, BigKeys leaderboard, TTL Expiry Horizon cards & stacked progress bar, Persistent Keys Leak Audit table, and Deep Scan Safety Modal gate.
   - **`benchmark.js`**: 4-level diagnostic benchmark engine (Level 1 Probe, Level 2 Commands, Level 3 Lua Sandbox, Level 4 Cluster Matrix).
   - **`clients.js`**: Connected clients table, search filter, `[THIS APP]` badge highlighting, and client kill action.
-  - **`slowlog.js`**: Slowlog fetching across cluster shards, latency badges, argument copy, and slowlog reset.
+  - **`slowlog.js`**: Slowlog fetching across cluster shards, latency badges, time horizon filtering (`All`, `5m`, `15m`, `1h`, `24h`), relative time tags, argument copy, and slowlog reset.
   - **`topology.js`**: Cluster node discovery table, master/replica hierarchy, slot allocation, and keyspace node distribution.
   - **`actions.js`**: Export modal logic (CSV/TXT with TTL filtering), bulk delete two-stage safety gate, and key deletions.
   - **`toast.js`**: Glassmorphic non-blocking toast notifications (`showToast`), resilient `copyToClipboard` with fallback, and in-place feedback helpers.

@@ -189,6 +189,17 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
    - Any long-running fetch operation (e.g. keyspace scan or memory analysis) must track an `AbortController`.
    - On cluster switch, immediately call `abortController.abort()` to cancel the in-flight network request and prevent race conditions or stale metrics from contaminating the newly selected cluster.
 
+### H. Real-Time Slowlog & Latency Profiler Standards
+
+1. **Dual Dimension Toolbar (Time Window & Min Latency)**:
+   - Separate the filter bar into two distinct button groups divided by `.actions-divider`:
+     - **Time Window**: `All`, `5m`, `15m`, `1h`, `24h` (`.slowlog-time-btn`) with cyan active state (`#38bdf8`).
+     - **Min Latency**: `All`, `> 1ms`, `> 5ms`, `> 10ms`, `> 50ms` (`.slowlog-filter-btn`) with blue active state.
+2. **Instant In-Memory Filtering**:
+   - Filtering by Time Window or Min Latency evaluates in-memory cached entries client-side without firing additional Redis commands.
+3. **Relative Time Formatting**:
+   - Every slowlog entry displays its human-readable execution time string alongside a high-contrast relative duration badge (`15s ago`, `2m ago`, `1h ago`).
+
 ---
 
 ## 5. Read-Only Mode & Safety Guardrails

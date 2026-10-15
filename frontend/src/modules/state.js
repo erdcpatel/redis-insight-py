@@ -14,6 +14,7 @@ export const state = {
   currentSlowlogMinDuration: 0,
   currentSlowlogSearch: "",
   currentSlowlogNode: "all",
+  currentSlowlogTimeWindow: "all",
 
   // View Mode & Tree Multi-Delimiters
   currentViewMode: localStorage.getItem("redis_insight_view_mode") || "table",

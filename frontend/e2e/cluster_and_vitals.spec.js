@@ -148,6 +148,36 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     }
   });
 
+  test('Slowlog Profiler provides Time Window filters (All, 5m, 15m, 1h, 24h) and Min Latency filters', async ({ page }) => {
+    await page.goto('/');
+
+    const slowlogTab = page.locator('button[data-tab="slowlog"]');
+    await slowlogTab.click();
+    const slowlogPane = page.locator('#slowlogModal');
+    await expect(slowlogPane).toHaveClass(/active/);
+
+    // Verify Time Window buttons exist
+    const timeBtns = slowlogPane.locator('.slowlog-time-btn');
+    await expect(timeBtns).toHaveCount(5);
+    await expect(timeBtns.nth(0)).toHaveText('All');
+    await expect(timeBtns.nth(0)).toHaveClass(/active/);
+    await expect(timeBtns.nth(1)).toHaveText('5m');
+    await expect(timeBtns.nth(2)).toHaveText('15m');
+    await expect(timeBtns.nth(3)).toHaveText('1h');
+    await expect(timeBtns.nth(4)).toHaveText('24h');
+
+    // Click 5m button and verify active state switches
+    await timeBtns.nth(1).click();
+    await expect(timeBtns.nth(1)).toHaveClass(/active/);
+    await expect(timeBtns.nth(0)).not.toHaveClass(/active/);
+
+    // Verify Min Latency buttons exist
+    const latencyBtns = slowlogPane.locator('.slowlog-filter-btn');
+    await expect(latencyBtns).toHaveCount(5);
+    await expect(latencyBtns.nth(0)).toHaveText('All');
+    await expect(latencyBtns.nth(0)).toHaveClass(/active/);
+  });
+
   test('Batch size supports 10,000 keys and Auto-refresh offers 5m interval', async ({ page }) => {
     await page.goto('/');
 

@@ -3,9 +3,20 @@ import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
 import { showToast, copyToClipboard } from "./toast.js";
 
+export function formatRelativeTime(epochSec) {
+  if (!epochSec) return "";
+  const now = Math.floor(Date.now() / 1000);
+  const diff = Math.max(0, now - epochSec);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
 export function resetSlowlogState(conn) {
   state.allSlowlogEntries = [];
   state.slowlogLoadedForConnId = null;
+  state.currentSlowlogTimeWindow = "all";
 
   const countBadge = document.getElementById("slowlogCountBadge");
   const thresholdBadge = document.getElementById("slowlogThresholdBadge");
@@ -61,6 +72,7 @@ export async function openSlowlogModal() {
   state.currentSlowlogMinDuration = 0;
   state.currentSlowlogSearch = "";
   state.currentSlowlogNode = "all";
+  state.currentSlowlogTimeWindow = "all";
 
   const btnClear = document.getElementById("btnClearSlowlogModal");
   if (btnClear) {
@@ -70,6 +82,9 @@ export async function openSlowlogModal() {
   // Reset filter buttons
   document.querySelectorAll(".slowlog-filter-btn").forEach(btn => {
     btn.classList.toggle("active", btn.getAttribute("data-min-duration") === "0");
+  });
+  document.querySelectorAll(".slowlog-time-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-time-window") === "all");
   });
   const searchInput = document.getElementById("slowlogSearchInput");
   if (searchInput) searchInput.value = "";
@@ -172,6 +187,18 @@ export function buildSlowlogNodeFilter(entries) {
 export function filterAndRenderSlowlog() {
   let list = state.allSlowlogEntries;
 
+  if (state.currentSlowlogTimeWindow && state.currentSlowlogTimeWindow !== "all") {
+    const nowSec = Math.floor(Date.now() / 1000);
+    let windowSec = 0;
+    if (state.currentSlowlogTimeWindow === "5m") windowSec = 5 * 60;
+    else if (state.currentSlowlogTimeWindow === "15m") windowSec = 15 * 60;
+    else if (state.currentSlowlogTimeWindow === "1h") windowSec = 60 * 60;
+    else if (state.currentSlowlogTimeWindow === "24h") windowSec = 24 * 60 * 60;
+
+    const cutoffSec = nowSec - windowSec;
+    list = list.filter(e => (e.timestamp || 0) >= cutoffSec);
+  }
+
   if (state.currentSlowlogMinDuration > 0) {
     list = list.filter(e => e.duration_ms >= state.currentSlowlogMinDuration);
   }
@@ -241,6 +268,7 @@ export function renderSlowlogTable(entries) {
               <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">#${e.id}</td>
               <td style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap;">
                 ${escapeHtml(e.time_str || "N/A")}
+                ${formatRelativeTime(e.timestamp) ? `<span style="font-size: 0.68rem; color: #38bdf8; display: block; margin-top: 2px; font-weight: 500;">${formatRelativeTime(e.timestamp)}</span>` : ''}
               </td>
               <td>
                 <span class="badge-duration ${badgeClass}">
@@ -341,6 +369,15 @@ export function setupSlowlogEventListeners() {
       document.querySelectorAll(".slowlog-filter-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       state.currentSlowlogMinDuration = parseInt(btn.getAttribute("data-min-duration") || "0", 10);
+      filterAndRenderSlowlog();
+    });
+  });
+
+  document.querySelectorAll(".slowlog-time-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".slowlog-time-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.currentSlowlogTimeWindow = btn.getAttribute("data-time-window") || "all";
       filterAndRenderSlowlog();
     });
   });
