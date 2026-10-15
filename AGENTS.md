@@ -124,7 +124,14 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 11. **Browser Memory Safety Ceiling Guards (100K Limit)**:
     - Automatically pauses key accumulation when loaded keys reach the safety ceiling (default `100,000`).
     - Displays amber `#memoryLimitBanner` and locks the Load More button to `Memory Ceiling (100,000)` to preserve 60fps rendering and prevent tab crashes.
-    - Provides explicit `Raise Ceiling (+100,000)` action button for workstations with sufficient RAM.
+12. **FastAPI Gzip Compression & Payload Optimization**:
+    - Automatic HTTP compression (`GZipMiddleware`, `minimum_size=1000`) compresses all API payloads >= 1KB (including key scans with repeated prefixes), achieving 85–90% bandwidth reduction.
+13. **Web Worker Keyspace Indexing & Namespace / Hygiene Studio**:
+    - Intensive regex matching, prefix tokenization, and key hygiene analysis are offloaded to a dedicated Web Worker (`keys-worker.js`), keeping the UI at a locked 60fps.
+    - **Keyspace Namespace & Hygiene Studio** (`#namespaceModal`) provides instant prefix share breakdown (with 1-click filtering) and key hygiene linting (whitespace, double/trailing delimiters, long keys > 128 chars) with **zero Redis cluster queries**.
+14. **IndexedDB Local Keyspace Cache**:
+    - Browser `IndexedDB` (`redis_insight_keys_cache`) stores loaded keys per connection ID and DB.
+    - Automatically restores keys on page load or connection switch with status indicator (`#keysCacheStatusPill`), eliminating repeated scans across sessions while providing a 1-click cache purge option.
 
 ---
 
@@ -149,8 +156,8 @@ Every AI agent and human engineer **MUST** review and complete this checklist be
 ```markdown
 ### Pre-Commit & Pre-Push Checklist
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass; AirPlay port 7000 skipped if occupied).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 18+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass; AirPlay port 7000 skipped if occupied).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 20+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with new rules, architectural conventions, or flags.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks, module APIs, or testing recipes.

@@ -2,8 +2,48 @@ import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { openKeyDetail } from "./inspector.js";
 import { triggerDeleteConfirmation } from "./actions.js";
+import {
+  saveKeyspaceSnapshot,
+  getKeyspaceSnapshot,
+  clearKeyspaceSnapshot
+} from "./db-cache.js";
+import {
+  initNamespaceHygieneModal,
+  openNamespaceHygieneStudio
+} from "./namespace-hygiene.js";
 
-export async function resetAndScan() {
+let keysWorker = null;
+try {
+  keysWorker = new Worker(new URL("./keys-worker.js", import.meta.url), { type: "module" });
+} catch (err) {
+  console.warn("Keys Web Worker fallback to main thread:", err);
+}
+
+export function getKeysWorker() {
+  return keysWorker;
+}
+
+export function updateCacheStatusUI(cachedData = null) {
+  const pill = document.getElementById("keysCacheStatusPill");
+  if (!pill) return;
+
+  if (!cachedData || !cachedData.keys || cachedData.keys.length === 0) {
+    pill.style.display = "none";
+    pill.innerHTML = "";
+    return;
+  }
+
+  const count = cachedData.keys.length;
+
+  pill.style.display = "inline-flex";
+  pill.innerHTML = `
+    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+    <span>Cached (${count.toLocaleString()})</span>
+    <span class="cache-clear-link" id="btnClearCacheSnapshot" title="Clear IndexedDB cache snapshot">Clear</span>
+  `;
+}
+
+export async function resetAndScan(forceRefresh = false) {
   state.isScanning = false;
   state.currentScanEpoch++;
   const epoch = state.currentScanEpoch;
@@ -25,6 +65,32 @@ export async function resetAndScan() {
   if (emptyEl) emptyEl.style.display = "none";
   if (gridContainer) gridContainer.style.display = "block";
 
+  // Phase 4: Instant restoration from IndexedDB cache if not explicit Refresh and searching default pattern in local mode
+  if (!forceRefresh && state.searchScope === "local" && (!state.currentPattern || state.currentPattern === "*")) {
+    const activeConnId = getActiveConnectionId();
+    if (activeConnId) {
+      try {
+        const cached = await getKeyspaceSnapshot(activeConnId, state.lastStatus?.db || 0);
+        if (cached && Array.isArray(cached.keys) && cached.keys.length > 0) {
+          state.keysTableRows = cached.keys;
+          state.loadedKeysSet = new Set(cached.keys.map(k => k.key));
+          state.dbTotalKeys = cached.totalInDb || cached.keys.length;
+          state.currentCursor = cached.cursor || 0;
+          state.totalScanned = state.keysTableRows.length;
+          state.scanComplete = isScanCursorComplete(state.currentCursor);
+
+          renderKeysTable();
+          updateScanUI();
+          updateCacheStatusUI(cached);
+          return;
+        }
+      } catch (err) {
+        console.warn("Keyspace cache restoration bypassed:", err);
+      }
+    }
+  }
+
+  updateCacheStatusUI(null);
   renderKeysTable();
   await scanNextBatch(epoch);
 }
@@ -127,12 +193,12 @@ export function describeScanProgress(cursor) {
     try {
       const values = Object.values(JSON.parse(text));
       const pending = values.filter(v => Number(v) !== 0).length;
-      return `${pending} of ${values.length} nodes still scanning`;
+      return `${pending}/${values.length} nodes scanning`;
     } catch {
-      return "more keys available";
+      return "";
     }
   }
-  return "more keys available";
+  return "";
 }
 
 export function isClusterView() {
@@ -184,6 +250,20 @@ export async function scanNextBatch(expectedEpoch = null) {
 
     if (rows.length > 0) {
       state.keysTableRows.push(...rows);
+      const activeConnId = getActiveConnectionId();
+      if (activeConnId) {
+        saveKeyspaceSnapshot(activeConnId, state.lastStatus?.db || 0, {
+          keys: state.keysTableRows,
+          totalInDb: state.dbTotalKeys,
+          cursor: state.currentCursor,
+          pattern: state.currentPattern
+        }).then(() => {
+          updateCacheStatusUI({
+            keys: state.keysTableRows,
+            timestamp: Date.now()
+          });
+        }).catch(() => {});
+      }
     }
 
     if (state.keysTableRows.length >= ceiling) {
@@ -616,7 +696,7 @@ export function renderKeysFlatTable() {
             state.currentPattern = q.includes("*") ? q : `${q}*`;
             const searchInput = document.getElementById("keySearchInput");
             if (searchInput) searchInput.value = state.currentPattern;
-            resetAndScan();
+            resetAndScan(true);
           });
         }
         return;
@@ -1273,7 +1353,7 @@ export function updateScanUI() {
     statusText.innerHTML = `
       ${isScanning ? '<span style="color: var(--accent-primary); display: inline-flex; align-items: center; gap: 5px; margin-right: 6px;"><span class="spin" style="display: inline-block;">↻</span> Scanning chunk...</span>' : ''}
       Loaded <strong>${state.totalScanned.toLocaleString()}</strong> keys
-      ${isCeilingReached ? '<span style="color: #fbbf24; margin-left: 6px; font-weight: 500;">(Ceiling Reached)</span>' : isComplete ? '<span style="color: var(--text-muted); margin-left: 6px; font-weight: 400;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>`}
+      ${isCeilingReached ? '<span style="color: #fbbf24; margin-left: 6px; font-weight: 500;">(Ceiling Reached)</span>' : isComplete ? '<span style="color: var(--text-muted); margin-left: 6px; font-weight: 400;">(All Keys Loaded)</span>' : describeScanProgress(state.currentCursor) ? `<span style="color: var(--text-muted); margin-left: 4px;">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>` : ""}
       | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(state.dbTotalKeys || 0).toLocaleString()}</strong>
     `;
   }
@@ -1441,7 +1521,29 @@ export function setupKeysEventListeners() {
   const btnResetScan = document.getElementById("btnResetScan");
   if (btnResetScan) btnResetScan.addEventListener("click", () => {
     resetAutoRefreshTimer();
-    resetAndScan();
+    resetAndScan(true);
+  });
+
+  // Phase 3: Namespace Distribution & Key Hygiene Studio
+  initNamespaceHygieneModal(keysWorker);
+
+  const btnOpenNsModal = document.getElementById("btnOpenNamespaceModal");
+  if (btnOpenNsModal) {
+    btnOpenNsModal.addEventListener("click", () => {
+      openNamespaceHygieneStudio(keysWorker);
+    });
+  }
+
+  // Phase 4: Clear IndexedDB cache snapshot on user click
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "btnClearCacheSnapshot") {
+      const activeConnId = getActiveConnectionId();
+      if (activeConnId) {
+        clearKeyspaceSnapshot(activeConnId, state.lastStatus?.db || 0).then(() => {
+          updateCacheStatusUI(null);
+        });
+      }
+    }
   });
 
   const scanBatchSelect = document.getElementById("scanBatchSizeSelect");

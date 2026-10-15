@@ -247,6 +247,19 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
      - Verify `Load More` button transitions to disabled `Memory Ceiling (100,000)` state with shield icon.
      - Click `Raise Ceiling` &rarr; ceiling increases by +100,000 and Load More is re-enabled.
 
+15. **Keyspace Namespace & Key Hygiene Studio**:
+    - [ ] Click `[Namespaces]` in Keys toolbar &rarr; `#namespaceModal` opens:
+      - Verify KPI cards render Analyzed Keys, Distinct Namespaces, Top Namespace % share, and Hygiene Flags count.
+      - Verify Namespace Distribution table displays prefixes with gradient progress bars.
+      - Click `[🔍 Filter]` on any prefix &rarr; modal closes, search query is populated, and table filters instantly.
+      - Click `Key Hygiene & Linting` tab &rarr; verify category pills and anomaly badges (spaces, double/trailing colons, long keys).
+      - Click `Inspect` on an anomaly &rarr; key detail opens in the Slide-Over drawer.
+
+16. **IndexedDB Local Keyspace Cache**:
+    - [ ] Observe `#keysCacheStatusPill` in Keys toolbar displaying `Cached (N keys)`:
+      - Refresh page &rarr; keys restore instantly from browser IndexedDB with zero cluster query.
+      - Click `Clear` on the cache pill &rarr; snapshot is purged from IndexedDB and pill disappears.
+
 ---
 
 ## 6. Mandatory Pre-Commit & Pre-Push Checklist
@@ -255,8 +268,8 @@ Before committing changes or opening a Pull Request, every engineer and AI agent
 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 18+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 20+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

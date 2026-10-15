@@ -68,8 +68,14 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Displays a glassmorphic amber banner with an explicit `Raise Ceiling (+100,000)` option for workstations with sufficient RAM.
 - **Visual Scan Progress Shimmer & Active Cursor Spinner**: Top animated shimmer progress bar (`.scan-progress-shimmer`) and dynamic spinning badge in `#scanStatusText` provide real-time cursor feedback during background SCAN sweeps.
 - **Glassmorphic Toast Notifications & In-Place Copy Feedback**: Completely eliminated native blocking `alert()` popups. Copying keys, string values, JSON structures, Stream entries, and Slowlog commands displays immediate green checkmark feedback (`Copied!`) and non-blocking auto-dismissing toast pills with resilient Clipboard API fallback.
-- **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.
-- **Configurable SCAN Batch Size**: Toggle requested keys per SCAN chunk (50, 100, 200, 500, 1,000, or 10,000) directly from the toolbar to match network latency.
+- **Dual-Mode Keyspace Search & Instant In-Memory Filter**: Seamlessly toggle between client-side in-memory regex/glob/substring filtering (`< 1ms`, ~0.2ms, zero Redis network calls) and remote cluster `SCAN`. Features smart fallback and keyboard shortcuts (`Enter` / `Shift+Enter`).
+- **Browser Memory Safety Ceiling Guard (100,000 Keys Limit)**: Automatically pauses key accumulation when loaded keys reach the safety ceiling to preserve 60fps rendering and prevent browser tab crashes, with an explicit `Raise Ceiling (+100,000)` option.
+- **FastAPI Gzip Compression (85–90% Transfer Reduction)**: Automatic gzip compression on all API responses >= 1KB (`GZipMiddleware`), dramatically speeding up large keyspace transfers over HTTP.
+- **Web Worker Keyspace Indexing & Zero-UI-Jank Filtering**: Background Web Worker (`keys-worker.js`) handles heavy regex evaluation, prefix tokenization, and key hygiene checks without blocking the main browser thread.
+- **Keyspace Namespace & Key Hygiene Studio**: Interactive analytical studio (`#namespaceModal`) analyzing loaded keys with zero Redis cluster calls:
+  - **Namespace Distribution**: Visualizes prefix shares with gradient progress bars and 1-click `[🔍 Filter]` actions.
+  - **Key Hygiene & Linting**: Flags naming anti-patterns (whitespace, double/trailing delimiters, keys > 128 chars) with direct inspection in the Slide-Over drawer.
+- **IndexedDB Local Keyspace Cache**: Stores loaded keys in browser `IndexedDB` (`redis_insight_keys_cache`), restoring keys instantly on page load or connection switch with status indicator (`#keysCacheStatusPill`) and 1-click cache purge.
 
 - **Real-Time Auto-Refresh Pattern Watcher**:
   - Watch for keys matching your active pattern (e.g., `orders:*`) and data type filter automatically.

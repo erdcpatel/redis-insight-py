@@ -344,6 +344,7 @@ function renderAppShell() {
                     <span id="scanChunkLabel">Safe SCAN (50)</span>
                   </span>
                   <span id="scanStatusText" class="scan-status-text">Scanning keys...</span>
+                  <span id="keysCacheStatusPill" class="cache-status-pill" style="display: none;"></span>
                 </div>
 
                 <div class="actions-right">
@@ -381,6 +382,11 @@ function renderAppShell() {
                   </button>
 
                   <div class="actions-divider"></div>
+
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenNamespaceModal" title="Analyze namespace distribution & key hygiene on loaded keys (0 Redis calls)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                    <i data-lucide="pie-chart" style="width: 12px; height: 12px; color: #a78bfa;"></i>
+                    <span>Namespaces</span>
+                  </button>
 
                   <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
                     <i data-lucide="download" style="width: 12px; height: 12px;"></i>
@@ -1128,6 +1134,123 @@ function renderAppShell() {
             <i data-lucide="download" style="width: 14px; height: 14px;"></i>
             <span>Download</span>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Namespace & Key Hygiene Studio Modal (Phase 3) -->
+    <div class="modal-backdrop" id="namespaceModal" style="display: none;">
+      <div class="config-modal-card" style="max-width: 820px; border-top: 3px solid #a78bfa;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="pie-chart" style="color: #a78bfa; width: 20px; height: 20px;"></i>
+            <div>
+              <h3 class="modal-title" style="color: #c4b5fd;">Namespace & Key Hygiene Studio</h3>
+              <div id="nsStudioSubtitle" style="font-size: 0.72rem; color: var(--text-muted);">
+                Analyzed from Browser In-Memory Keyspace • Zero Redis Load
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseNamespaceModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+          <!-- Empty State if no keys loaded -->
+          <div id="nsEmptyState" style="display: none; text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+            <i data-lucide="database" style="width: 32px; height: 32px; color: var(--text-muted); margin-bottom: 0.5rem; display: inline-block;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem;">No Keys Loaded in Memory</div>
+            <div style="font-size: 0.75rem; margin-top: 0.25rem;">
+              Load keys in the Keys Browser first to run zero-Redis namespace tokenization and hygiene linting.
+            </div>
+          </div>
+
+          <!-- Content Wrapper -->
+          <div id="nsContentWrapper" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- KPI Summary Cards -->
+            <div class="ns-kpi-grid">
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Analyzed Keys</span>
+                <span class="ns-kpi-value" id="kpiNsTotalKeys">0</span>
+              </div>
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Distinct Namespaces</span>
+                <span class="ns-kpi-value" id="kpiNsCount">0</span>
+              </div>
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Top Namespace</span>
+                <span class="ns-kpi-value" id="kpiNsTop">—</span>
+              </div>
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Key Hygiene Status</span>
+                <span class="ns-kpi-value" id="kpiNsHygiene">0 Flags</span>
+              </div>
+            </div>
+
+            <!-- Sub Navigation Tabs -->
+            <div class="ns-tab-bar">
+              <button type="button" class="ns-tab-btn active" id="tabBtnNsDistribution">
+                <i data-lucide="folder-tree" style="width: 13px; height: 13px;"></i>
+                <span>Namespace Distribution</span>
+                <span class="ns-tab-badge" id="badgeNsDistCount">0</span>
+              </button>
+              <button type="button" class="ns-tab-btn" id="tabBtnNsHygiene">
+                <i data-lucide="shield-alert" style="width: 13px; height: 13px;"></i>
+                <span>Key Hygiene & Linting</span>
+                <span class="ns-tab-badge" id="badgeNsHygCount">0</span>
+              </button>
+            </div>
+
+            <!-- Tab 1: Namespace Distribution Pane -->
+            <div class="ns-pane" id="paneNsDistribution">
+              <div class="ns-table-container">
+                <table class="ns-table">
+                  <thead>
+                    <tr>
+                      <th>Prefix / Namespace</th>
+                      <th>Key Count</th>
+                      <th>Share (% of Keys)</th>
+                      <th>Data Types</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyNsDistribution">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Tab 2: Key Hygiene & Linting Pane -->
+            <div class="ns-pane" id="paneNsHygiene" style="display: none;">
+              <div class="hygiene-filter-bar">
+                <span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 600;">FILTER ANOMALIES:</span>
+                <button type="button" class="hygiene-cat-pill active" data-cat="all">All</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="delimiter">Delimiters</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="whitespace">Whitespace</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="non-ascii">Non-ASCII</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="long">Length</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="missing">Root</button>
+              </div>
+
+              <div class="ns-table-container">
+                <table class="ns-table">
+                  <thead>
+                    <tr>
+                      <th>Offending Key</th>
+                      <th>Hygiene Issue</th>
+                      <th>Diagnostic Description</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyNsHygiene">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

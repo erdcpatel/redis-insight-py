@@ -276,16 +276,27 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
      - The "Load More" button transitions to a disabled `Memory Ceiling (100,000)` state with a warning shield.
      - Operators can explicitly click `Raise Ceiling (+100,000)` if client hardware has sufficient RAM.
 
+3. **Web Worker Keyspace Indexing & Namespace Studio (Phase 3)**:
+   - Evaluates prefix tokenization, large regex matching, and key hygiene analysis in background thread `keys-worker.js`.
+   - **Keyspace Namespace & Hygiene Studio Modal** (`#namespaceModal`):
+     - Purple header badge with KPI overview (Total Keys, Distinct Namespaces, Top Namespace % share, Hygiene Flags).
+     - **Namespace Distribution**: lists prefixes with color-coded horizontal progress bars and a 1-click `[🔍 Filter]` button that instantly updates local search and closes the modal.
+     - **Key Hygiene & Linting**: detects naming anti-patterns (spaces, trailing/double delimiters, long keys > 128 chars) and allows direct key inspection via Slide-Over drawer.
+4. **IndexedDB Local Keyspace Cache (Phase 4)**:
+   - Stores loaded keys in browser `IndexedDB` (`redis_insight_keys_cache`).
+   - Automatically restores keys on page load or connection switch without network delay.
+   - Renders a clean `#keysCacheStatusPill` with 1-click `Clear` link.
+
 ---
 
-## 10. Mandatory Pre-Commit & Pre-Push Checklist
+## 11. Mandatory Pre-Commit & Pre-Push Checklist
 
 Before opening any Pull Request or committing changes, verify and complete this checklist:
 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 18+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 20+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.
