@@ -135,6 +135,12 @@ export function renderTopologyClusterPrompt(conn) {
     envBadge.className = `badge-env badge-env-${env.toLowerCase()}`;
   }
 
+  const searchInput = document.getElementById("topologySearchInput");
+  if (searchInput) {
+    searchInput.disabled = true;
+    searchInput.placeholder = "Load cluster topology to filter nodes...";
+  }
+
   tableContainer.innerHTML = `
     <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-secondary);">
       <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.25); margin-bottom: 1rem;">
@@ -161,7 +167,7 @@ export function renderTopologyClusterPrompt(conn) {
   }
 }
 
-export async function openTopologyModal(connId = null) {
+export async function openTopologyModal(connId = null, explicitLoad = false) {
   switchWorkspaceTab("topology");
 
   if (connId && onConnectCluster) {
@@ -171,13 +177,15 @@ export async function openTopologyModal(connId = null) {
     }
   }
 
-  if (state.topologyLoadedForConnId !== state.selectedConnectionId) {
-    renderTopologyClusterPrompt();
-  } else if (state.currentTopologyData) {
+  if (state.topologyLoadedForConnId !== state.selectedConnectionId || !state.currentTopologyData) {
+    if (explicitLoad) {
+      loadTopologyData();
+    } else {
+      renderTopologyClusterPrompt();
+    }
+  } else {
     renderTopologyStats(state.currentTopologyData);
     renderTopologyNodes();
-  } else {
-    renderTopologyClusterPrompt();
   }
 }
 
@@ -226,6 +234,12 @@ export async function loadTopologyData() {
     }
     if (tabBadgeTopology) {
       tabBadgeTopology.textContent = label;
+    }
+
+    const searchInput = document.getElementById("topologySearchInput");
+    if (searchInput) {
+      searchInput.disabled = false;
+      searchInput.placeholder = "Filter nodes by IP, port, node ID, or slot...";
     }
 
     renderTopologyStats(data);
@@ -395,7 +409,7 @@ export function setupTopologyEventListeners() {
   if (btnCloseTopology) btnCloseTopology.addEventListener("click", closeTopologyModal);
 
   const btnOpenTopologyTop = document.getElementById("btnOpenTopologyTop");
-  if (btnOpenTopologyTop) btnOpenTopologyTop.addEventListener("click", () => openTopologyModal());
+  if (btnOpenTopologyTop) btnOpenTopologyTop.addEventListener("click", () => openTopologyModal(null, true));
 
   const btnRefreshTopology = document.getElementById("btnRefreshTopologyModal");
   if (btnRefreshTopology) btnRefreshTopology.addEventListener("click", loadTopologyData);

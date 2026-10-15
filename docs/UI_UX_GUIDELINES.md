@@ -87,14 +87,22 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
 
 ## 4. Workspace Tabs & Modal Architecture Standards
 
-### A. Separation of Workspace Tabs vs Dialog Modals
+### A. Separation of Workspace Tabs, Slide-Over Drawers vs Dialog Modals
 
 1. **Analytical & Diagnostic Studios (Workspace Tabs)**:
    - Deep diagnostic surfaces (**Keys Browser**, **Benchmark Studio**, **Memory & BigKeys Studio**, **Slowlog Profiler**, **Cluster Topology Map**, **Connected Clients**) are rendered as full-surface workspace tabs (`.ws-tab-pane`) rather than stacked popup dialogs.
    - Tabs are toggled via the top navbar navigation pills (`.ws-tab-btn`) with active indicators.
    - Switching between tabs preserves scroll state, search filters, and loaded results without refetching unnecessarily.
-2. **Ephemeral Dialog Modals**:
-   - Short-lived interactions (Connection Configuration, Add Connection, Key Inspector, Bulk Delete, Export Dialog, Deep Scan Safety Warning) use centered backdrop dialog modals (`.modal-backdrop` + `.modal-card`).
+   - **No `[x Esc]` Buttons on Tabs**: Workspace tabs are persistent surfaces navigated via tab pills. Do not place close buttons on tabs.
+   - **Telemetry Single Source of Truth**: Never duplicate high-level numeric count badges on navigation tabs or inner H1 headers. The global top navbar vitals capsule is the authoritative single source of truth for high-level telemetry, eliminating state drift.
+
+2. **Key Inspector Slide-Over Drawer**:
+   - Key inspection (`#keyDetailModal`) uses a sleek glassmorphic slide-over drawer sliding in from the right edge (`width: 720px; max-width: 88vw; height: 100vh`).
+   - The drawer uses a subtle transparent backdrop blur, keeping the keys table behind it visible and clickable so operators can rapidly inspect different keys without opening and closing modals repeatedly.
+   - Dismissible via the header close button, `Escape` key, or clicking the backdrop area.
+
+3. **Ephemeral Dialog Modals**:
+   - Short-lived dialog interactions (Connection Configuration, Add Connection, Bulk Delete, Export Dialog, Deep Scan Safety Warning) use centered backdrop dialog modals (`.modal-backdrop` + `.modal-card`).
    - Must dismiss smoothly on `Escape` key and backdrop click.
 
 ### B. Memory Studio: TTL Horizon & Leak Audit Standards
@@ -103,57 +111,57 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
    - Provide clear choice between **Sampled Scan (Default, Fast & Safe)** and **Full Keyspace Deep Scan**.
    - Any full keyspace scan must display the **Deep Scan Safety Modal** (`#deepScanSafetyModal`) with a clear warning explaining cluster overhead and non-blocking safety invariants, requiring explicit user confirmation.
 2. **TTL Expiry Horizon Card**:
-   - Summary KPIs: Projected memory reclaimed in next **1h**, **24h**, **7d**, and **Unexpiring Memory %**.
    - Stacked Progress Bar: Multi-colored horizon distribution bar visualizing the 5 buckets:
-     - `< 1h`: Cyan (`#38bdf8`)
-     - `1-24h`: Emerald (`#10b981`)
-     - `1-7d`: Amber (`#f59e0b`)
-     - `> 7d`: Indigo (`#818cf8`)
+     - `< 1h`: Emerald (`#10b981`)
+     - `1-24h`: Cyan (`#06b6d4`)
+     - `1-7d`: Blue (`#3b82f6`)
+     - `> 7d`: Purple (`#8b5cf6`)
      - `Persistent`: Rose (`#f43f5e`)
-3. **Persistent Keys Leak Audit**:
+   - **Unified 5-Horizon KPI Row**: A single 5-column grid (`.mem-ttl-kpi-grid`) directly beneath the progress bar displaying exact recovery RAM, key count, and percentage per horizon bucket. Never repeat cumulative and bucketed rows simultaneously.
+3. **Persistent Keys Leak Audit Above the Fold**:
+   - By eliminating redundant middle banners, the **Persistent Keys Leak Audit** table remains visible above the fold on desktop viewports.
    - Tabulate top namespaces containing persistent keys (e.g. `session:*`, `cache:*`), their total count, and memory footprint.
-   - Each namespace row must feature a 1-click **Filter in Keys** action button that switches to the Keys Browser tab, sets the pattern input, and activates the `Persistent` TTL filter.
+   - Each namespace row features a 1-click **Filter in Keys** action button that switches to the Keys Browser tab, sets the pattern input, and activates the `Persistent` TTL filter.
 
 ### C. Connected Clients Inspector Standards
 
 1. **App Self-Identification (`[THIS APP]`)**:
    - All client connections initialized by this application must send `client_name="redisinsight-py"`.
-   - In the Connected Clients table, rows matching the current application connection must display a prominent cyan **`[THIS APP]`** badge (`.badge-db`) so operators never mistake monitoring traffic for external microservice load.
-2. **Client Termination Safeguards**:
+   - In the Connected Clients table, rows matching the current application connection display a cyan **`[THIS APP]`** badge (`.badge-db`).
+2. **Hide Internal (This App) Quick Toggle**:
+   - The toolbar features a `Hide Internal (This App)` toggle button (`#btnToggleHideInternalClients`) allowing operators to instantly filter out background diagnostic sessions and isolate user application traffic.
+3. **Clean Remote Address**:
+   - Render the client `IP:Port` address cleanly without repeating redundant `Target: ...` labels since the cluster target is already displayed in the top bar.
+4. **Client Termination Safeguards**:
    - Terminating a client (`CLIENT KILL`) requires confirmation and must be disabled when connected in Read-Only mode.
 
 ### D. Benchmark & Latency Studio Standards
 
 1. **Top Segmented Level Switcher**:
-   - Navigation between the 4 levels (Probe, Commands, Lua Profiler, Cluster Matrix) must use clean segmented tabs (`.benchmark-tab-btn`).
-2. **Visual Latency Decomposition**:
+   - Navigation between the 4 levels (Probe, Commands, Lua Profiler, Cluster Matrix) uses clean segmented tabs (`.benchmark-tab-btn`).
+   - Active sub-navigation pills use the application's primary cyan accent (`var(--accent-primary)`) to prevent visual confusion with warning or warning-state amber badges.
+2. **Pre-Rendered Metric Preview Cards**:
+   - In the empty state before execution, render preview metric cards with placeholder values (`-- ms`, `-- ops/s`) so operators understand expected outputs at a glance.
+3. **Visual Latency Decomposition**:
    - Always display the dual-color **Latency Decomposition Bar** separating **Network Transit** (`#38bdf8`) from **Server CPU Time** (`#10b981`) with exact percentage and microsecond/millisecond tags.
-3. **Atomicity Safeguards for Lua**:
+4. **Atomicity Safeguards for Lua**:
    - Lua script profiling must prominently display a green **Atomicity Safe** banner for runs $\le 5\text{ms}$ and a bright red **High Atomicity Warning** banner for runs $> 5\text{ms}$ with clear explanatory guidance.
-4. **Ephemeral Key Reassurance**:
+5. **Ephemeral Key Reassurance**:
    - Display a green safety badge confirming that benchmark keys are isolated to `__ri_bench__:*` and automatically deleted via `UNLINK`.
-5. **Read-Only / PROD Lockout**:
+6. **Read-Only / PROD Lockout**:
    - In Read-Only mode or PROD environments, write benchmarks (`SET`, `HSET`) must be automatically locked out.
 
-### E. In-Pane Context Identification Standards
+### E. Global Context Single Source of Truth & De-Duplication Standards
 
-1. **Eliminate Cross-Cluster Ambiguity**:
-   - In multi-cluster setups, switching clusters must immediately update the visual identity of every open or switchable view.
-   - Every workspace pane must render an in-pane context badge:
-     - **Keys Browser Action Bar**: `#keysTargetCapsule` rendered alongside View Mode and Safe SCAN controls, displaying target connection name and host/node badge.
-     - **Modal & Workspace Pane Subtitles**: `#memoryTargetSubtitle`, `#slowlogTargetSubtitle`, `#topologyTargetSubtitle`, `#clientsTargetSubtitle` inside `.modal-header`.
-2. **Context Subtitle Markup Pattern**:
-   ```html
-   <p class="modal-subtitle" id="memoryTargetSubtitle">
-     Target: <span class="context-conn-name">Billing Cluster</span>
-     <span class="context-conn-endpoint">127.0.0.1:7000 (6 Nodes)</span>
-     <span class="badge badge-env-dev">DEV</span>
-     <span class="badge badge-topology-cluster">CLUSTER</span>
-   </p>
-   ```
-3. **Centralized Update Hook**:
-   - All subtitles are driven by `updateAllPaneClusterContexts(targetConn)` in `frontend/src/modules/connections.js`.
-   - Always invoke this function on initial connection load, periodic status refresh, and whenever `notifyClusterSwitched` fires.
+1. **Global Top Header as Single Source of Truth**:
+   - Retain the active cluster context (name, endpoint, DB index, environment badge, topology status) **solely in the Global Top Header Bar** (`#topConnContainer`) and Left Sidebar.
+   - Do NOT duplicate `Target: ...` sub-headers, subtitle badge clusters, or redundant target capsules inside individual workspace tab action bars. This saves 25% vertical screen space across all analytical views.
+2. **Keys Browser Unified TTL / Expiration Column**:
+   - Merge `TTL (SEC)` and `STATUS` into a single **TTL / Expiration** column.
+   - **Persistent Keys**: Display a muted slate badge `∞ Persistent` (`#94a3b8`) to avoid false alarm fatigue (persistent keys are normal and expected).
+   - **Expiring Keys**: Display an amber badge `⏳ 52s`.
+3. **Sidebar Environmental Identification**:
+   - In multi-connection deployments with identical cluster names across environments (e.g., `Cache Cluster` in DEV, UAT, PROD), embed the environmental badge (`DEV`, `UAT`, `PROD`) directly in the connection card title row to make environments instantly recognizable without checking truncated hostnames.
 
 ### F. Redis Stream Inspector Standards
 

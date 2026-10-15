@@ -265,8 +265,9 @@ export function renderConnectionsList() {
             `}
           </div>
 
-          <div class="conn-title-wrap">
+          <div class="conn-title-wrap" style="display: flex; align-items: center; gap: 0.35rem; min-width: 0; flex: 1;">
             <span class="conn-name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</span>
+            <span class="badge-env ${envClass}" style="font-size: 0.62rem; padding: 0.05rem 0.35rem; flex-shrink: 0;">${envUpper}</span>
           </div>
 
           <div class="conn-status-badge-wrap">
@@ -285,7 +286,6 @@ export function renderConnectionsList() {
           </div>
 
           <div class="conn-tags">
-            <span class="badge-env ${envClass}">${envUpper}</span>
             ${c.read_only ? '<span class="badge-readonly" title="Read-Only Mode: Mutating operations locked">🔒 RO</span>' : ''}
             ${isCluster ? '<span class="badge-conn-type badge-type-cluster">CLUSTER</span>' : ''}
             ${isSentinel ? '<span class="badge-conn-type badge-type-sentinel">SENTINEL</span>' : ''}

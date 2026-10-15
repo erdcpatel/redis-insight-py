@@ -83,13 +83,14 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 1. **Modular Organization**:
    - Business logic is partitioned into dedicated ES modules under `frontend/src/modules/`.
    - Keep `main.js` focused on DOM initialization, tab registration, and global keyboard shortcuts (`Escape`, `Ctrl+B`).
-2. **Workspace Tabs vs Dialog Modals**:
+2. **Workspace Tabs, Slide-Over Drawers & Modals**:
    - Deep diagnostic surfaces (Keys Browser, Benchmark Studio, Memory Studio, Slowlog Profiler, Topology Map, Connected Clients) live in `.ws-tab-pane` containers toggled by `.ws-tab-btn`.
-   - Interactive dialogs (Connection Modal, Key Detail Modal, Bulk Delete, Deep Scan Safety Modal) remain centered dialog modals with backdrop blur.
-3. **In-Pane Cluster Context Bars & Subtitles**:
-   - Every workspace pane must show the target cluster name, host:port, environment badge (`[LOCAL]`, `[DEV]`, `[UAT]`, `[PROD]`), mode (`CLUSTER` vs `STANDALONE`), and read-only status in its header subtitle (`.modal-subtitle`).
-   - The Keys Browser displays `#keysTargetCapsule` right alongside View Mode and Safe SCAN controls.
-   - Synchronize all pane context bars globally via `updateAllPaneClusterContexts(targetConn)` on every cluster switch and status poll.
+   - Key inspection uses an ergonomic right **Slide-Over Drawer** (`#keyDetailModal`), leaving the keys table visible and interactive.
+   - Interactive dialogs (Connection Modal, Bulk Delete, Deep Scan Safety Modal) remain centered dialog modals with backdrop blur.
+3. **Global Context Single Source of Truth & Zero Redundancy**:
+   - Active cluster metadata (cluster name, host:port, DB, environment badge, topology status) is retained **solely in the Global Top Header Bar** (`#topConnContainer`) and Left Sidebar.
+   - Sub-headers, subtitle badge clusters, and inner target capsules are stripped from workspace tab panes to reclaim vertical screen space and prevent state drift.
+   - Global vitals capsule in the top-right navbar serves as the single authoritative source for telemetry; navigation tabs and section H1 headers do not duplicate count badges.
 4. **Multi-Delimiter Tree Invariants**:
    - The Virtual Folder Tree supports multiple simultaneous delimiters with custom delimiter chips.
    - Always sort delimiters in **descending length order** before tokenizing keys (e.g. `::` must match before `:`).

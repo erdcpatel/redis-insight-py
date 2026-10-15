@@ -176,14 +176,14 @@ function renderAppShell() {
                 <span id="connectedCountDisplay">0</span>/<span id="connLimitDisplay">2</span>
               </span>
             </div>
-            <div class="limit-select-wrap">
+            <div class="limit-select-wrapper">
               <label for="connLimitSelect" class="limit-select-label">Max:</label>
-              <select id="connLimitSelect" class="conn-limit-select" title="Simultaneous connection limit (1-5)">
+              <select id="connLimitSelect" class="limit-select conn-limit-select" title="Simultaneous connection limit (1-10)">
                 <option value="1">1</option>
-                <option value="2" selected>2</option>
+                <option value="2">2</option>
                 <option value="3">3</option>
-                <option value="4">4</option>
                 <option value="5">5</option>
+                <option value="10" selected>10</option>
               </select>
             </div>
           </div>
@@ -242,7 +242,6 @@ function renderAppShell() {
           <button type="button" class="ws-tab-btn active" id="tabBtnWorkspaceKeys" data-tab="keys" role="tab" aria-selected="true" title="Key Browser & Virtual Namespace Tree (Ctrl+1)">
             <i data-lucide="key" style="width: 13px; height: 13px;"></i>
             <span>Keys</span>
-            <span class="ws-tab-badge" id="tabBadgeKeys">0</span>
           </button>
           <button type="button" class="ws-tab-btn" id="btnOpenBenchmarkModal" data-tab="benchmark" role="tab" aria-selected="false" title="Redis Benchmark & Latency Studio (Ctrl+2)">
             <i data-lucide="zap" style="width: 13px; height: 13px; color: #f59e0b;"></i>
@@ -259,12 +258,10 @@ function renderAppShell() {
           <button type="button" class="ws-tab-btn" id="tabBtnWorkspaceTopology" data-tab="topology" role="tab" aria-selected="false" title="Cluster Topology & Node Health (Ctrl+5)">
             <i data-lucide="layers" style="width: 13px; height: 13px; color: var(--accent-primary);"></i>
             <span>Cluster Topology</span>
-            <span class="ws-tab-badge" id="tabBadgeTopology">1 Node</span>
           </button>
           <button type="button" class="ws-tab-btn" id="tabBtnWorkspaceClients" data-tab="clients" role="tab" aria-selected="false" title="Connected Client Sessions (Ctrl+6)">
             <i data-lucide="users" style="width: 13px; height: 13px; color: #38bdf8;"></i>
             <span>Clients</span>
-            <span class="ws-tab-badge" id="tabBadgeClients">0</span>
           </button>
         </nav>
 
@@ -314,11 +311,6 @@ function renderAppShell() {
                       <span>Tree</span>
                     </button>
                   </div>
-                  <div class="actions-divider"></div>
-                  <span class="keys-target-capsule" id="keysTargetCapsule" title="Current Active Redis Target">
-                    <i data-lucide="server" style="width: 12px; height: 12px; color: #a78bfa;"></i>
-                    <span id="keysTargetText">Connecting...</span>
-                  </span>
                   <div class="actions-divider"></div>
                   <span class="safety-badge">
                     <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
@@ -410,16 +402,7 @@ function renderAppShell() {
                         <i data-lucide="lock" style="width: 11px; height: 11px; vertical-align: middle;"></i> READ ONLY
                       </span>
                     </div>
-                    <p class="modal-subtitle" id="benchmarkTargetSubtitle">
-                      Target: Connecting... | Ephemeral Namespace: __ri_bench__
-                    </p>
                   </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseBenchmarkModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
-                  </button>
                 </div>
               </div>
 
@@ -466,8 +449,27 @@ function renderAppShell() {
                     </div>
                   </div>
                   <div id="benchmarkProbeResults" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem; font-size: 0.85rem;">
-                      Click <strong>Run Latency Probe</strong> to analyze network round-trip time vs Redis server processing delay.
+                    <div class="benchmark-metrics-grid" style="opacity: 0.65;">
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="activity" style="width: 12px; height: 12px; color: #38bdf8;"></i> Total Round-Trip (RTT)</div>
+                        <div class="val">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
+                        <div class="sub">Average client observed latency</div>
+                      </div>
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="cpu" style="width: 12px; height: 12px; color: #10b981;"></i> Redis Server CPU Time</div>
+                        <div class="val" style="color: #6ee7b7;">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
+                        <div class="sub">Isolated server execution delay</div>
+                      </div>
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="network" style="width: 12px; height: 12px; color: #38bdf8;"></i> Network Overhead</div>
+                        <div class="val" style="color: #38bdf8;">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
+                        <div class="sub">Transit & TCP stack overhead</div>
+                      </div>
+                      <div class="benchmark-metric-card">
+                        <div class="label"><i data-lucide="zap" style="width: 12px; height: 12px; color: #f59e0b;"></i> Probe Throughput</div>
+                        <div class="val" style="color: #fbbf24;">-- <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">ops/s</span></div>
+                        <div class="sub">Click "Run Latency Probe" above to benchmark</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -621,17 +623,12 @@ function renderAppShell() {
                   <i data-lucide="pie-chart" style="width: 20px; height: 20px; color: #a78bfa;"></i>
                   <div>
                     <h3 class="modal-title" style="margin: 0; line-height: 1.2;">Memory Analysis & BigKeys Profiler</h3>
-                    <p class="modal-subtitle" id="memoryTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshMemoryModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh Overview
-                  </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseMemoryModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
                   </button>
                 </div>
               </div>
@@ -654,12 +651,10 @@ function renderAppShell() {
                   <div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                       <h3 class="modal-title">Real-Time Slowlog & Latency Profiler</h3>
-                      <span class="badge-db" id="slowlogCountBadge">0</span>
                       <span class="badge-duration badge-duration-warning" id="slowlogThresholdBadge" style="font-size: 0.7rem; font-weight: 500;">
                         Threshold: &gt; 10ms
                       </span>
                     </div>
-                    <p class="modal-subtitle" id="slowlogTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -670,10 +665,6 @@ function renderAppShell() {
                   <button type="button" class="btn btn-danger" id="btnClearSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
                     Reset Slowlog
-                  </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseSlowlogModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
                   </button>
                 </div>
               </div>
@@ -714,20 +705,13 @@ function renderAppShell() {
                   <div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                       <h3 class="modal-title">Cluster Topology & Nodes</h3>
-                      <span class="badge-env badge-env-dev" id="topologyEnvBadge">DEV</span>
-                      <span class="badge-db" id="topologyNodesCountBadge">0 Nodes</span>
                     </div>
-                    <p class="modal-subtitle" id="topologyTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <button type="button" class="btn btn-secondary" id="btnRefreshTopologyModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh
-                  </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseTopologyModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
                   </button>
                 </div>
               </div>
@@ -747,7 +731,10 @@ function renderAppShell() {
               </div>
 
               <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="topologyTableContainer">
-                <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching cluster nodes...</div>
+                <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
+                  <i data-lucide="network" style="width: 28px; height: 28px; opacity: 0.35; margin-bottom: 0.5rem;"></i>
+                  <div>Click <strong>Load Cluster Topology</strong> or refresh to inspect nodes</div>
+                </div>
               </div>
             </div>
           </div>
@@ -761,9 +748,7 @@ function renderAppShell() {
                   <div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                       <h3 class="modal-title">Connected Clients</h3>
-                      <span class="badge-db" id="clientsCountBadge" style="margin-left: 4px;">0</span>
                     </div>
-                    <p class="modal-subtitle" id="clientsTargetSubtitle" style="margin: 2px 0 0 0; font-size: 0.72rem; color: var(--text-secondary);">Connecting to Redis...</p>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -771,17 +756,19 @@ function renderAppShell() {
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh
                   </button>
-                  <button type="button" class="ws-tab-return-btn" id="btnCloseClientsModal" title="Close view & return to Keys (Esc)">
-                    <i data-lucide="x" style="width: 13px; height: 13px;"></i>
-                    <kbd class="kbd-esc">Esc</kbd>
-                  </button>
                 </div>
               </div>
 
-              <div style="padding: 0.85rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                <div class="search-group" style="flex: 1; max-width: 450px;">
-                  <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
-                  <input type="text" id="clientsSearchInput" class="search-input" placeholder="Search by IP, port, client name, user, or cmd..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+              <div style="padding: 0.85rem 1.5rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 280px; max-width: 600px;">
+                  <div class="search-group" style="flex: 1;">
+                    <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+                    <input type="text" id="clientsSearchInput" class="search-input" placeholder="Search by IP, port, client name, user, or cmd..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnToggleHideInternalClients" style="font-size: 0.72rem; padding: 0.35rem 0.65rem; white-space: nowrap;" title="Filter out background and internal connections initiated by this tool">
+                    <i data-lucide="eye-off" style="width: 12px; height: 12px;"></i>
+                    <span>Hide Internal (This App)</span>
+                  </button>
                 </div>
                 <div id="clientsQuickStats" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
                   Loading...
