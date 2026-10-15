@@ -58,6 +58,14 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ### 4. High-Performance Key Browsing & Inspector
 - **Responsive Glassmorphic Data Grid with Virtual Scrolling**: Blazing fast rendering and virtual windowing for massive keyspaces (100K to 1M+ keys). Only ~60 active rows are mounted to the DOM at any time with fixed 44px row heights and event delegation, eliminating UI freezing and memory pressure.
+- **Dual-Mode Keyspace Search (⚡ In-Memory Filter vs 🌐 Cluster SCAN)**:
+  - **Instant In-Memory Filter (`searchScope = "local"`)**: Filters already-loaded keys client-side in `< 1ms` (~0.2ms) using Regex literals (e.g. `/^user:[0-9]+$/i`), Glob patterns (`orders:*`, `*cache*`), or substrings without issuing network queries to Redis.
+  - **Live Execution Telemetry Badge**: Displays instant match count and execution duration (`X / Y (0.2ms)`).
+  - **Smart Fallback to Remote SCAN**: If a local query yields 0 matches among loaded keys, pressing `Enter` or clicking the fallback button `[🌐 Scan Redis Cluster for "..."]` automatically falls back to querying the Redis cluster.
+  - **Inline Clear Button**: `[x]` clear button inside the search input quickly resets the search pattern back to `*` with zero delay.
+- **Browser Memory Safety Ceiling Guard (100,000 Keys Limit)**:
+  - Automatically pauses progressive key accumulation when loaded keys reach the safety ceiling (default `100,000`) to prevent browser tab crashes and memory leaks.
+  - Displays a glassmorphic amber banner with an explicit `Raise Ceiling (+100,000)` option for workstations with sufficient RAM.
 - **Visual Scan Progress Shimmer & Active Cursor Spinner**: Top animated shimmer progress bar (`.scan-progress-shimmer`) and dynamic spinning badge in `#scanStatusText` provide real-time cursor feedback during background SCAN sweeps.
 - **Glassmorphic Toast Notifications & In-Place Copy Feedback**: Completely eliminated native blocking `alert()` popups. Copying keys, string values, JSON structures, Stream entries, and Slowlog commands displays immediate green checkmark feedback (`Copied!`) and non-blocking auto-dismissing toast pills with resilient Clipboard API fallback.
 - **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.

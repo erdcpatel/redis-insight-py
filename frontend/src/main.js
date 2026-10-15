@@ -58,8 +58,15 @@ import {
 import {
   resetAndScan,
   setupKeysEventListeners,
+  updateScanUI,
   loadDelimitersForActiveConnection
 } from "./modules/keys.js";
+
+// Global test and diagnostic access
+if (typeof window !== "undefined") {
+  window.__redisState = state;
+  window.__redisKeys = { updateScanUI, resetAndScan };
+}
 
 // Global fetch interceptor to inject X-Connection-ID header for multi-user session isolation
 const originalFetch = window.fetch;
@@ -273,8 +280,25 @@ function renderAppShell() {
               <!-- Filter Controls -->
               <div class="controls-card">
                 <div class="search-group">
-                  <i data-lucide="search" class="search-icon" style="width: 16px; height: 16px;"></i>
-                  <input type="text" id="keySearchInput" class="search-input" placeholder="Search keys by pattern (e.g. *, bikes:*, sample_*) - Press Enter" value="*">
+                  <div class="search-input-wrapper">
+                    <i data-lucide="search" class="search-icon" style="width: 15px; height: 15px;"></i>
+                    <input type="text" id="keySearchInput" class="search-input" placeholder="Filter loaded keys by regex, glob (*), or text (instant)..." value="*">
+                    <button type="button" id="btnClearSearchQuery" class="search-clear-btn" title="Clear query" style="display: none;">
+                      <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                    </button>
+                  </div>
+                  <span id="searchMatchCountBadge" class="search-match-badge" title="Matching keys in browser memory" style="display: none;"></span>
+
+                  <div class="search-scope-toggle" id="searchScopeToggle" title="Toggle Search Scope">
+                    <button type="button" class="scope-tab active" data-scope="local" id="scopeBtnLocal" title="Filter already-loaded keys instantly (~5ms) using Regex, Glob (*), or Substring">
+                      <i data-lucide="zap" style="width: 11px; height: 11px; color: var(--accent-warning);"></i>
+                      <span>In-Memory Filter</span>
+                    </button>
+                    <button type="button" class="scope-tab" data-scope="remote" id="scopeBtnRemote" title="Query Redis Cluster directly with this pattern (clears local cache and fetches fresh keys)">
+                      <i data-lucide="globe" style="width: 11px; height: 11px; color: var(--accent-primary);"></i>
+                      <span>Cluster SCAN</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div class="type-filter-group" id="typeFilterGroup">
@@ -297,6 +321,9 @@ function renderAppShell() {
                   </select>
                 </div>
               </div>
+
+              <!-- Browser Memory Safety Ceiling Guard Banner (Conditional) -->
+              <div id="memoryLimitBanner" class="memory-limit-banner" style="display: none;"></div>
 
               <!-- Unified Controls Bar: Mode Toggle, Scan Health, Refresh & Bulk Actions -->
               <div class="keys-actions-bar">

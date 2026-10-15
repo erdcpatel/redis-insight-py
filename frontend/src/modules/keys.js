@@ -15,6 +15,10 @@ export async function resetAndScan() {
   state.loadedKeysSet.clear();
   state.treeInitialized = false;
   state.treeExpandedPaths.clear();
+  state.isMemoryCeilingReached = false;
+
+  const limitBanner = document.getElementById("memoryLimitBanner");
+  if (limitBanner) limitBanner.style.display = "none";
 
   const emptyEl = document.getElementById("emptyWorkspaceState");
   const gridContainer = document.getElementById("gridViewerContainer");
@@ -139,6 +143,13 @@ export async function scanNextBatch(expectedEpoch = null) {
   if (state.isScanning) return;
   if (state.scanComplete) return;
 
+  const ceiling = state.maxLoadedKeysLimit || 100000;
+  if (state.keysTableRows.length >= ceiling) {
+    state.isMemoryCeilingReached = true;
+    updateScanUI();
+    return;
+  }
+
   const targetEpoch = expectedEpoch !== null ? expectedEpoch : state.currentScanEpoch;
   state.isScanning = true;
   updateScanUI();
@@ -157,11 +168,12 @@ export async function scanNextBatch(expectedEpoch = null) {
     state.scanComplete = isScanCursorComplete(state.currentCursor);
     state.dbTotalKeys = data.total_in_db;
 
+    const remainingCapacity = Math.max(0, ceiling - state.keysTableRows.length);
     const newKeys = (data.keys || []).filter(k => {
       if (state.loadedKeysSet.has(k.name)) return false;
       state.loadedKeysSet.add(k.name);
       return true;
-    });
+    }).slice(0, remainingCapacity);
 
     const rows = newKeys.map(k => ({
       key: k.name,
@@ -173,6 +185,11 @@ export async function scanNextBatch(expectedEpoch = null) {
     if (rows.length > 0) {
       state.keysTableRows.push(...rows);
     }
+
+    if (state.keysTableRows.length >= ceiling) {
+      state.isMemoryCeilingReached = true;
+    }
+
     renderKeysTable();
     state.totalScanned = state.loadedKeysSet.size;
 
@@ -426,15 +443,90 @@ export function folderMatchesQuery(folder, q) {
   return false;
 }
 
+export function globToRegex(glob, flags = "i") {
+  let reStr = "^";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*") {
+      reStr += ".*";
+    } else if (c === "?") {
+      reStr += ".";
+    } else if (/[.\\+*?[^\]$(){}=!<>|:-]/.test(c)) {
+      reStr += "\\" + c;
+    } else {
+      reStr += c;
+    }
+  }
+  reStr += "$";
+  return new RegExp(reStr, flags);
+}
+
+export function createKeyMatcher(query) {
+  const q = (query || "").trim();
+  if (!q || q === "*") return () => true;
+
+  // 1. Literal regex format /pattern/flags (e.g. /^users:[0-9]+/i)
+  if (q.startsWith("/") && q.lastIndexOf("/") > 0) {
+    try {
+      const lastSlash = q.lastIndexOf("/");
+      const pattern = q.slice(1, lastSlash);
+      const flags = q.slice(lastSlash + 1) || "i";
+      const re = new RegExp(pattern, flags);
+      return (k) => re.test(k);
+    } catch (_) {}
+  }
+
+  // 2. Glob pattern with * or ?
+  if (q.includes("*") || q.includes("?")) {
+    try {
+      const re = globToRegex(q, "i");
+      return (k) => re.test(k);
+    } catch (_) {}
+  }
+
+  // 3. User typed an unquoted regex with syntax characters (^, $, \d, etc.)
+  if (/[\^$|()\\[\\]{}]/.test(q)) {
+    try {
+      const re = new RegExp(q, "i");
+      return (k) => re.test(k);
+    } catch (_) {}
+  }
+
+  // 4. Default: Fast case-insensitive substring match
+  const lowerQ = q.toLowerCase();
+  return (k) => k.toLowerCase().includes(lowerQ);
+}
+
 export function getFilteredKeysRows() {
+  const t0 = performance.now();
+  let rows = state.keysTableRows || [];
+
+  // 1. Filter by In-Memory Local Query (Regex, Glob, or Substring)
+  const q = (state.localFilterQuery || "").trim();
+  if (q && q !== "*") {
+    const matcher = createKeyMatcher(q);
+    rows = rows.filter(r => matcher(r.key));
+  }
+
+  // 2. Filter by Redis Type Tab (Strings, Hashes, Lists, Sets, ZSets, JSON)
+  if (state.currentType && state.currentType !== "all") {
+    const targetType = state.currentType.toLowerCase();
+    rows = rows.filter(r => (r.type || "").toLowerCase() === targetType);
+  }
+
+  // 3. Filter by TTL Expiration
   const filter = (state.currentTtlFilter || "all").toLowerCase();
   if (filter === "expiring") {
-    return state.keysTableRows.filter(r => r.ttl_seconds > 0);
+    rows = rows.filter(r => r.ttl_seconds > 0);
+  } else if (filter === "persistent" || filter === "no-ttl") {
+    rows = rows.filter(r => r.ttl_seconds === -1);
   }
-  if (filter === "persistent" || filter === "no-ttl") {
-    return state.keysTableRows.filter(r => r.ttl_seconds === -1);
-  }
-  return state.keysTableRows;
+
+  const duration = (performance.now() - t0).toFixed(1);
+  state.localMatchCount = rows.length;
+  state.localMatchDurationMs = duration;
+
+  return rows;
 }
 
 const VIRTUAL_ROW_HEIGHT = 44;
@@ -497,10 +589,43 @@ export function renderKeysFlatTable() {
     }
 
     if (state.keysTableRows.length > 0) {
+      const q = (state.localFilterQuery || "").trim();
+      if (q && q !== "*") {
+        container.innerHTML = `
+          <div style="padding: 3.5rem 1.5rem; text-align: center; color: var(--text-muted);">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 50%; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); margin-bottom: 0.85rem;">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--accent-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </div>
+            <div style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem; margin-bottom: 0.35rem;">
+              No loaded keys match "<code>${escapeHtml(q)}</code>"
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); max-width: 480px; margin: 0 auto 1.25rem; line-height: 1.5;">
+              Searched across all <strong>${state.keysTableRows.length.toLocaleString()}</strong> keys currently loaded in browser memory.
+              The key may exist in the Redis cluster but has not been loaded yet.
+            </p>
+            <button type="button" class="btn btn-primary" id="btnFallbackRemoteScan" style="padding: 0.45rem 1.15rem; font-size: 0.82rem;">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              <span>Scan Redis Cluster for "${escapeHtml(q)}"</span>
+            </button>
+          </div>
+        `;
+        const btnFallback = document.getElementById("btnFallbackRemoteScan");
+        if (btnFallback) {
+          btnFallback.addEventListener("click", () => {
+            state.searchScope = "remote";
+            state.currentPattern = q.includes("*") ? q : `${q}*`;
+            const searchInput = document.getElementById("keySearchInput");
+            if (searchInput) searchInput.value = state.currentPattern;
+            resetAndScan();
+          });
+        }
+        return;
+      }
+
       container.innerHTML = `
         <div style="padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-          No keys match TTL filter "<strong>${escapeHtml(state.currentTtlFilter)}</strong>".<br>
-          <span style="font-size: 0.78rem; opacity: 0.75; margin-top: 0.35rem; display: inline-block;">(${state.keysTableRows.length.toLocaleString()} total keys scanned so far)</span>
+          No keys match TTL filter "<strong>${escapeHtml(state.currentTtlFilter)}</strong>" or Type filter "<strong>${escapeHtml(state.currentType)}</strong>".<br>
+          <span style="font-size: 0.78rem; opacity: 0.75; margin-top: 0.35rem; display: inline-block;">(${state.keysTableRows.length.toLocaleString()} total keys loaded in browser memory)</span>
         </div>
       `;
       return;
@@ -556,22 +681,21 @@ export function renderKeysFlatTable() {
 
   container.innerHTML = `
     <div class="virtual-scroll-viewport" id="keysTableViewport" style="overflow-y: auto; height: 100%; width: 100%; padding: 0.5rem; position: relative;">
-      <div class="virtual-scroll-spacer" style="height: ${totalHeight}px; width: 100%; position: relative;">
-        <div class="virtual-scroll-content" id="virtualScrollContent" style="position: absolute; top: 0px; left: 0; right: 0;">
-          <table class="data-table" style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr>
-                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
-                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
-                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
-                <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
-              </tr>
-            </thead>
-            <tbody id="keysTableBody">
-              ${rowsToDisplay.slice(0, initialEnd).map(renderTableRowHtml).join("")}
-            </tbody>
-          </table>
-        </div>
+      <div class="virtual-scroll-spacer" style="height: ${totalHeight}px; width: 100%; pointer-events: none;"></div>
+      <div class="virtual-scroll-content" id="virtualScrollContent" style="position: absolute; top: 0px; left: 0; right: 0; visibility: visible; pointer-events: auto;">
+        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
+              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
+            </tr>
+          </thead>
+          <tbody id="keysTableBody">
+            ${rowsToDisplay.slice(0, initialEnd).map(renderTableRowHtml).join("")}
+          </tbody>
+        </table>
       </div>
     </div>
   `;
@@ -1045,6 +1169,93 @@ export function updateScanChunkLabel() {
   if (label) label.textContent = `Safe SCAN (Chunk ${state.scanBatchSize.toLocaleString()})`;
 }
 
+export function updateSearchScopeUI() {
+  const scopeLocal = document.getElementById("scopeBtnLocal");
+  const scopeRemote = document.getElementById("scopeBtnRemote");
+  const searchInput = document.getElementById("keySearchInput");
+  const matchBadge = document.getElementById("searchMatchCountBadge");
+  const clearBtn = document.getElementById("btnClearSearchQuery");
+
+  const isLocal = state.searchScope === "local";
+
+  if (scopeLocal) scopeLocal.classList.toggle("active", isLocal);
+  if (scopeRemote) scopeRemote.classList.toggle("active", !isLocal);
+
+  if (searchInput) {
+    if (isLocal) {
+      searchInput.placeholder = "Filter loaded keys by regex, glob (*), or text (instant)...";
+      searchInput.title = "Instant in-memory filter across loaded keys (~5ms). Press Enter or click Cluster SCAN to query Redis.";
+    } else {
+      searchInput.placeholder = "Scan Redis cluster by pattern (e.g. *, users:*, order:*) - Press Enter";
+      searchInput.title = "Query Redis Cluster directly with pattern. Clears local cache and scans Redis.";
+    }
+  }
+
+  if (clearBtn) {
+    const val = searchInput ? searchInput.value.trim() : "";
+    clearBtn.style.display = (val && val !== "*") ? "inline-flex" : "none";
+  }
+
+  if (matchBadge) {
+    const totalLoaded = state.keysTableRows.length;
+    if (totalLoaded > 0 && isLocal) {
+      const q = (state.localFilterQuery || "").trim();
+      if (q && q !== "*") {
+        matchBadge.textContent = `${state.localMatchCount.toLocaleString()} / ${totalLoaded.toLocaleString()} (${state.localMatchDurationMs}ms)`;
+        matchBadge.title = `Filtered ${state.localMatchCount.toLocaleString()} of ${totalLoaded.toLocaleString()} loaded keys in ${state.localMatchDurationMs}ms`;
+      } else {
+        matchBadge.textContent = `${totalLoaded.toLocaleString()} loaded`;
+        matchBadge.title = `${totalLoaded.toLocaleString()} keys loaded in browser memory`;
+      }
+      matchBadge.style.display = "inline-flex";
+    } else {
+      matchBadge.style.display = "none";
+    }
+  }
+}
+
+export function updateMemoryLimitBanner() {
+  const banner = document.getElementById("memoryLimitBanner");
+  if (!banner) return;
+
+  const total = state.keysTableRows.length;
+  const ceiling = state.maxLoadedKeysLimit || 100000;
+
+  if (total >= ceiling) {
+    state.isMemoryCeilingReached = true;
+    const nextCeiling = ceiling + 100000;
+    banner.innerHTML = `
+      <div class="memory-limit-left">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <span>
+          <strong>Memory Safety Ceiling Reached:</strong>
+          <strong>${total.toLocaleString()}</strong> keys loaded in browser memory. Further key accumulation paused to preserve 60fps rendering and prevent browser crashes.
+        </span>
+      </div>
+      <div class="memory-limit-actions">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnRaiseMemoryCeiling" style="font-size: 0.72rem; padding: 0.25rem 0.6rem; color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); white-space: nowrap;">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><circle cx="12" cy="12" r="10"></circle><polyline points="16 12 12 8 8 12"></polyline><line x1="12" y1="8" x2="12" y2="16"></line></svg>
+          <span>Raise Ceiling (${nextCeiling.toLocaleString()})</span>
+        </button>
+      </div>
+    `;
+    banner.style.display = "flex";
+
+    const btnRaise = document.getElementById("btnRaiseMemoryCeiling");
+    if (btnRaise) {
+      btnRaise.addEventListener("click", () => {
+        state.maxLoadedKeysLimit = nextCeiling;
+        state.isMemoryCeilingReached = false;
+        banner.style.display = "none";
+        updateScanUI();
+      });
+    }
+  } else {
+    state.isMemoryCeilingReached = false;
+    banner.style.display = "none";
+  }
+}
+
 export function updateScanUI() {
   const statusText = document.getElementById("scanStatusText");
   const btnScanNext = document.getElementById("btnScanNext");
@@ -1052,6 +1263,7 @@ export function updateScanUI() {
 
   const isScanning = Boolean(state.isScanning);
   const isComplete = state.scanComplete;
+  const isCeilingReached = state.isMemoryCeilingReached || state.keysTableRows.length >= (state.maxLoadedKeysLimit || 100000);
 
   if (shimmer) {
     shimmer.classList.toggle("active", isScanning);
@@ -1061,19 +1273,30 @@ export function updateScanUI() {
     statusText.innerHTML = `
       ${isScanning ? '<span style="color: var(--accent-primary); display: inline-flex; align-items: center; gap: 5px; margin-right: 6px;"><span class="spin" style="display: inline-block;">↻</span> Scanning chunk...</span>' : ''}
       Loaded <strong>${state.totalScanned.toLocaleString()}</strong> keys
-      ${isComplete ? '<span style="color: var(--text-muted); margin-left: 6px; font-weight: 400;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>`}
+      ${isCeilingReached ? '<span style="color: #fbbf24; margin-left: 6px; font-weight: 500;">(Ceiling Reached)</span>' : isComplete ? '<span style="color: var(--text-muted); margin-left: 6px; font-weight: 400;">(All Keys Loaded)</span>' : `<span style="color: var(--text-muted);">(${escapeHtml(describeScanProgress(state.currentCursor))})</span>`}
       | ${isClusterView() ? "Cluster Total" : "DB Total"}: <strong>${Number(state.dbTotalKeys || 0).toLocaleString()}</strong>
     `;
   }
 
   if (btnScanNext) {
-    btnScanNext.disabled = isScanning || isComplete;
-    btnScanNext.style.display = isComplete ? "none" : "inline-flex";
-    btnScanNext.innerHTML = isScanning
-      ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...`
-      : `<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Load More`;
+    if (isCeilingReached) {
+      btnScanNext.disabled = true;
+      btnScanNext.style.display = "inline-flex";
+      btnScanNext.style.opacity = "0.75";
+      btnScanNext.innerHTML = `<i data-lucide="shield-alert" style="width: 13px; height: 13px; color: #fbbf24;"></i> Memory Ceiling (${state.maxLoadedKeysLimit.toLocaleString()})`;
+    } else {
+      btnScanNext.disabled = isScanning || isComplete;
+      btnScanNext.style.opacity = "";
+      btnScanNext.style.display = isComplete ? "none" : "inline-flex";
+      btnScanNext.innerHTML = isScanning
+        ? `<i data-lucide="refresh-cw" class="spin" style="width: 13px; height: 13px;"></i> Loading...`
+        : `<i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i> Load More`;
+    }
     setupIcons();
   }
+
+  updateMemoryLimitBanner();
+  updateSearchScopeUI();
 }
 
 export function setupKeysEventListeners() {
@@ -1108,19 +1331,79 @@ export function setupKeysEventListeners() {
   let searchDebounce = null;
   if (searchInput) {
     searchInput.addEventListener("input", () => {
-      clearTimeout(searchDebounce);
-      searchDebounce = setTimeout(() => {
-        state.currentPattern = searchInput.value.trim() || "*";
-        resetAutoRefreshTimer();
-        resetAndScan();
-      }, 500);
+      const val = searchInput.value;
+      const clearBtn = document.getElementById("btnClearSearchQuery");
+      if (clearBtn) clearBtn.style.display = (val.trim() && val.trim() !== "*") ? "inline-flex" : "none";
+
+      if (state.searchScope === "local") {
+        state.localFilterQuery = val.trim();
+        renderKeysView();
+        updateSearchScopeUI();
+      } else {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+          state.currentPattern = val.trim() || "*";
+        }, 300);
+      }
     });
+
     searchInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         clearTimeout(searchDebounce);
-        state.currentPattern = searchInput.value.trim() || "*";
-        resetAutoRefreshTimer();
-        resetAndScan();
+        const val = searchInput.value.trim() || "*";
+        state.localFilterQuery = val;
+
+        const matcher = createKeyMatcher(val);
+        const matchedLocally = val === "*"
+          ? (state.keysTableRows || []).length
+          : (state.keysTableRows || []).filter(r => matcher(r.key)).length;
+
+        if (state.searchScope === "remote" || e.shiftKey || state.keysTableRows.length === 0 || (state.searchScope === "local" && matchedLocally === 0)) {
+          state.currentPattern = val;
+          resetAutoRefreshTimer();
+          resetAndScan();
+        } else {
+          renderKeysView();
+          updateSearchScopeUI();
+        }
+      }
+    });
+  }
+
+  const scopeBtnLocal = document.getElementById("scopeBtnLocal");
+  const scopeBtnRemote = document.getElementById("scopeBtnRemote");
+
+  if (scopeBtnLocal) {
+    scopeBtnLocal.addEventListener("click", () => {
+      state.searchScope = "local";
+      const inp = document.getElementById("keySearchInput");
+      if (inp) state.localFilterQuery = inp.value.trim();
+      renderKeysView();
+      updateSearchScopeUI();
+    });
+  }
+
+  if (scopeBtnRemote) {
+    scopeBtnRemote.addEventListener("click", () => {
+      state.searchScope = "remote";
+      const inp = document.getElementById("keySearchInput");
+      if (inp) state.currentPattern = inp.value.trim() || "*";
+      updateSearchScopeUI();
+    });
+  }
+
+  const btnClearSearch = document.getElementById("btnClearSearchQuery");
+  if (btnClearSearch) {
+    btnClearSearch.addEventListener("click", () => {
+      if (searchInput) {
+        searchInput.value = "*";
+        state.localFilterQuery = "*";
+        if (state.searchScope === "remote") {
+          state.currentPattern = "*";
+        }
+        renderKeysView();
+        updateSearchScopeUI();
+        searchInput.focus();
       }
     });
   }
@@ -1133,8 +1416,13 @@ export function setupKeysEventListeners() {
         typeFilterGroup.querySelectorAll(".type-tab").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         state.currentType = btn.dataset.type;
-        resetAutoRefreshTimer();
-        resetAndScan();
+        if (state.searchScope === "local" && state.keysTableRows.length > 0) {
+          renderKeysView();
+          updateSearchScopeUI();
+        } else {
+          resetAutoRefreshTimer();
+          resetAndScan();
+        }
       }
     });
   }

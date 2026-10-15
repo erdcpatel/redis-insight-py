@@ -253,14 +253,39 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
 
 ---
 
-## 9. Mandatory Pre-Commit & Pre-Push Checklist
+## 9. Dual-Mode Search & Browser Memory Safety Ceiling Guards
+
+1. **Dual-Mode Keyspace Search**:
+   - **Instant In-Memory Filter (`searchScope = "local"`)**:
+     - Evaluates queries directly against in-memory key rows in `< 1ms` (typically 0.1ms – 0.5ms).
+     - Does **ZERO network calls** to Redis, preventing CPU starvation or cluster failovers on busy production nodes.
+     - Supports Regex literals (e.g. `/^user:[0-9]+$/i`), Glob patterns (`orders:*`, `*cache*`), and fast case-insensitive substring matches.
+     - Live execution telemetry badge (`#searchMatchCountBadge`) displays `X / Y (Z ms)`.
+   - **Cluster SCAN (`searchScope = "remote"`)**:
+     - Performs cursor-based `SCAN` sweeps directly against the Redis cluster master nodes.
+   - **Smart Fallback & Shift+Enter**:
+     - If an in-memory search yields 0 matches among loaded keys, pressing `Enter` or clicking the fallback button `[🌐 Scan Redis Cluster for "..."]` automatically triggers a remote cluster scan.
+     - Pressing `Shift+Enter` inside the search input always triggers a remote Redis scan regardless of current scope.
+   - **Clear Button (`#btnClearSearchQuery`)**:
+     - Inline `[x]` button inside the input quickly resets the search pattern back to `*` with zero network delay.
+
+2. **Browser Memory Safety Ceiling Guard**:
+   - Default ceiling guard: **100,000 loaded keys** (`maxLoadedKeysLimit`).
+   - When keys accumulated via progressive "Load More" reaches the ceiling, further accumulation is paused:
+     - An alert banner (`#memoryLimitBanner`) appears above the toolbar.
+     - The "Load More" button transitions to a disabled `Memory Ceiling (100,000)` state with a warning shield.
+     - Operators can explicitly click `Raise Ceiling (+100,000)` if client hardware has sufficient RAM.
+
+---
+
+## 10. Mandatory Pre-Commit & Pre-Push Checklist
 
 Before opening any Pull Request or committing changes, verify and complete this checklist:
 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 18+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

@@ -230,7 +230,14 @@ To add a new analytical diagnostic surface:
    - Tables with >100 keys use virtual windowing (`renderKeysFlatTable()`), rendering only ~60 visible rows with dynamic top/bottom spacers calculated at a fixed `44px` row height.
    - Use event delegation on container elements (`#gridViewerContainer`) instead of attaching per-row click handlers.
    - In Virtual Folder Tree View, lazily render sub-hierarchies only upon expansion (`isExpanded`), keeping collapsed DOM footprint minimal.
-4. **Visual Loading Shimmer**:
+4. **Dual-Mode Keyspace Search & In-Memory Instant Filter**:
+   - `searchScope: "local"` executes regex/glob/substring filtering against in-memory key rows in `< 1ms` (~0.2ms) without making network calls to Redis.
+   - Matcher supports Regex literals (`/pattern/flags`), Glob patterns (`*`, `?`), and case-insensitive substrings.
+   - Smart fallback automatically falls back to remote Redis cluster `SCAN` if 0 local keys match and user presses Enter, or if `Shift+Enter` is pressed.
+5. **Browser Memory Safety Ceiling Guard (100,000 Keys Limit)**:
+   - Guards against browser memory exhaustion by pausing key accumulation when loaded keys reach the safety ceiling (default 100,000).
+   - Renders `#memoryLimitBanner` and transforms Load More into a disabled `Memory Ceiling (100,000)` button with an explicit `Raise Ceiling` (+100,000) option.
+6. **Visual Loading Shimmer**:
    - Long-running scans activate the animated glassmorphic shimmer bar (`#keysLoadingShimmer` / `.scan-progress-shimmer`) directly above the table.
    - `#scanStatusText` displays an active spinning badge with live cursor progress.
 
@@ -243,7 +250,7 @@ Before committing or pushing any code, verify and complete this checklist:
 ```markdown
 - [ ] 1. Frontend Build: `cd frontend && npm run build` (0 errors, dist updated).
 - [ ] 2. Backend Pytest: `PYTHONPATH=. pytest tests/` (105+ tests passed).
-- [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (15+ tests passed).
+- [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (18+ tests passed).
 - [ ] 4. Documentation & Skills Synchronization:
       - `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

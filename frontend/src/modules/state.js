@@ -62,7 +62,7 @@ export const state = {
   clientsLoadedForConnId: null,
   topologyLoadedForConnId: null,
 
-  // Keys Scanning
+  // Keys Scanning & In-Memory Dataset
   currentCursor: 0,
   currentPattern: "*",
   currentType: "all",
@@ -74,6 +74,14 @@ export const state = {
   lastStatus: null,
   keysTableRows: [],
   loadedKeysSet: new Set(),
+
+  // Dual-Mode Search & Memory Limit Guards
+  searchScope: "local", // "local" (instant in-memory filter) or "remote" (query Redis SCAN)
+  localFilterQuery: "",
+  localMatchCount: 0,
+  localMatchDurationMs: 0,
+  maxLoadedKeysLimit: 100000,
+  isMemoryCeilingReached: false,
 
   // Auto-Refresh
   isAutoRefreshActive: false,

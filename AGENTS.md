@@ -116,6 +116,15 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
    - Long-running scans must activate the animated glassmorphic shimmer bar (`#keysLoadingShimmer` / `.scan-progress-shimmer`) directly above the table.
    - `#scanStatusText` must display an active spinning badge with live cursor progress (`Scanning cursor: <cursor>`).
    - Initial scans must display a centered `.table-loading-card` with double-ring spinner instead of an empty table.
+10. **Dual-Mode Keyspace Search & Zero-Network Local Filtering**:
+    - `searchScope: "local"` filters already-loaded keys client-side in `< 1ms` (~0.2ms) with **zero network calls** to Redis.
+    - High-performance matcher supports Regex literals (`/pattern/flags`), Glob patterns (`*`, `?`), regex character syntax, and case-insensitive substrings.
+    - Shows live match telemetry badge (`#searchMatchCountBadge`) and integrated clear button (`#btnClearSearchQuery`).
+    - Smart fallback: When a query yields 0 local matches, pressing `Enter` or clicking the fallback button `[🌐 Scan Redis Cluster for "..."]` automatically triggers a cluster `SCAN`. `Shift+Enter` always triggers remote SCAN.
+11. **Browser Memory Safety Ceiling Guards (100K Limit)**:
+    - Automatically pauses key accumulation when loaded keys reach the safety ceiling (default `100,000`).
+    - Displays amber `#memoryLimitBanner` and locks the Load More button to `Memory Ceiling (100,000)` to preserve 60fps rendering and prevent tab crashes.
+    - Provides explicit `Raise Ceiling (+100,000)` action button for workstations with sufficient RAM.
 
 ---
 
@@ -141,7 +150,7 @@ Every AI agent and human engineer **MUST** review and complete this checklist be
 ### Pre-Commit & Pre-Push Checklist
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass; AirPlay port 7000 skipped if occupied).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 18+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with new rules, architectural conventions, or flags.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks, module APIs, or testing recipes.
