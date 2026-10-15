@@ -293,7 +293,7 @@ class TtlForecastAnalysis(BaseModel):
 
 
 class MemoryAnalysisRequest(BaseModel):
-    sample_size: int = Field(default=500, ge=50, le=20000, description="Max keys to sample")
+    sample_size: int = Field(default=500, ge=50, le=50000, description="Max keys to sample")
     pattern: str = Field(default="*", description="Key pattern to sample")
     scan_mode: str = Field(default="sample", description="'sample' (up to limit) or 'full' (thorough cluster scan)")
 
