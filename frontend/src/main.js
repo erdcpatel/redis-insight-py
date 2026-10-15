@@ -344,7 +344,6 @@ function renderAppShell() {
                     <span id="scanChunkLabel">Safe (50)</span>
                   </span>
                   <span id="scanStatusText" class="scan-status-text">Scanning keys...</span>
-                  <span id="keysCacheStatusPill" class="cache-status-pill" style="display: none;"></span>
                 </div>
 
                 <div class="actions-right">

@@ -4429,33 +4429,7 @@ body {
   width: 100%;
 }
 
-/* ==========================================================================
-   IndexedDB Keyspace Cache Status Pill
-   ========================================================================== */
-.cache-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.70rem;
-  padding: 0.18rem 0.48rem;
-  border-radius: var(--radius-sm);
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.28);
-  color: #34d399;
-  font-weight: 500;
-}
 
-.cache-clear-link {
-  color: #f87171;
-  text-decoration: underline;
-  cursor: pointer;
-  margin-left: 0.25rem;
-  font-size: 0.7rem;
-}
-
-.cache-clear-link:hover {
-  color: #ef4444;
-}
 
 /* ==========================================================================
    Namespace & Key Hygiene Studio (Phase 3)

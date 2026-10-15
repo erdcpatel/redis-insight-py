@@ -281,18 +281,11 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
    - **Keyspace Namespace & Hygiene Studio Modal** (`#namespaceModal`):
      - Purple header badge with KPI overview (Total Keys, Distinct Namespaces, Top Namespace % share, Hygiene Flags).
      - **Namespace Distribution**: lists prefixes with color-coded horizontal progress bars and a 1-click `[🔍 Filter]` button that instantly updates local search and closes the modal.
-     - **Key Hygiene & Linting**: detects naming anti-patterns (spaces, trailing/double delimiters, long keys > 128 chars) and allows direct key inspection via Slide-Over drawer.
-4. **IndexedDB Local Keyspace Cache (Phase 4)**:
-   - Stores loaded keys in browser `IndexedDB` (`redis_insight_keys_cache`).
-   - Automatically restores keys on page load or connection switch without network delay.
-   - Renders a clean `#keysCacheStatusPill` with 1-click `Clear` link.
-
-5. **Responsive Keys Actions Bar & Compact Telemetry**:
+4. **Responsive Keys Actions Bar & Compact Telemetry**:
    - The keys actions bar (`.keys-actions-bar`) enforces zero horizontal clipping and zero horizontal scrolling on all desktop resolutions:
      - `flex-wrap: wrap; gap: 0.45rem;` allows graceful wrapping onto balanced rows on narrower screens.
      - Status telemetry uses compact notation (`Loaded X / Y keys (All)`) to conserve horizontal space.
      - Uniform toolbar action buttons (`.btn-toolbar-action`) with standardized padding (`0.26rem 0.52rem`) keep controls aligned and compact.
-
 
 ---
 
@@ -303,7 +296,7 @@ Before opening any Pull Request or committing changes, verify and complete this 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 20+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 
 const pythonBin = '/Users/dhavalpatel/workspace/venv/py313/bin/python';
 
-test.describe('Namespace & Hygiene Studio and IndexedDB Keyspace Cache', () => {
+test.describe('Namespace & Key Hygiene Studio', () => {
 
   test.beforeAll(async () => {
     try {
@@ -123,35 +123,5 @@ for p in ['users:*', 'orders:*', 'auth::*', 'key with*', 'temp_root*']:
     await expect(modal).not.toBeVisible();
   });
 
-  test('IndexedDB snapshot caching renders status pill and supports 1-click clear', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#topConnContainer')).toBeVisible({ timeout: 10000 });
-
-    // Wait for initial scan to complete and cache to save
-    await expect(page.locator('.key-row').first()).toBeVisible({ timeout: 10000 });
-    await page.waitForTimeout(500);
-
-    // Force a Refresh to trigger saving
-    const btnRefresh = page.locator('#btnResetScan');
-    await btnRefresh.click();
-    await expect(page.locator('.key-row').first()).toBeVisible({ timeout: 10000 });
-    await page.waitForTimeout(600);
-
-    const cachePill = page.locator('#keysCacheStatusPill');
-    await expect(cachePill).toBeVisible({ timeout: 5000 });
-    await expect(cachePill).toContainText(/Cached/i);
-
-    // Capture Snapshot 15: IndexedDB Cache Pill in Actions Bar
-    const snapshotsDir = '/Users/dhavalpatel/.gemini/antigravity/brain/7f43d7c0-af33-419e-b2aa-bab690b5834a/snapshots';
-    await page.screenshot({ path: `${snapshotsDir}/15_indexeddb_cache_pill.png` });
-
-    // Click Clear on cache pill
-    const btnClearCache = page.locator('#btnClearCacheSnapshot');
-    await expect(btnClearCache).toBeVisible();
-    await btnClearCache.click();
-
-    // Verify cache pill disappears
-    await expect(cachePill).not.toBeVisible();
-  });
-
 });
+

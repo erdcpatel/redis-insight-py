@@ -129,10 +129,7 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 13. **Web Worker Keyspace Indexing & Namespace / Hygiene Studio**:
     - Intensive regex matching, prefix tokenization, and key hygiene analysis are offloaded to a dedicated Web Worker (`keys-worker.js`), keeping the UI at a locked 60fps.
     - **Keyspace Namespace & Hygiene Studio** (`#namespaceModal`) provides instant prefix share breakdown (with 1-click filtering) and key hygiene linting (whitespace, double/trailing delimiters, long keys > 128 chars) with **zero Redis cluster queries**.
-14. **IndexedDB Local Keyspace Cache**:
-    - Browser `IndexedDB` (`redis_insight_keys_cache`) stores loaded keys per connection ID and DB.
-    - Automatically restores keys on page load or connection switch with status indicator (`#keysCacheStatusPill`), eliminating repeated scans across sessions while providing a 1-click cache purge option.
-15. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
+14. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
     - `.keys-actions-bar` uses `flex-wrap: wrap; gap: 0.45rem;` to ensure buttons (`Batch`, `Load More`, `Namespaces`, `Export`, `Bulk Delete`) never clip or require horizontal scrolling.
     - Status telemetry is formatted compactly (`Loaded X / Y keys`) to preserve screen real estate.
 
@@ -160,7 +157,7 @@ Every AI agent and human engineer **MUST** review and complete this checklist be
 ### Pre-Commit & Pre-Push Checklist
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass; AirPlay port 7000 skipped if occupied).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 20+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with new rules, architectural conventions, or flags.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks, module APIs, or testing recipes.

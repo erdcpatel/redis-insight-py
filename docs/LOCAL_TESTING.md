@@ -255,11 +255,6 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
       - Click `Key Hygiene & Linting` tab &rarr; verify category pills and anomaly badges (spaces, double/trailing colons, long keys).
       - Click `Inspect` on an anomaly &rarr; key detail opens in the Slide-Over drawer.
 
-16. **IndexedDB Local Keyspace Cache**:
-    - [ ] Observe `#keysCacheStatusPill` in Keys toolbar displaying `Cached (N keys)`:
-      - Refresh page &rarr; keys restore instantly from browser IndexedDB with zero cluster query.
-      - Click `Clear` on the cache pill &rarr; snapshot is purged from IndexedDB and pill disappears.
-
 ---
 
 ## 6. Mandatory Pre-Commit & Pre-Push Checklist
@@ -269,7 +264,7 @@ Before committing changes or opening a Pull Request, every engineer and AI agent
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 20+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

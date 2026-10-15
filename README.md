@@ -75,7 +75,6 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 - **Keyspace Namespace & Key Hygiene Studio**: Interactive analytical studio (`#namespaceModal`) analyzing loaded keys with zero Redis cluster calls:
   - **Namespace Distribution**: Visualizes prefix shares with gradient progress bars and 1-click `[🔍 Filter]` actions.
   - **Key Hygiene & Linting**: Flags naming anti-patterns (whitespace, double/trailing delimiters, keys > 128 chars) with direct inspection in the Slide-Over drawer.
-- **IndexedDB Local Keyspace Cache**: Stores loaded keys in browser `IndexedDB` (`redis_insight_keys_cache`), restoring keys instantly on page load or connection switch with status indicator (`#keysCacheStatusPill`) and 1-click cache purge.
 
 - **Real-Time Auto-Refresh Pattern Watcher**:
   - Watch for keys matching your active pattern (e.g., `orders:*`) and data type filter automatically.

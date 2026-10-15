@@ -241,10 +241,7 @@ To add a new analytical diagnostic surface:
    - `GZipMiddleware(minimum_size=1000)` automatically compresses all API payloads >= 1KB, providing 85–90% network transfer reduction for keyspace queries.
 8. **Web Worker Keyspace Indexing & Namespace Studio**:
    - Multi-threaded Web Worker (`keys-worker.js`) performs background regex evaluation, prefix tokenization, and key hygiene analysis without freezing the browser's UI thread.
-   - **Keyspace Namespace & Hygiene Studio** (`#namespaceModal`) displays prefix distribution with one-click filtering, and flags key naming anti-patterns (spaces, double/trailing colons, long keys).
-9. **IndexedDB Local Keyspace Cache**:
-   - Stores loaded keys in browser `IndexedDB` (`redis_insight_keys_cache`), restoring keys instantly on page load or connection switch with status indicator (`#keysCacheStatusPill`) and 1-click cache purge.
-10. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
+9. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
    - `.keys-actions-bar` uses `flex-wrap: wrap; gap: 0.45rem;` to ensure buttons (`Batch`, `Load More`, `Namespaces`, `Export`, `Bulk Delete`) never clip or require horizontal scrolling.
    - Status telemetry is formatted compactly (`Loaded X / Y keys`) to preserve screen real estate.
 
@@ -257,7 +254,7 @@ Before committing or pushing any code, verify and complete this checklist:
 ```markdown
 - [ ] 1. Frontend Build: `cd frontend && npm run build` (0 errors, dist updated).
 - [ ] 2. Backend Pytest: `PYTHONPATH=. pytest tests/` (106+ tests passed).
-- [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (20+ tests passed).
+- [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (19+ tests passed).
 - [ ] 4. Documentation & Skills Synchronization:
       - `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.
