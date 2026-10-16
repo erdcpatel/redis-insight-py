@@ -58,8 +58,15 @@ import {
 import {
   resetAndScan,
   setupKeysEventListeners,
+  updateScanUI,
   loadDelimitersForActiveConnection
 } from "./modules/keys.js";
+
+// Global test and diagnostic access
+if (typeof window !== "undefined") {
+  window.__redisState = state;
+  window.__redisKeys = { updateScanUI, resetAndScan };
+}
 
 // Global fetch interceptor to inject X-Connection-ID header for multi-user session isolation
 const originalFetch = window.fetch;
@@ -273,8 +280,25 @@ function renderAppShell() {
               <!-- Filter Controls -->
               <div class="controls-card">
                 <div class="search-group">
-                  <i data-lucide="search" class="search-icon" style="width: 16px; height: 16px;"></i>
-                  <input type="text" id="keySearchInput" class="search-input" placeholder="Search keys by pattern (e.g. *, bikes:*, sample_*) - Press Enter" value="*">
+                  <div class="search-input-wrapper">
+                    <i data-lucide="search" class="search-icon" style="width: 15px; height: 15px;"></i>
+                    <input type="text" id="keySearchInput" class="search-input" placeholder="Filter loaded keys by regex, glob (*), or text (instant)..." value="*">
+                    <button type="button" id="btnClearSearchQuery" class="search-clear-btn" title="Clear query" style="display: none;">
+                      <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                    </button>
+                  </div>
+                  <span id="searchMatchCountBadge" class="search-match-badge" title="Matching keys in browser memory" style="display: none;"></span>
+
+                  <div class="search-scope-toggle" id="searchScopeToggle" title="Toggle Search Scope">
+                    <button type="button" class="scope-tab active" data-scope="local" id="scopeBtnLocal" title="Filter already-loaded keys instantly (~5ms) using Regex, Glob (*), or Substring">
+                      <i data-lucide="zap" style="width: 11px; height: 11px; color: var(--accent-warning);"></i>
+                      <span>In-Memory Filter</span>
+                    </button>
+                    <button type="button" class="scope-tab" data-scope="remote" id="scopeBtnRemote" title="Query Redis Cluster directly with this pattern (clears local cache and fetches fresh keys)">
+                      <i data-lucide="globe" style="width: 11px; height: 11px; color: var(--accent-primary);"></i>
+                      <span>Cluster SCAN</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div class="type-filter-group" id="typeFilterGroup">
@@ -298,6 +322,9 @@ function renderAppShell() {
                 </div>
               </div>
 
+              <!-- Browser Memory Safety Ceiling Guard Banner (Conditional) -->
+              <div id="memoryLimitBanner" class="memory-limit-banner" style="display: none;"></div>
+
               <!-- Unified Controls Bar: Mode Toggle, Scan Health, Refresh & Bulk Actions -->
               <div class="keys-actions-bar">
                 <div class="actions-left" id="scanActionsGroup">
@@ -313,8 +340,8 @@ function renderAppShell() {
                   </div>
                   <div class="actions-divider"></div>
                   <span class="safety-badge">
-                    <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i>
-                    <span id="scanChunkLabel">Safe SCAN (50)</span>
+                    <i data-lucide="shield-check" style="width: 12px; height: 12px;"></i>
+                    <span id="scanChunkLabel">Safe (50)</span>
                   </span>
                   <span id="scanStatusText" class="scan-status-text">Scanning keys...</span>
                 </div>
@@ -337,7 +364,7 @@ function renderAppShell() {
                     </select>
                   </div>
 
-                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnResetScan" title="Reload keys matching pattern immediately" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnResetScan" title="Reload keys matching pattern immediately">
                     <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
                     <span>Refresh</span>
                   </button>
@@ -348,18 +375,23 @@ function renderAppShell() {
                   <select id="scanBatchSizeSelect" class="batch-size-select" title="Keys requested per SCAN batch (applies to the next Load More)">
                     ${SCAN_BATCH_SIZES.map(n => `<option value="${n}"${n === 50 ? " selected" : ""}>${n.toLocaleString()}</option>`).join("")}
                   </select>
-                  <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext" style="font-size: 0.75rem; padding: 0.32rem 0.75rem;">
-                    <i data-lucide="arrow-down-circle" style="width: 13px; height: 13px;"></i>
+                  <button type="button" class="btn btn-primary btn-toolbar-action" id="btnScanNext">
+                    <i data-lucide="arrow-down-circle" style="width: 12px; height: 12px;"></i>
                     <span>Load More</span>
                   </button>
 
                   <div class="actions-divider"></div>
 
-                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenNamespaceModal" title="Analyze namespace distribution & key hygiene on loaded keys (0 Redis calls)">
+                    <i data-lucide="pie-chart" style="width: 12px; height: 12px; color: #a78bfa;"></i>
+                    <span>Namespaces</span>
+                  </button>
+
+                  <button type="button" class="btn btn-secondary btn-toolbar-action" id="btnOpenExportModal" title="Export matched key names (CSV/TXT)">
                     <i data-lucide="download" style="width: 12px; height: 12px;"></i>
                     <span>Export</span>
                   </button>
-                  <button type="button" class="btn btn-secondary btn-toolbar-action btn-danger-action" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)" style="font-size: 0.75rem; padding: 0.32rem 0.65rem;">
+                  <button type="button" class="btn btn-secondary btn-toolbar-action btn-danger-action" id="btnOpenBulkDeleteModal" title="Bulk delete matched keys (Dry-run & confirmation required)">
                     <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     <span>Bulk Delete</span>
                   </button>
@@ -658,6 +690,10 @@ function renderAppShell() {
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="btn btn-secondary" id="btnExportSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="download" style="width: 13px; height: 13px;"></i>
+                    Export
+                  </button>
                   <button type="button" class="btn btn-secondary" id="btnRefreshSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh
@@ -674,14 +710,25 @@ function renderAppShell() {
                   <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
                   <input type="text" id="slowlogSearchInput" class="search-input" placeholder="Search by command, arguments, or client IP..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Min Latency:</span>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn active" data-min-duration="0">All</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="1">&gt; 1ms</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="5">&gt; 5ms</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="10">&gt; 10ms</button>
-                  <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="50">&gt; 50ms</button>
-                  <div id="slowlogNodeFilterContainer" style="display: inline-flex; align-items: center; margin-left: 0.5rem;"></div>
+                <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
+                  <div style="display: inline-flex; align-items: center; gap: 0.3rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Time Window:</span>
+                    <button type="button" class="env-pill-btn slowlog-time-btn active" data-time-window="all">All</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="5m">5m</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="15m">15m</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="1h">1h</button>
+                    <button type="button" class="env-pill-btn slowlog-time-btn" data-time-window="24h">24h</button>
+                  </div>
+                  <div class="actions-divider" style="height: 18px; margin: 0 0.15rem;"></div>
+                  <div style="display: inline-flex; align-items: center; gap: 0.3rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Min Latency:</span>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn active" data-min-duration="0">All</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="1">&gt; 1ms</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="5">&gt; 5ms</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="10">&gt; 10ms</button>
+                    <button type="button" class="env-pill-btn slowlog-filter-btn" data-min-duration="50">&gt; 50ms</button>
+                  </div>
+                  <div id="slowlogNodeFilterContainer" style="display: inline-flex; align-items: center;"></div>
                 </div>
               </div>
 
@@ -1101,6 +1148,230 @@ function renderAppShell() {
             <i data-lucide="download" style="width: 14px; height: 14px;"></i>
             <span>Download</span>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Slowlog Modal (Dialog) -->
+    <div class="modal-backdrop" id="exportSlowlogModal">
+      <div class="config-modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="download" style="color: #38bdf8; width: 20px; height: 20px;"></i>
+            <div>
+              <h3 class="modal-title">Export Slowlog Entries</h3>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Download slow query telemetry and command arguments</div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseExportSlowlogModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.8rem;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--text-muted);">Time Window:</span>
+              <strong id="exportSlowlogTimeWindowDisplay" style="color: #38bdf8;">All</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span style="color: var(--text-muted);">Min Latency:</span>
+              <span id="exportSlowlogMinLatencyDisplay" style="font-weight: 500;">All (&gt; 0ms)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span style="color: var(--text-muted);">Filtered Entries:</span>
+              <strong id="exportSlowlogFilteredCount" style="color: var(--accent-primary);">0 entries</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span style="color: var(--text-muted);">Total Buffer:</span>
+              <span id="exportSlowlogTotalCount" style="color: var(--text-secondary);">0 entries</span>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem; display: block;">Export Format</label>
+            <div style="display: flex; gap: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogFormatRadio" value="json" checked>
+                <span>JSON (Full telemetry &amp; args array)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogFormatRadio" value="csv">
+                <span>CSV (Spreadsheet compatible)</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem; display: block;">Export Scope</label>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogScopeRadio" value="filtered" checked>
+                <span>Currently Filtered Entries (<strong id="exportSlowlogScopeFilteredText">0</strong>)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogScopeRadio" value="all">
+                <span>All Loaded Buffer Entries (<strong id="exportSlowlogScopeAllText">0</strong>)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 0.85rem 1.25rem; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.6rem;">
+          <button type="button" class="btn btn-secondary" id="btnCancelExportSlowlogModal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnExecuteExportSlowlog" style="display: flex; align-items: center; gap: 0.35rem; background: #38bdf8; border-color: #38bdf8; color: #07090e; font-weight: 600;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Download Export</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slowlog Command Zoom & Detailed Inspector Modal -->
+    <div class="modal-backdrop" id="slowlogDetailModal">
+      <div class="config-modal-card slowlog-detail-card">
+        <div class="modal-header" style="flex-shrink: 0;">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <i data-lucide="zoom-in" style="color: #38bdf8; width: 22px; height: 22px;"></i>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <h3 class="modal-title" id="slowlogDetailTitle">Slowlog Command Details</h3>
+                <span id="slowlogDetailDurationBadge" class="badge-duration badge-duration-warning" style="font-size: 0.75rem;">-- ms</span>
+              </div>
+              <div id="slowlogDetailSubtitle" style="font-size: 0.72rem; color: var(--text-muted);">
+                Entry #-- • Timestamp: --
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseSlowlogDetailModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <div id="slowlogDetailBody" style="padding: 1.25rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; flex: 1;">
+          <!-- Content dynamically rendered by slowlog.js -->
+        </div>
+
+        <div class="modal-actions" style="padding: 0.75rem 1.25rem; background: var(--bg-secondary); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+          <div id="slowlogDetailFooterTelemetry" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+            --
+          </div>
+          <button type="button" class="btn btn-secondary" id="btnDismissSlowlogDetailModal">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Namespace & Key Hygiene Studio Modal (Phase 3) -->
+    <div class="modal-backdrop" id="namespaceModal" style="display: none;">
+      <div class="config-modal-card" style="max-width: 820px; border-top: 3px solid #a78bfa;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="pie-chart" style="color: #a78bfa; width: 20px; height: 20px;"></i>
+            <div>
+              <h3 class="modal-title" style="color: #c4b5fd;">Namespace & Key Hygiene Studio</h3>
+              <div id="nsStudioSubtitle" style="font-size: 0.72rem; color: var(--text-muted);">
+                Analyzed from Browser In-Memory Keyspace • Zero Redis Load
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseNamespaceModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+          <!-- Empty State if no keys loaded -->
+          <div id="nsEmptyState" style="display: none; text-align: center; padding: 2.5rem 1rem; color: var(--text-muted);">
+            <i data-lucide="database" style="width: 32px; height: 32px; color: var(--text-muted); margin-bottom: 0.5rem; display: inline-block;"></i>
+            <div style="font-weight: 600; font-size: 0.9rem;">No Keys Loaded in Memory</div>
+            <div style="font-size: 0.75rem; margin-top: 0.25rem;">
+              Load keys in the Keys Browser first to run zero-Redis namespace tokenization and hygiene linting.
+            </div>
+          </div>
+
+          <!-- Content Wrapper -->
+          <div id="nsContentWrapper" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- KPI Summary Cards -->
+            <div class="ns-kpi-grid">
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Analyzed Keys</span>
+                <span class="ns-kpi-value" id="kpiNsTotalKeys">0</span>
+              </div>
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Distinct Namespaces</span>
+                <span class="ns-kpi-value" id="kpiNsCount">0</span>
+              </div>
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Top Namespace</span>
+                <span class="ns-kpi-value" id="kpiNsTop">—</span>
+              </div>
+              <div class="ns-kpi-card">
+                <span class="ns-kpi-label">Key Hygiene Status</span>
+                <span class="ns-kpi-value" id="kpiNsHygiene">0 Flags</span>
+              </div>
+            </div>
+
+            <!-- Sub Navigation Tabs -->
+            <div class="ns-tab-bar">
+              <button type="button" class="ns-tab-btn active" id="tabBtnNsDistribution">
+                <i data-lucide="folder-tree" style="width: 13px; height: 13px;"></i>
+                <span>Namespace Distribution</span>
+                <span class="ns-tab-badge" id="badgeNsDistCount">0</span>
+              </button>
+              <button type="button" class="ns-tab-btn" id="tabBtnNsHygiene">
+                <i data-lucide="shield-alert" style="width: 13px; height: 13px;"></i>
+                <span>Key Hygiene & Linting</span>
+                <span class="ns-tab-badge" id="badgeNsHygCount">0</span>
+              </button>
+            </div>
+
+            <!-- Tab 1: Namespace Distribution Pane -->
+            <div class="ns-pane" id="paneNsDistribution">
+              <div class="ns-table-container">
+                <table class="ns-table">
+                  <thead>
+                    <tr>
+                      <th>Prefix / Namespace</th>
+                      <th>Key Count</th>
+                      <th>Share (% of Keys)</th>
+                      <th>Data Types</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyNsDistribution">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Tab 2: Key Hygiene & Linting Pane -->
+            <div class="ns-pane" id="paneNsHygiene" style="display: none;">
+              <div class="hygiene-filter-bar">
+                <span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 600;">FILTER ANOMALIES:</span>
+                <button type="button" class="hygiene-cat-pill active" data-cat="all">All</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="delimiter">Delimiters</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="whitespace">Whitespace</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="non-ascii">Non-ASCII</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="long">Length</button>
+                <button type="button" class="hygiene-cat-pill" data-cat="missing">Root</button>
+              </div>
+
+              <div class="ns-table-container">
+                <table class="ns-table">
+                  <thead>
+                    <tr>
+                      <th>Offending Key</th>
+                      <th>Hygiene Issue</th>
+                      <th>Diagnostic Description</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyNsHygiene">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

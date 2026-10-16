@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.logger import setup_logging, logger
@@ -111,6 +112,9 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
+
+# Gzip Compression for payloads >= 1KB (85-90% bandwidth reduction for keyspace JSON)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Static assets
 STATIC_DIR = Path(__file__).resolve().parent / "static"

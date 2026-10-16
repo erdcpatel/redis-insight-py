@@ -148,6 +148,96 @@ test.describe('RedisInsight E2E UI & Cluster Verification', () => {
     }
   });
 
+  test('Slowlog Profiler provides Time Window filters (All, 5m, 15m, 1h, 24h) and Min Latency filters', async ({ page }) => {
+    await page.goto('/');
+
+    const slowlogTab = page.locator('button[data-tab="slowlog"]');
+    await slowlogTab.click();
+    const slowlogPane = page.locator('#slowlogModal');
+    await expect(slowlogPane).toHaveClass(/active/);
+
+    // Verify Time Window buttons exist
+    const timeBtns = slowlogPane.locator('.slowlog-time-btn');
+    await expect(timeBtns).toHaveCount(5);
+    await expect(timeBtns.nth(0)).toHaveText('All');
+    await expect(timeBtns.nth(0)).toHaveClass(/active/);
+    await expect(timeBtns.nth(1)).toHaveText('5m');
+    await expect(timeBtns.nth(2)).toHaveText('15m');
+    await expect(timeBtns.nth(3)).toHaveText('1h');
+    await expect(timeBtns.nth(4)).toHaveText('24h');
+
+    // Click 5m button and verify active state switches
+    await timeBtns.nth(1).click();
+    await expect(timeBtns.nth(1)).toHaveClass(/active/);
+    await expect(timeBtns.nth(0)).not.toHaveClass(/active/);
+
+    // Verify Min Latency buttons exist
+    const latencyBtns = slowlogPane.locator('.slowlog-filter-btn');
+    await expect(latencyBtns).toHaveCount(5);
+    await expect(latencyBtns.nth(0)).toHaveText('All');
+    await expect(latencyBtns.nth(0)).toHaveClass(/active/);
+  });
+
+  test('Slowlog Profiler provides Export dialog and Command Zoom Details modal', async ({ page }) => {
+    // Seed a slow command with Lua script in local Redis
+    try {
+      const { execSync } = await import('child_process');
+      execSync('redis-cli CONFIG SET slowlog-log-slower-than 0');
+      execSync('redis-cli EVAL "local val = redis.call(\'get\', KEYS[1]); return val" 1 test:lua:sample my_arg1 my_arg2');
+    } catch (_) {}
+
+    await page.goto('/');
+
+    const slowlogTab = page.locator('button[data-tab="slowlog"]');
+    await slowlogTab.click();
+    const slowlogPane = page.locator('#slowlogModal');
+    await expect(slowlogPane).toHaveClass(/active/);
+
+    // 1. Fetch entries if prompt is visible
+    const fetchBtn = page.locator('#btnFetchSlowlogExplicit');
+    if (await fetchBtn.isVisible()) {
+      await fetchBtn.click();
+    }
+
+    // 2. Verify Export Button opens Export Slowlog Modal
+    const exportBtn = slowlogPane.locator('#btnExportSlowlogModal');
+    await expect(exportBtn).toBeVisible();
+    await exportBtn.click();
+
+    const exportModal = page.locator('#exportSlowlogModal');
+    await expect(exportModal).toHaveClass(/active/);
+    await expect(exportModal.locator('.modal-title')).toHaveText('Export Slowlog Entries');
+
+    // Verify format radios exist
+    const jsonRadio = exportModal.locator('input[value="json"]');
+    const csvRadio = exportModal.locator('input[value="csv"]');
+    await expect(jsonRadio).toBeChecked();
+    await csvRadio.check();
+    await expect(csvRadio).toBeChecked();
+
+    // Close export modal
+    const cancelBtn = exportModal.locator('#btnCancelExportSlowlogModal');
+    await cancelBtn.click();
+    await expect(exportModal).not.toHaveClass(/active/);
+
+    // 3. Test Command Zoom / Detailed Inspector Modal
+    const zoomBtn = page.locator('.btn-inspect-slowlog-cmd').first();
+    if (await zoomBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await zoomBtn.click();
+      const detailModal = page.locator('#slowlogDetailModal');
+      await expect(detailModal).toHaveClass(/active/);
+      await expect(detailModal.locator('.modal-title')).toContainText('Slowlog Command');
+
+      // Verify arguments table or lua box is visible
+      await expect(detailModal.locator('.slowlog-args-table')).toBeVisible();
+
+      // Close detail modal
+      const closeDetailBtn = detailModal.locator('#btnCloseSlowlogDetailModal');
+      await closeDetailBtn.click();
+      await expect(detailModal).not.toHaveClass(/active/);
+    }
+  });
+
   test('Batch size supports 10,000 keys and Auto-refresh offers 5m interval', async ({ page }) => {
     await page.goto('/');
 

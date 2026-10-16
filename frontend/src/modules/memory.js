@@ -376,7 +376,11 @@ export async function triggerMemoryAnalysis(sampleSize = 500, pattern = "*", sca
       body: JSON.stringify({ sample_size: sampleSize, pattern: pattern, scan_mode: scanMode }),
       signal: currentSignal
     });
-    if (!res.ok) throw new Error("Failed to complete memory profiling");
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const detail = errData.detail ? (typeof errData.detail === "string" ? errData.detail : JSON.stringify(errData.detail)) : `Failed to complete memory profiling (HTTP ${res.status})`;
+      throw new Error(detail);
+    }
     const data = await res.json();
 
     // Discard response if connection was changed during profiling

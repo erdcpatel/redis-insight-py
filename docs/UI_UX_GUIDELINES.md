@@ -189,6 +189,25 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
    - Any long-running fetch operation (e.g. keyspace scan or memory analysis) must track an `AbortController`.
    - On cluster switch, immediately call `abortController.abort()` to cancel the in-flight network request and prevent race conditions or stale metrics from contaminating the newly selected cluster.
 
+### H. Real-Time Slowlog & Latency Profiler Standards
+
+1. **Dual Dimension Toolbar (Time Window & Min Latency)**:
+   - Separate the filter bar into two distinct button groups divided by `.actions-divider`:
+     - **Time Window**: `All`, `5m`, `15m`, `1h`, `24h` (`.slowlog-time-btn`) with cyan active state (`#38bdf8`).
+     - **Min Latency**: `All`, `> 1ms`, `> 5ms`, `> 10ms`, `> 50ms` (`.slowlog-filter-btn`) with blue active state.
+2. **Instant In-Memory Filtering**:
+   - Filtering by Time Window or Min Latency evaluates in-memory cached entries client-side without firing additional Redis commands.
+3. **Relative Time Formatting**:
+   - Every slowlog entry displays its human-readable execution time string alongside a high-contrast relative duration badge (`15s ago`, `2m ago`, `1h ago`).
+4. **Slowlog Export (JSON & CSV)**:
+   - Provide an Export modal (`#exportSlowlogModal`) supporting JSON (full telemetry with arguments array) and CSV formats.
+   - Operators can toggle export scope between currently filtered entries and all loaded buffer entries.
+5. **Slowlog Command Zoom & Detailed Inspector (`#slowlogDetailModal`)**:
+   - Clicking any command code box or the `[🔍 Zoom]` icon opens the Slowlog Command Inspector.
+   - **Dedicated Lua Script Zoom Box**: When inspecting `EVAL` or `EVALSHA`, displays a formatted multiline code box with line counts, byte size, 1-click Lua copy, and parsed `KEYS` / `ARGV` chip breakdown.
+   - **Arguments Breakdown Table**: Lists every argument with its index, role (`COMMAND`, `LUA SCRIPT`, `NUMKEYS`, `KEYS[i]`, `ARGV[i]`), byte length, and individual copy action.
+   - **Redis Server-Side Truncation Notice**: Automatically detects when Redis truncated an argument (`... (N more bytes)`) and renders an explicit informational badge explaining the Redis C engine compile-time limit (`SLOWLOG_ENTRY_MAX_STRING = 128`), preventing operator confusion.
+
 ---
 
 ## 5. Read-Only Mode & Safety Guardrails
@@ -253,14 +272,50 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
 
 ---
 
-## 9. Mandatory Pre-Commit & Pre-Push Checklist
+## 9. Dual-Mode Search & Browser Memory Safety Ceiling Guards
+
+1. **Dual-Mode Keyspace Search**:
+   - **Instant In-Memory Filter (`searchScope = "local"`)**:
+     - Evaluates queries directly against in-memory key rows in `< 1ms` (typically 0.1ms – 0.5ms).
+     - Does **ZERO network calls** to Redis, preventing CPU starvation or cluster failovers on busy production nodes.
+     - Supports Regex literals (e.g. `/^user:[0-9]+$/i`), Glob patterns (`orders:*`, `*cache*`), and fast case-insensitive substring matches.
+     - Live execution telemetry badge (`#searchMatchCountBadge`) displays `X / Y (Z ms)`.
+   - **Cluster SCAN (`searchScope = "remote"`)**:
+     - Performs cursor-based `SCAN` sweeps directly against the Redis cluster master nodes.
+   - **Smart Fallback & Shift+Enter**:
+     - If an in-memory search yields 0 matches among loaded keys, pressing `Enter` or clicking the fallback button `[🌐 Scan Redis Cluster for "..."]` automatically triggers a remote cluster scan.
+     - Pressing `Shift+Enter` inside the search input always triggers a remote Redis scan regardless of current scope.
+   - **Clear Button (`#btnClearSearchQuery`)**:
+     - Inline `[x]` button inside the input quickly resets the search pattern back to `*` with zero network delay.
+
+2. **Browser Memory Safety Ceiling Guard**:
+   - Default ceiling guard: **100,000 loaded keys** (`maxLoadedKeysLimit`).
+   - When keys accumulated via progressive "Load More" reaches the ceiling, further accumulation is paused:
+     - An alert banner (`#memoryLimitBanner`) appears above the toolbar.
+     - The "Load More" button transitions to a disabled `Memory Ceiling (100,000)` state with a warning shield.
+     - Operators can explicitly click `Raise Ceiling (+100,000)` if client hardware has sufficient RAM.
+
+3. **Web Worker Keyspace Indexing & Namespace Studio (Phase 3)**:
+   - Evaluates prefix tokenization, large regex matching, and key hygiene analysis in background thread `keys-worker.js`.
+   - **Keyspace Namespace & Hygiene Studio Modal** (`#namespaceModal`):
+     - Purple header badge with KPI overview (Total Keys, Distinct Namespaces, Top Namespace % share, Hygiene Flags).
+     - **Namespace Distribution**: lists prefixes with color-coded horizontal progress bars and a 1-click `[🔍 Filter]` button that instantly updates local search and closes the modal.
+4. **Responsive Keys Actions Bar & Compact Telemetry**:
+   - The keys actions bar (`.keys-actions-bar`) enforces zero horizontal clipping and zero horizontal scrolling on all desktop resolutions:
+     - `flex-wrap: wrap; gap: 0.45rem;` allows graceful wrapping onto balanced rows on narrower screens.
+     - Status telemetry uses compact notation (`Loaded X / Y keys (All)`) to conserve horizontal space.
+     - Uniform toolbar action buttons (`.btn-toolbar-action`) with standardized padding (`0.26rem 0.52rem`) keep controls aligned and compact.
+
+---
+
+## 11. Mandatory Pre-Commit & Pre-Push Checklist
 
 Before opening any Pull Request or committing changes, verify and complete this checklist:
 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

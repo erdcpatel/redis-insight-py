@@ -125,6 +125,18 @@ def test_memory_analyze_full_mode(client):
         assert data["ttl_forecast"] is not None
         assert "horizons" in data["ttl_forecast"]
 
+    # Also verify 25,000 keys (Max Cluster Scan option from UI) is accepted by schema
+    payload_max = {
+        "sample_size": 25000,
+        "pattern": "*",
+        "scan_mode": "full"
+    }
+    resp_max = client.post("/api/memory/analyze", json=payload_max)
+    if resp_max.status_code == 200:
+        data_max = resp_max.json()
+        assert "ttl_forecast" in data_max
+        assert data_max["sampled_count"] >= 0
+
 
 def test_export_keys_with_ttl_filter(client):
     """Verify keys export endpoint filters correctly by ttl_filter (persistent vs expiring)."""

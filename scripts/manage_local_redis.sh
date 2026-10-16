@@ -150,6 +150,8 @@ seed_test_data() {
     redis-cli -p "$STANDALONE_PORT" SET "audit_log_2026_events" "ok" >/dev/null
     redis-cli -p "$STANDALONE_PORT" SET "models::v2::user#meta" "custom_delim_data" >/dev/null
     redis-cli -p "$STANDALONE_PORT" SET "analytics|daily|summary" "1024_views" >/dev/null
+    redis-cli -p "$STANDALONE_PORT" XADD "test:stream:events" "*" user_id "u100" action "login" ip "127.0.0.1" >/dev/null
+    redis-cli -p "$STANDALONE_PORT" XADD "test:stream:events" "*" user_id "u101" action "purchase" amount "49.99" >/dev/null
     echo "    ✓ Standalone keys seeded."
   else
     echo "    Standalone Redis not running on port $STANDALONE_PORT, skipping."

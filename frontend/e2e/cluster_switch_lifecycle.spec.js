@@ -4,6 +4,14 @@ import { execSync } from 'child_process';
 
 test.describe('Cluster Switch Lifecycle & State Isolation', () => {
 
+  test.beforeEach(async () => {
+    try {
+      execSync('redis-cli -p 6379 DEL test:stream:events');
+      execSync('redis-cli -p 6379 XADD test:stream:events "*" user_id u100 action login ip 127.0.0.1');
+      execSync('redis-cli -p 6379 XADD test:stream:events "*" user_id u101 action purchase amount 49.99');
+    } catch (_) {}
+  });
+
   test('Switching clusters invalidates diagnostic caches and prompts for explicit load', async ({ page, request }) => {
     // 1. Setup two standalone connections
     const conn1Res = await request.post('/api/connections', {

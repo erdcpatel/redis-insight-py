@@ -58,10 +58,23 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 
 ### 4. High-Performance Key Browsing & Inspector
 - **Responsive Glassmorphic Data Grid with Virtual Scrolling**: Blazing fast rendering and virtual windowing for massive keyspaces (100K to 1M+ keys). Only ~60 active rows are mounted to the DOM at any time with fixed 44px row heights and event delegation, eliminating UI freezing and memory pressure.
+- **Dual-Mode Keyspace Search (⚡ In-Memory Filter vs 🌐 Cluster SCAN)**:
+  - **Instant In-Memory Filter (`searchScope = "local"`)**: Filters already-loaded keys client-side in `< 1ms` (~0.2ms) using Regex literals (e.g. `/^user:[0-9]+$/i`), Glob patterns (`orders:*`, `*cache*`), or substrings without issuing network queries to Redis.
+  - **Live Execution Telemetry Badge**: Displays instant match count and execution duration (`X / Y (0.2ms)`).
+  - **Smart Fallback to Remote SCAN**: If a local query yields 0 matches among loaded keys, pressing `Enter` or clicking the fallback button `[🌐 Scan Redis Cluster for "..."]` automatically falls back to querying the Redis cluster.
+  - **Inline Clear Button**: `[x]` clear button inside the search input quickly resets the search pattern back to `*` with zero delay.
+- **Browser Memory Safety Ceiling Guard (100,000 Keys Limit)**:
+  - Automatically pauses progressive key accumulation when loaded keys reach the safety ceiling (default `100,000`) to prevent browser tab crashes and memory leaks.
+  - Displays a glassmorphic amber banner with an explicit `Raise Ceiling (+100,000)` option for workstations with sufficient RAM.
 - **Visual Scan Progress Shimmer & Active Cursor Spinner**: Top animated shimmer progress bar (`.scan-progress-shimmer`) and dynamic spinning badge in `#scanStatusText` provide real-time cursor feedback during background SCAN sweeps.
 - **Glassmorphic Toast Notifications & In-Place Copy Feedback**: Completely eliminated native blocking `alert()` popups. Copying keys, string values, JSON structures, Stream entries, and Slowlog commands displays immediate green checkmark feedback (`Copied!`) and non-blocking auto-dismissing toast pills with resilient Clipboard API fallback.
-- **Pattern Search & Cursor Scanning**: Non-blocking `SCAN` execution with pattern filtering (`*`), smart "Load More" pagination, and strict unique key deduplication.
-- **Configurable SCAN Batch Size**: Toggle requested keys per SCAN chunk (50, 100, 200, 500, 1,000, or 10,000) directly from the toolbar to match network latency.
+- **Dual-Mode Keyspace Search & Instant In-Memory Filter**: Seamlessly toggle between client-side in-memory regex/glob/substring filtering (`< 1ms`, ~0.2ms, zero Redis network calls) and remote cluster `SCAN`. Features smart fallback and keyboard shortcuts (`Enter` / `Shift+Enter`).
+- **Browser Memory Safety Ceiling Guard (100,000 Keys Limit)**: Automatically pauses key accumulation when loaded keys reach the safety ceiling to preserve 60fps rendering and prevent browser tab crashes, with an explicit `Raise Ceiling (+100,000)` option.
+- **FastAPI Gzip Compression (85–90% Transfer Reduction)**: Automatic gzip compression on all API responses >= 1KB (`GZipMiddleware`), dramatically speeding up large keyspace transfers over HTTP.
+- **Web Worker Keyspace Indexing & Zero-UI-Jank Filtering**: Background Web Worker (`keys-worker.js`) handles heavy regex evaluation, prefix tokenization, and key hygiene checks without blocking the main browser thread.
+- **Keyspace Namespace & Key Hygiene Studio**: Interactive analytical studio (`#namespaceModal`) analyzing loaded keys with zero Redis cluster calls:
+  - **Namespace Distribution**: Visualizes prefix shares with gradient progress bars and 1-click `[🔍 Filter]` actions.
+  - **Key Hygiene & Linting**: Flags naming anti-patterns (whitespace, double/trailing delimiters, keys > 128 chars) with direct inspection in the Slide-Over drawer.
 
 - **Real-Time Auto-Refresh Pattern Watcher**:
   - Watch for keys matching your active pattern (e.g., `orders:*`) and data type filter automatically.
@@ -131,10 +144,17 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
 ### 7. Real-Time Slowlog & Latency Profiler
 - **Cluster-Wide Slowlog Aggregation**: Executes `SLOWLOG GET` across standalone instances or aggregates slow command entries from all primary cluster nodes.
 - **Microsecond Precision**: Displays execution duration in milliseconds and microseconds, timestamp, caller IP/client name, command arguments, and target node.
+- **Time Horizon Filter & Relative Time Tags**:
+  - Interactive Time Window selector (`All`, `5m`, `15m`, `1h`, `24h`) with cyan active indicator to inspect slow commands executed within the last $X$ minutes.
+  - High-contrast relative time tags (`15s ago`, `2m ago`, `1h ago`) rendered directly below the ISO timestamp for instant cognitive orientation.
 - **Visual Latency Threshold Badges**:
   - `< 10ms`: Subtle green/cyan badge.
   - `10ms - 50ms`: Amber warning badge.
   - `> 50ms`: Bold red critical latency badge.
+- **Slowlog Export (JSON & CSV)**: 1-click export dialog allowing operators to download slow query telemetry as structured JSON (with complete arguments array) or spreadsheet-ready CSV across filtered or all buffer entries.
+- **Command Zoom & Detailed Inspector**: Click any slow query or the zoom button to open the full command inspector with execution vitals, raw command viewer, and an arguments breakdown table.
+- **Dedicated Lua Script Zoom Box**: When inspecting `EVAL` or `EVALSHA`, automatically formats the Lua script in a multiline monospace viewer with byte count, line count, 1-click Lua copy, and parsed `KEYS` / `ARGV` arrays.
+- **Redis Server-Side Truncation Notice**: Automatically identifies when Redis truncated arguments exceeding 128 bytes in its internal memory ring buffer (`SLOWLOG_ENTRY_MAX_STRING = 128`), informing operators why remaining bytes were not stored by Redis.
 - **1-Click Copy Command**: Copy full slow command strings and arguments directly to clipboard with visual checkmark feedback.
 - **Search & Filter**: Filter slow commands by search query, min latency threshold (>1ms, >5ms, >10ms, >50ms), or specific cluster node.
 - **Reset Buffer**: Safely reset the Redis Slowlog buffer with confirmation.

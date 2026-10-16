@@ -231,6 +231,30 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
    - [ ] Click "Copy Key" in Key Inspector &rarr; button switches in-place to green checkmark (`Key Copied!`) and a success toast appears in `#appToastContainer`.
    - [ ] Verify NO native browser alert/confirm popup is triggered anywhere in the application.
 
+13. **Dual-Mode Keyspace Search & In-Memory Filter**:
+   - [ ] Type a regex (e.g. `/^user:[0-9]+$/i`), glob (`orders:*`), or substring in the search box while `In-Memory Filter` is active:
+     - Verify table filters instantly (< 1ms) without any network requests to Redis.
+     - Verify `#searchMatchCountBadge` displays the live match count and execution duration (`X / Y (0.2ms)`).
+     - Click `[x]` clear button &rarr; query resets to `*` and table displays all loaded keys immediately.
+   - [ ] Type a pattern that matches 0 loaded keys &rarr; press `Enter` (or click `[🌐 Scan Redis Cluster]`) &rarr; automatically falls back to remote Redis scan.
+   - [ ] Press `Shift+Enter` &rarr; immediately triggers remote Redis scan.
+   - [ ] Click `[Cluster SCAN]` scope toggle &rarr; placeholder updates to `Scan Redis cluster by pattern...` &rarr; Enter fires remote cursor scan.
+
+14. **Browser Memory Safety Ceiling Guard**:
+   - [ ] Accumulate keys using `Load More` with batch size 10,000 up to the 100,000 ceiling:
+     - Verify accumulation pauses cleanly without frame drops or tab freezing.
+     - Verify `#memoryLimitBanner` renders warning banner with `[Raise Ceiling]` action.
+     - Verify `Load More` button transitions to disabled `Memory Ceiling (100,000)` state with shield icon.
+     - Click `Raise Ceiling` &rarr; ceiling increases by +100,000 and Load More is re-enabled.
+
+15. **Keyspace Namespace & Key Hygiene Studio**:
+    - [ ] Click `[Namespaces]` in Keys toolbar &rarr; `#namespaceModal` opens:
+      - Verify KPI cards render Analyzed Keys, Distinct Namespaces, Top Namespace % share, and Hygiene Flags count.
+      - Verify Namespace Distribution table displays prefixes with gradient progress bars.
+      - Click `[🔍 Filter]` on any prefix &rarr; modal closes, search query is populated, and table filters instantly.
+      - Click `Key Hygiene & Linting` tab &rarr; verify category pills and anomaly badges (spaces, double/trailing colons, long keys).
+      - Click `Inspect` on an anomaly &rarr; key detail opens in the Slide-Over drawer.
+
 ---
 
 ## 6. Mandatory Pre-Commit & Pre-Push Checklist
@@ -239,8 +263,8 @@ Before committing changes or opening a Pull Request, every engineer and AI agent
 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 105+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 15+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

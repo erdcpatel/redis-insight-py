@@ -2209,8 +2209,8 @@ class RedisManager:
         client = await self.get_client(conn_id)
         clean_pattern = pattern.strip() if pattern and pattern.strip() else "*"
         is_full_scan = scan_mode.lower() == "full"
-        target_limit = min(sample_size if sample_size > 500 else 25000, 50000) if is_full_scan else max(50, min(5000, sample_size))
-        scan_batch = min(200, target_limit)
+        target_limit = max(50, min(50000, sample_size)) if is_full_scan else max(50, min(5000, sample_size))
+        scan_batch = min(500, target_limit)
 
         start_time = time.perf_counter()
 
@@ -2368,10 +2368,13 @@ class RedisManager:
                 )
 
         if sampled_keys:
-            key_items: List[BigKeyItem] = await asyncio.gather(
+            raw_results = await asyncio.gather(
                 *[inspect_single_key(k) for k in sampled_keys],
-                return_exceptions=False
+                return_exceptions=True
             )
+            key_items: List[BigKeyItem] = [
+                item for item in raw_results if isinstance(item, BigKeyItem)
+            ]
         else:
             key_items = []
 
