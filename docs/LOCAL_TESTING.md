@@ -262,7 +262,7 @@ Before pushing any feature branch or opening a PR, perform this quick 2-minute v
 Before committing changes or opening a Pull Request, every engineer and AI agent must complete this checklist:
 
 ```markdown
-- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
 - [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
