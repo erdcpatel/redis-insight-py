@@ -68,7 +68,7 @@ playwright-report/
 frontend/test-results/
 frontend/playwright-report/
 
-# --- Node & Frontend Dependencies ---
+# --- Node & Frontend Dependencies & Build Output ---
 node_modules/
 frontend/node_modules/
 npm-debug.log*
@@ -77,6 +77,9 @@ yarn-error.log*
 .pnpm-debug.log*
 .vite/
 frontend/.vite/
+dist/
+frontend/dist/
+
 
 # --- Operating System & Desktop Files ---
 .DS_Store

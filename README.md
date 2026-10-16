@@ -388,10 +388,15 @@ DEV_REDIS_PASSWORD=my_secure_dev_password
 PROD_REDIS_PASSWORD=my_secure_prod_password
 ```
 
-### 3. Run the Application
+### 3. Build & Run the Application
 
-Start the backend server (the frontend bundle in `dist/` is served automatically):
+Compile the frontend assets and launch the FastAPI server:
 ```bash
+# 1. Compile frontend distribution (first time or after frontend changes)
+cd frontend && npm install && npm run build
+cd ..
+
+# 2. Start the backend server
 python3 run.py
 ```
 
@@ -468,7 +473,7 @@ For complete instructions, pre-push verification checklists, and design rules, s
 │       └── keys.py          # Key browsing, inspection, and deletion
 ├── config/
 │   └── connections.yaml     # Declarative connection definitions
-├── dist/                    # Production frontend distribution (pre-built)
+├── dist/                    # Compiled frontend distribution (gitignored; built via npm run build)
 ├── frontend/
 │   ├── package.json         # Frontend package configuration (Lucide, Vite)
 │   ├── vite.config.js       # Vite configuration
@@ -486,7 +491,7 @@ The `main` branch is protected by GitHub branch rules (`enforce_admins: true`). 
 
 ### Mandatory Pre-Commit Checklist
 Before committing or submitting a PR, verify:
-- [ ] **Frontend Build**: `cd frontend && npm run build` (0 errors).
+- [ ] **Frontend Build**: `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
 - [ ] **Backend Tests**: `PYTHONPATH=. pytest tests/` (105+ tests passed).
 - [ ] **Playwright E2E**: `cd frontend && npx playwright test` (15+ tests passed).
 - [ ] **Docs & Skills Sync**: All new features, UX conventions, and flags are documented in `AGENTS.md`, `SKILL.md`, `UI_UX_GUIDELINES.md`, and `README.md`.

@@ -313,7 +313,7 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
 Before opening any Pull Request or committing changes, verify and complete this checklist:
 
 ```markdown
-- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist updated).
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
 - [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:

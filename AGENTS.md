@@ -37,7 +37,7 @@ RedisInsight Python is a lightweight, responsive Redis management and observabil
 │   │       ├── topology.js  # Cluster node map & keyspace distribution
 │   │       └── actions.js   # Bulk delete, key export, key deletion
 │   └── e2e/                 # Playwright browser end-to-end test suite
-├── dist/                    # Compiled frontend assets served by FastAPI
+├── dist/                    # Compiled frontend assets served by FastAPI (gitignored; generated via npm run build)
 ├── scripts/                 # Local Redis orchestration & test automation scripts
 └── tests/                   # Backend pytest test suite (100+ tests)
 ```
@@ -160,7 +160,7 @@ Every AI agent and human engineer **MUST** review and complete this checklist be
 
 ```markdown
 ### Pre-Commit & Pre-Push Checklist
-- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`).
+- [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`; `dist/` is gitignored).
 - [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass; AirPlay port 7000 skipped if occupied).
 - [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:

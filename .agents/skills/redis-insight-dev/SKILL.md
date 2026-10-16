@@ -19,7 +19,7 @@ This skill provides comprehensive instructions, code patterns, architectural ref
 - **`app/main.py`**:
   - FastAPI application entrypoint.
   - Registers REST routers (`/api/connections`, `/api/keys`, `/api/cluster`, etc.).
-  - Mounts static files from `dist/` and renders `app/templates/index.html`.
+  - Mounts compiled frontend static files from `dist/` (built via `npm run build`; gitignored) and serves fallback.
   - Configures CORS and application lifecycle events (`startup` / `shutdown`).
 - **`app/redis_manager.py`**:
   - Central manager for all Redis connections.
@@ -252,7 +252,7 @@ To add a new analytical diagnostic surface:
 Before committing or pushing any code, verify and complete this checklist:
 
 ```markdown
-- [ ] 1. Frontend Build: `cd frontend && npm run build` (0 errors, dist updated).
+- [ ] 1. Frontend Build: `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
 - [ ] 2. Backend Pytest: `PYTHONPATH=. pytest tests/` (106+ tests passed).
 - [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (19+ tests passed).
 - [ ] 4. Documentation & Skills Synchronization:

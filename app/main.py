@@ -137,7 +137,7 @@ async def redirect_classic():
 
 # Serve Frontend via FastAPI app.frontend() with fallback to StaticFiles
 DIST_DIR = Path(__file__).resolve().parent.parent / "dist"
-if DIST_DIR.exists():
+if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
     if hasattr(app, "frontend"):
         app.frontend("/", directory=str(DIST_DIR), fallback="index.html")
     else:
@@ -157,5 +157,42 @@ if DIST_DIR.exists():
             if file_path.is_file():
                 return FileResponse(file_path)
             return FileResponse(DIST_DIR / "index.html")
+else:
+    from fastapi.responses import HTMLResponse
+
+    @app.get("/{full_path:path}")
+    async def serve_unbuilt_notice(full_path: str):
+        if full_path.startswith("api/") or full_path == "api":
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Not Found")
+        return HTMLResponse(
+            """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RedisInsight Py - Build Required</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0b0f19; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #131b2e; padding: 2.5rem; border-radius: 14px; border: 1px solid #1e293b; max-width: 540px; box-shadow: 0 20px 45px rgba(0,0,0,0.6); }
+    h2 { color: #38bdf8; margin-top: 0; display: flex; align-items: center; gap: 0.5rem; }
+    p { color: #94a3b8; line-height: 1.6; }
+    code { background: #080c14; padding: 0.2rem 0.5rem; border-radius: 4px; color: #38bdf8; font-size: 0.9em; }
+    pre { background: #080c14; border: 1px solid #1e293b; padding: 0.85rem 1rem; border-radius: 8px; overflow-x: auto; color: #38bdf8; font-family: monospace; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>⚡ Frontend Build Required</h2>
+    <p>The compiled production frontend assets were not found in <code>dist/</code>.</p>
+    <p>To compile the frontend bundle, run:</p>
+    <pre>cd frontend && npm install && npm run build</pre>
+    <p>Or run the Vite development server with hot-reload:</p>
+    <pre>cd frontend && npm run dev</pre>
+  </div>
+</body>
+</html>""",
+            status_code=200
+        )
+
 
 

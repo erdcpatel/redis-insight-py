@@ -12,7 +12,7 @@ description: Strict Git workflow invariants forbidding direct commits or pushes 
 2. **Branching Strategy & Mandatory Pre-Commit Checklist**:
    - Always create a dedicated branch for changes (e.g., `feature/<name>`, `fix/<name>`, `docs/<name>`).
    - **Self-Enforcing Pre-Commit Verification Checklist** (Must pass before committing or pushing):
-     1. [ ] **Frontend Build**: `cd frontend && npm run build` (0 errors, assets in `dist/assets/`).
+     1. [ ] **Frontend Build**: `cd frontend && npm run build` (0 errors, assets bundled into `dist/assets/`; `dist/` is gitignored).
      2. [ ] **Backend Automated Tests**: `PYTHONPATH=. pytest tests/` (105+ passed, 1 skipped for AirPlay port 7000).
      3. [ ] **Playwright E2E Tests**: `cd frontend && npx playwright test` (15+ passed, 1 skipped).
      4. [ ] **Documentation & Skills Synchronization Checklist**:
