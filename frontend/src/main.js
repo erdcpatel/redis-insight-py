@@ -690,6 +690,10 @@ function renderAppShell() {
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="btn btn-secondary" id="btnExportSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="download" style="width: 13px; height: 13px;"></i>
+                    Export
+                  </button>
                   <button type="button" class="btn btn-secondary" id="btnRefreshSlowlogModal" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
                     <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
                     Refresh
@@ -1144,6 +1148,113 @@ function renderAppShell() {
             <i data-lucide="download" style="width: 14px; height: 14px;"></i>
             <span>Download</span>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Slowlog Modal (Dialog) -->
+    <div class="modal-backdrop" id="exportSlowlogModal">
+      <div class="config-modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <i data-lucide="download" style="color: #38bdf8; width: 20px; height: 20px;"></i>
+            <div>
+              <h3 class="modal-title">Export Slowlog Entries</h3>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Download slow query telemetry and command arguments</div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseExportSlowlogModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.8rem;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--text-muted);">Time Window:</span>
+              <strong id="exportSlowlogTimeWindowDisplay" style="color: #38bdf8;">All</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span style="color: var(--text-muted);">Min Latency:</span>
+              <span id="exportSlowlogMinLatencyDisplay" style="font-weight: 500;">All (&gt; 0ms)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span style="color: var(--text-muted);">Filtered Entries:</span>
+              <strong id="exportSlowlogFilteredCount" style="color: var(--accent-primary);">0 entries</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span style="color: var(--text-muted);">Total Buffer:</span>
+              <span id="exportSlowlogTotalCount" style="color: var(--text-secondary);">0 entries</span>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem; display: block;">Export Format</label>
+            <div style="display: flex; gap: 1rem;">
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogFormatRadio" value="json" checked>
+                <span>JSON (Full telemetry &amp; args array)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogFormatRadio" value="csv">
+                <span>CSV (Spreadsheet compatible)</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem; display: block;">Export Scope</label>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogScopeRadio" value="filtered" checked>
+                <span>Currently Filtered Entries (<strong id="exportSlowlogScopeFilteredText">0</strong>)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer;">
+                <input type="radio" name="exportSlowlogScopeRadio" value="all">
+                <span>All Loaded Buffer Entries (<strong id="exportSlowlogScopeAllText">0</strong>)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 0.85rem 1.25rem; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.6rem;">
+          <button type="button" class="btn btn-secondary" id="btnCancelExportSlowlogModal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnExecuteExportSlowlog" style="display: flex; align-items: center; gap: 0.35rem; background: #38bdf8; border-color: #38bdf8; color: #07090e; font-weight: 600;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            <span>Download Export</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slowlog Command Zoom & Detailed Inspector Modal -->
+    <div class="modal-backdrop" id="slowlogDetailModal">
+      <div class="config-modal-card slowlog-detail-card">
+        <div class="modal-header" style="flex-shrink: 0;">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <i data-lucide="zoom-in" style="color: #38bdf8; width: 22px; height: 22px;"></i>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <h3 class="modal-title" id="slowlogDetailTitle">Slowlog Command Details</h3>
+                <span id="slowlogDetailDurationBadge" class="badge-duration badge-duration-warning" style="font-size: 0.75rem;">-- ms</span>
+              </div>
+              <div id="slowlogDetailSubtitle" style="font-size: 0.72rem; color: var(--text-muted);">
+                Entry #-- • Timestamp: --
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-icon" id="btnCloseSlowlogDetailModal">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <div id="slowlogDetailBody" style="padding: 1.25rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; flex: 1;">
+          <!-- Content dynamically rendered by slowlog.js -->
+        </div>
+
+        <div class="modal-actions" style="padding: 0.75rem 1.25rem; background: var(--bg-secondary); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+          <div id="slowlogDetailFooterTelemetry" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+            --
+          </div>
+          <button type="button" class="btn btn-secondary" id="btnDismissSlowlogDetailModal">Close</button>
         </div>
       </div>
     </div>

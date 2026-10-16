@@ -199,6 +199,14 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
    - Filtering by Time Window or Min Latency evaluates in-memory cached entries client-side without firing additional Redis commands.
 3. **Relative Time Formatting**:
    - Every slowlog entry displays its human-readable execution time string alongside a high-contrast relative duration badge (`15s ago`, `2m ago`, `1h ago`).
+4. **Slowlog Export (JSON & CSV)**:
+   - Provide an Export modal (`#exportSlowlogModal`) supporting JSON (full telemetry with arguments array) and CSV formats.
+   - Operators can toggle export scope between currently filtered entries and all loaded buffer entries.
+5. **Slowlog Command Zoom & Detailed Inspector (`#slowlogDetailModal`)**:
+   - Clicking any command code box or the `[🔍 Zoom]` icon opens the Slowlog Command Inspector.
+   - **Dedicated Lua Script Zoom Box**: When inspecting `EVAL` or `EVALSHA`, displays a formatted multiline code box with line counts, byte size, 1-click Lua copy, and parsed `KEYS` / `ARGV` chip breakdown.
+   - **Arguments Breakdown Table**: Lists every argument with its index, role (`COMMAND`, `LUA SCRIPT`, `NUMKEYS`, `KEYS[i]`, `ARGV[i]`), byte length, and individual copy action.
+   - **Redis Server-Side Truncation Notice**: Automatically detects when Redis truncated an argument (`... (N more bytes)`) and renders an explicit informational badge explaining the Redis C engine compile-time limit (`SLOWLOG_ENTRY_MAX_STRING = 128`), preventing operator confusion.
 
 ---
 

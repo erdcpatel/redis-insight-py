@@ -151,6 +151,10 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - `< 10ms`: Subtle green/cyan badge.
   - `10ms - 50ms`: Amber warning badge.
   - `> 50ms`: Bold red critical latency badge.
+- **Slowlog Export (JSON & CSV)**: 1-click export dialog allowing operators to download slow query telemetry as structured JSON (with complete arguments array) or spreadsheet-ready CSV across filtered or all buffer entries.
+- **Command Zoom & Detailed Inspector**: Click any slow query or the zoom button to open the full command inspector with execution vitals, raw command viewer, and an arguments breakdown table.
+- **Dedicated Lua Script Zoom Box**: When inspecting `EVAL` or `EVALSHA`, automatically formats the Lua script in a multiline monospace viewer with byte count, line count, 1-click Lua copy, and parsed `KEYS` / `ARGV` arrays.
+- **Redis Server-Side Truncation Notice**: Automatically identifies when Redis truncated arguments exceeding 128 bytes in its internal memory ring buffer (`SLOWLOG_ENTRY_MAX_STRING = 128`), informing operators why remaining bytes were not stored by Redis.
 - **1-Click Copy Command**: Copy full slow command strings and arguments directly to clipboard with visual checkmark feedback.
 - **Search & Filter**: Filter slow commands by search query, min latency threshold (>1ms, >5ms, >10ms, >50ms), or specific cluster node.
 - **Reset Buffer**: Safely reset the Redis Slowlog buffer with confirmation.

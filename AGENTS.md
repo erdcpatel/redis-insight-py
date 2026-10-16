@@ -132,9 +132,11 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 14. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
     - `.keys-actions-bar` uses `flex-wrap: wrap; gap: 0.45rem;` to ensure buttons (`Batch`, `Load More`, `Namespaces`, `Export`, `Bulk Delete`) never clip or require horizontal scrolling.
     - Status telemetry is formatted compactly (`Loaded X / Y keys`) to preserve screen real estate.
-15. **Slowlog Time Horizon Profiling & Relative Time Tags**:
+15. **Slowlog Time Horizon Profiling, Export & Command Zoom Inspector**:
     - The Slowlog Profiler provides an interactive Time Window selector (`All`, `5m`, `15m`, `1h`, `24h`) with cyan active indicators, enabling operators to inspect slow commands executed within the last $X$ minutes.
     - Renders relative time tags (`15s ago`, `2m ago`, `1h ago`) directly below the ISO timestamp for instant cognitive orientation without extra Redis round-trips.
+    - **Export Slowlog (JSON & CSV)**: Export modal (`#exportSlowlogModal`) supporting structured JSON and spreadsheet-compatible CSV across filtered or all loaded buffer entries.
+    - **Command Zoom & Detailed Inspector (`#slowlogDetailModal`)**: 1-click command inspection displaying vitals, full raw command, arguments breakdown table, dedicated Lua script zoom box with KEYS/ARGV extraction, and Redis server-side truncation notice (explaining the `SLOWLOG_ENTRY_MAX_STRING = 128` C engine limit).
 
 ---
 
