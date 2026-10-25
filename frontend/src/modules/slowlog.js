@@ -3,6 +3,7 @@ import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
 import { showToast, copyToClipboard } from "./toast.js";
 import { saveBlobAsFile, triggerButtonFeedback } from "./inspector.js";
+import { showConfirmDialog } from "./dialog.js";
 
 export function formatRelativeTime(epochSec) {
   if (!epochSec) return "";
@@ -682,7 +683,13 @@ export async function clearSlowlog() {
     showToast("Slowlog reset is disabled in Read-Only mode.", "warning");
     return;
   }
-  if (!confirm("Are you sure you want to reset the Redis Slowlog buffer?\n\nThis will clear recorded slow commands across all connected Redis instances.")) {
+  const confirmed = await showConfirmDialog({
+    title: "Reset Slowlog Buffer",
+    message: "Are you sure you want to reset the Redis Slowlog buffer? This will clear recorded slow commands across all connected Redis instances.",
+    confirmText: "Reset Slowlog",
+    danger: true
+  });
+  if (!confirmed) {
     return;
   }
 

@@ -170,7 +170,7 @@ else:
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>RedisInsight Py - Build Required</title>
+  <title>Redis Insight Py - Build Required</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0b0f19; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
     .card { background: #131b2e; padding: 2.5rem; border-radius: 14px; border: 1px solid #1e293b; max-width: 540px; box-shadow: 0 20px 45px rgba(0,0,0,0.6); }
@@ -182,7 +182,7 @@ else:
 </head>
 <body>
   <div class="card">
-    <h2>⚡ Frontend Build Required</h2>
+    <h2>⚡ Redis Insight - Frontend Build Required</h2>
     <p>The compiled production frontend assets were not found in <code>dist/</code>.</p>
     <p>To compile the frontend bundle, run:</p>
     <pre>cd frontend && npm install && npm run build</pre>

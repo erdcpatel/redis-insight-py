@@ -355,7 +355,7 @@ async def delete_key(
 
     try:
         client = await redis_manager.get_client(conn_id=conn_id)
-        deleted = await client.delete(key_name)
+        deleted = await client.unlink(key_name)
         if deleted == 0:
             return {"success": False, "deleted": 0, "message": "Key did not exist"}
         return {"success": True, "deleted": deleted, "key": key_name}

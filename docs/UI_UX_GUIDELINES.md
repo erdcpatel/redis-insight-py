@@ -227,10 +227,10 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
 
 ---
 
-## 6. Glassmorphic Toast System & Zero-Alert Standard
+## 6. Glassmorphic Toast & Dialog System (Zero Native Popups Standard)
 
 1. **Strict Prohibition of Native Browser Popups**:
-   - **NEVER** use `window.alert()`, `window.confirm()`, or `window.prompt()`. They freeze the browser event loop, look disconnected from the glassmorphic dark theme, and degrade UX.
+   - **NEVER** use `window.alert()`, `window.confirm()`, or `window.prompt()`. They freeze the browser event loop, break in iframe/headless environments, look disconnected from the glassmorphic dark theme, and degrade UX.
 2. **Toast System (`frontend/src/modules/toast.js`)**:
    - Use `showToast(message, type, durationMs)`:
      - `success` (green): Successful copies, connection activations, exports.
@@ -238,9 +238,18 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
      - `warning` (amber): Rate limiting, read-only warnings, large dataset safety gates.
      - `info` (blue): General background task updates.
    - Toasts render in `#appToastContainer` (`.toast-container`) with backdrop blur, smooth slide-in/slide-out animations, and auto-dismiss after 2500ms (pauses on hover).
-3. **In-Place Copy Feedback (`triggerButtonFeedback`)**:
+3. **Promise-Based Dialog System (`frontend/src/modules/dialog.js`)**:
+   - **`showConfirmDialog({ title, message, confirmText, cancelText, danger })`**:
+     - Returns `Promise<boolean>` for destructive action confirmations (e.g., reset slowlog, disconnect client, delete connection, delete hash field).
+     - Glassmorphic modal with backdrop blur, customizable buttons, keyboard navigation (`Enter` confirms, `Escape` cancels), and safety auto-focus.
+   - **`showPromptDialog({ title, message, defaultValue, placeholder, inputType, confirmText, cancelText })`**:
+     - Returns `Promise<string | null>` for user text/number input (e.g., key TTL update).
+     - Auto-focuses and pre-selects existing values with full keyboard submission support.
+   - **`showAddHashFieldDialog(keyName)`**:
+     - Returns `Promise<{ field: string, value: string } | null>` for structured key field entry without browser dialogs.
+4. **In-Place Copy Feedback (`triggerButtonFeedback`)**:
    - All copy buttons (Key name, String value, JSON, Stream ID/JSON, BigKey, Slowlog command) must immediately switch in-place to `<svg> Check` + `Copied!` (or `Key Copied!`) for 1500ms.
-4. **Resilient `copyToClipboard()`**:
+5. **Resilient `copyToClipboard()`**:
    - Always call `copyToClipboard(text)` from `toast.js`. It utilizes modern `navigator.clipboard.writeText` when available in secure contexts and automatically falls back to hidden `document.execCommand('copy')` on unprivileged HTTP dev domains or automated test runners.
 
 ---

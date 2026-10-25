@@ -2,6 +2,7 @@ import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { openTopologyModal } from "./topology.js";
 import { showToast } from "./toast.js";
+import { showConfirmDialog } from "./dialog.js";
 
 let editingConnectionId = null;
 let configuredClusterNodes = [];
@@ -390,7 +391,13 @@ export function renderConnectionsList() {
       e.stopPropagation();
       const id = btn.getAttribute("data-id");
       const name = btn.getAttribute("data-name");
-      if (confirm(`Are you sure you want to delete '${name}'?`)) {
+      const confirmed = await showConfirmDialog({
+        title: "Delete Connection",
+        message: `Are you sure you want to delete '${name}'? This will remove the saved connection configuration.`,
+        confirmText: "Delete",
+        danger: true
+      });
+      if (confirmed) {
         await deleteConnection(id);
       }
     });

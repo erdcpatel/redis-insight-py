@@ -1075,8 +1075,13 @@ class RedisManager:
 
         key_items: List[KeyItem] = []
         for i, k in enumerate(raw_keys):
-            k_type = results[i * 2]
-            k_ttl = results[i * 2 + 1]
+            k_type_raw = results[i * 2] if i * 2 < len(results) else "none"
+            k_ttl_raw = results[i * 2 + 1] if i * 2 + 1 < len(results) else -1
+            k_type = str(k_type_raw) if (k_type_raw and not isinstance(k_type_raw, Exception)) else "none"
+            try:
+                k_ttl = int(k_ttl_raw) if (k_ttl_raw is not None and not isinstance(k_ttl_raw, Exception)) else -1
+            except (TypeError, ValueError):
+                k_ttl = -1
 
             if type_filter and type_filter.lower() != "all" and k_type.lower() != type_filter.lower():
                 continue
@@ -2605,8 +2610,13 @@ class RedisManager:
                 pipe.ttl(k)
             pipe_res = await pipe.execute()
             for idx, k in enumerate(chunk):
-                k_type = str(pipe_res[idx * 2])
-                k_ttl = int(pipe_res[idx * 2 + 1])
+                k_type_raw = pipe_res[idx * 2] if idx * 2 < len(pipe_res) else "none"
+                k_ttl_raw = pipe_res[idx * 2 + 1] if idx * 2 + 1 < len(pipe_res) else -1
+                k_type = str(k_type_raw) if (k_type_raw and not isinstance(k_type_raw, Exception)) else "none"
+                try:
+                    k_ttl = int(k_ttl_raw) if (k_ttl_raw is not None and not isinstance(k_ttl_raw, Exception)) else -1
+                except (TypeError, ValueError):
+                    k_ttl = -1
                 if type_filter and type_filter.lower() != "all" and k_type.lower() != type_filter.lower():
                     continue
                 if ttl_filter:

@@ -103,9 +103,10 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 6. **Number & Metric Formatting**:
    - Always format large numbers with `.toLocaleString()` (e.g., `1,000`, `25,400`).
    - Format byte memory with standard units (`B`, `KB`, `MB`, `GB`) to 2 decimal places.
-7. **Zero Native Browser Popups & Glassmorphic Toast System**:
+7. **Zero Native Browser Popups, Glassmorphic Toast & Dialog System**:
    - **NEVER** use native blocking browser dialogs (`window.alert()`, `window.confirm()`, `window.prompt()`).
    - Use `showToast(message, type, durationMs)` from `frontend/src/modules/toast.js` (`toast-success`, `toast-error`, `toast-warning`, `toast-info`).
+   - Use promise-based dialogs from `frontend/src/modules/dialog.js` (`showConfirmDialog`, `showPromptDialog`, `showAddHashFieldDialog`) for user confirmations and inputs.
    - Copy buttons must use `triggerButtonFeedback(btn, "Copied!")` for in-place checkmark feedback and call `copyToClipboard(text)`, which includes a seamless fallback (`document.execCommand('copy')`) for unprivileged HTTP environments.
 8. **Large Keyspace Performance (100K - 1M Keys)**:
    - Tables with >100 keys must use **virtual windowing** (`renderKeysFlatTable()`), rendering only ~60 visible rows with dynamic top/bottom spacers calculated at a fixed `44px` row height.

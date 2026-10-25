@@ -2,6 +2,7 @@ import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
 import { showToast } from "./toast.js";
+import { showConfirmDialog } from "./dialog.js";
 
 let onRefreshStatus = null;
 
@@ -228,7 +229,13 @@ export async function killConnectedClient(clientId, clientAddr) {
     showToast("Client disconnection is disabled in Read-Only mode.", "warning");
     return;
   }
-  if (!confirm(`Are you sure you want to disconnect client #${clientId} (${clientAddr})?`)) {
+  const confirmed = await showConfirmDialog({
+    title: "Disconnect Client",
+    message: `Are you sure you want to disconnect client #${clientId} (${clientAddr})?`,
+    confirmText: "Disconnect",
+    danger: true
+  });
+  if (!confirmed) {
     return;
   }
   try {
