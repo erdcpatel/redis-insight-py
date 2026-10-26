@@ -7,7 +7,17 @@ STANDALONE_PORT=6379
 
 check_port_running() {
   local port="$1"
-  redis-cli -t 1 -p "$port" ping 2>/dev/null | grep -q "PONG"
+  python3 -c "
+import socket, sys
+try:
+    s = socket.create_connection(('127.0.0.1', $port), timeout=0.8)
+    s.sendall(b'PING\r\n')
+    data = s.recv(1024)
+    s.close()
+    sys.exit(0 if b'PONG' in data else 1)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null
 }
 
 start_standalone() {

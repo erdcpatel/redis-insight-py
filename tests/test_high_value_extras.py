@@ -400,3 +400,44 @@ def test_export_keys_sets_export_format_header():
     assert resp.status_code == 200
     assert resp.headers["x-export-format"] == "txt"
     assert resp.headers["content-disposition"].endswith('.txt"')
+
+
+def test_delete_key_uses_non_blocking_unlink():
+    """Verify single key deletion uses non-blocking UNLINK instead of blocking DEL."""
+    mock_client = MagicMock()
+    mock_client.unlink = AsyncMock(return_value=1)
+    mock_client.delete = AsyncMock(return_value=1)
+
+    with patch.object(redis_manager, "get_client", AsyncMock(return_value=mock_client)):
+        resp = client.delete("/api/keys/my_large_hash?confirmed=true")
+
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+    # Ensure unlink was called, not blocking delete
+    assert mock_client.unlink.await_count == 1
+    assert mock_client.delete.await_count == 0
+
+
+def test_scan_keys_batch_safe_against_pipeline_exceptions():
+    """Verify scan_keys_batch handles None and Exceptions in pipeline results without 500 error."""
+    async def _test():
+        mock_client = MagicMock()
+        mock_client.dbsize = AsyncMock(return_value=2)
+        mock_client.scan = AsyncMock(return_value=(0, ["key:expired", "key:valid"]))
+
+        # Pipeline returns Exception for expired key and valid data for second
+        pipe_mock = MagicMock()
+        pipe_mock.execute = AsyncMock(return_value=[Exception("Cluster slot error"), None, "string", 3600])
+        mock_client.pipeline = MagicMock(return_value=pipe_mock)
+
+        with patch.object(redis_manager, "get_client", AsyncMock(return_value=mock_client)):
+            res = await redis_manager.scan_keys_batch()
+
+        assert res.matched_count == 2
+        assert res.keys[0].type == "none"
+        assert res.keys[0].ttl == -1
+        assert res.keys[1].type == "string"
+        assert res.keys[1].ttl == 3600
+
+    asyncio.run(_test())
+

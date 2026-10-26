@@ -224,7 +224,7 @@ To add a new analytical diagnostic surface:
 
 ## 8. UI/UX, Performance & Toast Standards
 
-1. **Zero Native Alerts**: Never use `window.alert()`, `window.confirm()`, or `window.prompt()`. Always use `showToast(msg, type)` from `frontend/src/modules/toast.js`.
+1. **Zero Native Alerts & Dialog System**: Never use `window.alert()`, `window.confirm()`, or `window.prompt()`. Always use `showToast(msg, type)` from `frontend/src/modules/toast.js` and promise-based dialogs (`showConfirmDialog`, `showPromptDialog`, `showAddHashFieldDialog`) from `frontend/src/modules/dialog.js`.
 2. **In-Place Copy Feedback**: Use `triggerButtonFeedback(btn, "Copied!")` and `copyToClipboard(text)` which provides automatic fallback (`document.execCommand('copy')`) for unprivileged/HTTP environments.
 3. **Large Keyspace Performance (100K - 1M Keys)**:
    - Tables with >100 keys use virtual windowing (`renderKeysFlatTable()`), rendering only ~60 visible rows with dynamic top/bottom spacers calculated at a fixed `44px` row height.

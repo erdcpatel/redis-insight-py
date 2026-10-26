@@ -1,6 +1,7 @@
 import { state, escapeHtml, HASH_FIELDS_PAGE_SIZE } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { showToast, copyToClipboard } from "./toast.js";
+import { showConfirmDialog, showPromptDialog, showAddHashFieldDialog } from "./dialog.js";
 
 let onDeleteKey = null;
 
@@ -139,7 +140,14 @@ export async function promptUpdateTTL(keyName, currentTtl) {
     showToast("TTL modification is disabled in Read-Only mode.", "warning");
     return;
   }
-  const input = prompt(`Enter new TTL in seconds for '${keyName}':\n(-1 to persist with no expiration, or number of seconds)`, currentTtl > 0 ? currentTtl : "3600");
+  const input = await showPromptDialog({
+    title: `Update TTL: ${keyName}`,
+    message: "Enter new TTL in seconds (-1 to persist with no expiration, or number of seconds):",
+    defaultValue: currentTtl > 0 ? String(currentTtl) : "3600",
+    placeholder: "Seconds (e.g. 3600 or -1)",
+    inputType: "number",
+    confirmText: "Update TTL"
+  });
   if (input === null) return;
   const seconds = parseInt(input.trim(), 10);
   if (isNaN(seconds)) {
@@ -606,10 +614,9 @@ export function setupHashEventListeners(keyName) {
   const btnAdd = document.getElementById("btnAddHashField");
   if (btnAdd) {
     btnAdd.addEventListener("click", async () => {
-      const field = prompt(`Enter field name for hash '${keyName}':`);
-      if (!field) return;
-      const val = prompt(`Enter value for field '${field}':`);
-      if (val === null) return;
+      const data = await showAddHashFieldDialog(keyName);
+      if (!data) return;
+      const { field, value: val } = data;
 
       try {
         const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field`, {
@@ -633,7 +640,13 @@ export function attachHashDeleteHandlers(keyName) {
   document.querySelectorAll(".btn-delete-hash-field").forEach(btn => {
     btn.addEventListener("click", async () => {
       const field = decodeURIComponent(btn.getAttribute("data-field"));
-      if (confirm(`Delete field '${field}' from hash '${keyName}'?`)) {
+      const confirmed = await showConfirmDialog({
+        title: "Delete Hash Field",
+        message: `Delete field '${field}' from hash '${keyName}'?`,
+        confirmText: "Delete Field",
+        danger: true
+      });
+      if (confirmed) {
         try {
           const res = await fetch(`/api/keys/${encodeURIComponent(keyName)}/field/${encodeURIComponent(field)}`, {
             method: "DELETE"
