@@ -6,24 +6,6 @@ self.onmessage = function (e) {
 
   try {
     switch (type) {
-      case 'FILTER_KEYS': {
-        const { keys, query, typeFilter, ttlFilter } = payload;
-        const start = performance.now();
-        const results = filterKeys(keys, query, typeFilter, ttlFilter);
-        const durationMs = performance.now() - start;
-        self.postMessage({
-          id,
-          type: 'FILTER_KEYS_RESULT',
-          success: true,
-          data: {
-            filteredKeys: results,
-            matchedCount: results.length,
-            durationMs
-          }
-        });
-        break;
-      }
-
       case 'ANALYZE_NAMESPACES_AND_HYGIENE': {
         const { keys, delimiters } = payload;
         const start = performance.now();
@@ -48,59 +30,6 @@ self.onmessage = function (e) {
     self.postMessage({ id, success: false, error: err.message || String(err) });
   }
 };
-
-function globToRegex(pattern) {
-  let s = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  s = s.replace(/\*/g, ".*").replace(/\?/g, ".");
-  return new RegExp(`^${s}$`, "i");
-}
-
-function createMatcher(query) {
-  if (!query || query === "*") {
-    return () => true;
-  }
-  const trimmed = query.trim();
-  if (trimmed.startsWith("/") && trimmed.lastIndexOf("/") > 0) {
-    const lastSlash = trimmed.lastIndexOf("/");
-    const pattern = trimmed.slice(1, lastSlash);
-    const flags = trimmed.slice(lastSlash + 1);
-    try {
-      const rx = new RegExp(pattern, flags);
-      return (key) => rx.test(key);
-    } catch (_) {}
-  }
-  if (trimmed.includes("*") || trimmed.includes("?")) {
-    const rx = globToRegex(trimmed);
-    return (key) => rx.test(key);
-  }
-  try {
-    const rx = new RegExp(trimmed, "i");
-    return (key) => rx.test(key);
-  } catch (_) {
-    const lower = trimmed.toLowerCase();
-    return (key) => key && key.toLowerCase().includes(lower);
-  }
-}
-
-function filterKeys(keys, query, typeFilter, ttlFilter) {
-  const matcher = createMatcher(query);
-  const matchType = !typeFilter || typeFilter === "all" ? () => true : (t) => t && t.toLowerCase() === typeFilter.toLowerCase();
-  
-  const matchTtl = !ttlFilter || ttlFilter === "all" ? () => true : (ttl) => {
-    if (ttlFilter === "expiring") return typeof ttl === "number" && ttl > 0;
-    if (ttlFilter === "persistent") return ttl === null || ttl === -1 || ttl === undefined;
-    return true;
-  };
-
-  const results = [];
-  for (let i = 0; i < keys.length; i++) {
-    const item = keys[i];
-    if (matcher(item.key) && matchType(item.type) && matchTtl(item.ttl)) {
-      results.push(item);
-    }
-  }
-  return results;
-}
 
 function analyzeNamespacesAndHygiene(keys, delimiters) {
   const sortedDelims = [...delimiters].sort((a, b) => b.length - a.length);

@@ -22,7 +22,9 @@ RedisInsight Python is a lightweight, responsive Redis management and observabil
 │   ├── models.py            # Pydantic v2 data models & request/response schemas
 │   └── routers/
 │       ├── connections.py   # Connection lifecycle, health check, topology endpoints
-│       └── keys.py          # Key browser, search, export, bulk-delete, inspection
+│       ├── keys.py          # Key browser, search, export, bulk-delete, inspection
+│       ├── benchmark.py     # Latency probe, core command bench, Lua profiler
+│       └── pubsub.py        # Redis Pub/Sub WebSocket streaming & message publishing
 ├── frontend/
 │   ├── src/
 │   │   ├── main.js          # App lifecycle, DOM bootstrap, tab routing, modals
@@ -35,11 +37,12 @@ RedisInsight Python is a lightweight, responsive Redis management and observabil
 │   │       ├── clients.js   # Client list inspector & [THIS APP] identification
 │   │       ├── slowlog.js   # Cluster slowlog aggregation & profiling
 │   │       ├── topology.js  # Cluster node map & keyspace distribution
+│   │       ├── pubsub.js    # Live Pub/Sub message stream, pattern subscriptions, JSON beautifier
 │   │       └── actions.js   # Bulk delete, key export, key deletion
 │   └── e2e/                 # Playwright browser end-to-end test suite
 ├── dist/                    # Compiled frontend assets served by FastAPI (gitignored; generated via npm run build)
 ├── scripts/                 # Local Redis orchestration & test automation scripts
-└── tests/                   # Backend pytest test suite (100+ tests)
+└── tests/                   # Backend pytest test suite (115+ tests)
 ```
 
 ---
@@ -64,8 +67,8 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
    - Connections with `environment: "PROD"` default to read-only mode to prevent accidental operational mishaps.
 6. **Zero Auto-Command Firing on Cluster Switch**:
    - When switching clusters, **only the landing screen (Keys Browser)** automatically scans keys.
-   - Diagnostic tabs (**Memory Studio**, **Benchmark Studio**, **Slowlog Profiler**, **Connected Clients**, **Cluster Topology**) **MUST NEVER** automatically fire background Redis queries or scans.
-   - Diagnostic tabs must immediately reset to clean state and display a dedicated **Target Cluster Prompt Card** showing cluster name, endpoint, environment badge, and an explicit action button (e.g. *Load Memory Overview*, *Fetch Slowlog Entries*, *Fetch Connected Clients*, *Load Cluster Topology*).
+   - Diagnostic tabs (**Memory Studio**, **Benchmark Studio**, **Slowlog Profiler**, **Connected Clients**, **Cluster Topology**, **Pub/Sub Studio**) **MUST NEVER** automatically fire background Redis queries or scans.
+   - Diagnostic tabs must immediately reset to clean state and display a dedicated **Target Cluster Prompt Card** showing cluster name, endpoint, environment badge, and an explicit action button (e.g. *Load Memory Overview*, *Fetch Slowlog Entries*, *Fetch Connected Clients*, *Load Cluster Topology*, *Connect Pub/Sub Stream*).
    - Any out-of-order response arriving from a previous cluster must be discarded (`state.selectedConnectionId !== targetConnId`).
 7. **In-Flight Cancellation (`AbortController`)**:
    - Long-running keyspace scans (Memory Studio sampled/deep scans) must accept an `AbortSignal`.
@@ -146,6 +149,12 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
     - Table column headers (`thead th`) use `position: sticky; top: 0; background: var(--bg-surface); z-index: 20;` with dynamic top/bottom `<tbody id="keysTableBody">` spacers so headers stay pinned and column alignment remains locked during virtual scrolling.
 18. **Virtual Tree View Folder Child Pagination (200 Cap)**:
     - Large namespace folders cap rendered child keys to 200 per folder with an incremental `[Show next 200 keys...]` toggle, preventing DOM lockup when expanding large namespaces (>10,000 keys).
+19. **Live Pub/Sub Studio & Zero-Leak WebSocket Streaming**:
+    - Dedicated live message stream supporting dynamic channel (`SUBSCRIBE`) and glob pattern (`PSUBSCRIBE`) subscriptions via bidirectional WebSocket (`/api/ws/pubsub`).
+    - Dedicated background connection cleanly unsubscribes and closes on client disconnect with zero resource leaks.
+    - Zero auto-command firing on cluster switch with dedicated Target Cluster Prompt Card.
+    - Message inspection cards render channel badges, relative time tags, payload byte size, JSON format detection, 1-click clipboard copy with feedback, pause/resume buffering, and real-time client-side message filtering.
+    - Protected message publishing (`POST /api/pubsub/publish`) requiring write permissions with JSON beautifier.
 
 ---
 
@@ -170,8 +179,8 @@ Every AI agent and human engineer **MUST** review and complete this checklist be
 ```markdown
 ### Pre-Commit & Pre-Push Checklist
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`; `dist/` is gitignored).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass; AirPlay port 7000 skipped if occupied).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 115+ tests must pass; AirPlay port 7000 skipped if occupied).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 26+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with new rules, architectural conventions, or flags.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks, module APIs, or testing recipes.

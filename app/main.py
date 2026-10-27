@@ -12,7 +12,7 @@ from app.logger import setup_logging, logger
 from app.db import init_db, get_active_connection
 from app.config_loader import sync_connections_from_config
 from app.redis_manager import redis_manager
-from app.routers import connections, keys, benchmark
+from app.routers import connections, keys, benchmark, pubsub
 
 # Initialize global logging configuration
 setup_logging()
@@ -125,13 +125,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.include_router(connections.router)
 app.include_router(keys.router)
 app.include_router(benchmark.router)
-
-
-@app.get("/classic")
-async def redirect_classic():
-    """Explicitly retired: redirect to the single standard view."""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/", status_code=301)
+app.include_router(pubsub.router)
 
 
 

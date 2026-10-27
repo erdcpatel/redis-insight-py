@@ -277,11 +277,29 @@ Designed as a modern, lightweight, and responsive alternative to RedisInsight, s
   - Every workspace view displays the active target cluster context (name, endpoint, environment badge, topology badge):
     - **Keys Action Bar**: Displays `#keysTargetCapsule` right alongside View Mode and Safe SCAN controls.
     - **Diagnostic Modals**: Display `.modal-subtitle` (e.g. `#memoryTargetSubtitle`, `#slowlogTargetSubtitle`, `#topologyTargetSubtitle`, `#clientsTargetSubtitle`) directly beneath the modal title.
-  - Guarantees operators always know which Redis cluster or standalone instance they are observing without checking the sidebar.
 
 ---
 
-### 15. Configuration Flags & Environment Variables
+### 15. Live Pub/Sub Studio (WebSocket Streaming & Pattern Subscriptions)
+- **Zero-Lag Event Streaming**: Real-time bidirectional WebSocket connection (`/api/ws/pubsub`) to stream Pub/Sub messages without polling.
+- **Dynamic Channel & Pattern Subscriptions**:
+  - Subscribe to specific channels (`SUBSCRIBE`) or glob wildcards (`PSUBSCRIBE`, e.g. `events:*`, `orders:*`).
+  - Interactive dismissible chips to manage, monitor, and unsubscribe from channels in real time.
+- **Rich Message Cards & Automatic JSON Detection**:
+  - Displays target channel, pattern name, message type badge, formatted timestamp, relative duration (`0s ago`, `15s ago`), and byte size.
+  - Automatic JSON detection highlights valid JSON payloads and provides a 1-click clipboard copy with in-place checkmark feedback (`Copied!`).
+- **Interactive Publish Drawer**:
+  - Send messages directly to Redis channels with built-in JSON Beautifier and delivery count toast notification.
+  - Strictly protected in read-only mode and PROD environments.
+- **In-Memory Message Filtering & Buffer Controls**:
+  - Instant client-side message search across channel names, patterns, and payload text.
+  - Pause / Resume toggle button with queued incoming message telemetry.
+  - Clear buffer button with live message count.
+- **Zero Auto-Command on Cluster Switch**: Displays a clean Target Cluster Prompt Card until user explicitly initiates connection.
+
+---
+
+### 16. Configuration Flags & Environment Variables
 
 | Variable / Flag | Default | Scope | Description |
 | :--- | :--- | :--- | :--- |
@@ -470,7 +488,9 @@ For complete instructions, pre-push verification checklists, and design rules, s
 │   ├── models.py            # Pydantic schemas
 │   └── routers/
 │       ├── connections.py   # Connection endpoints & limits
-│       └── keys.py          # Key browsing, inspection, and deletion
+│       ├── keys.py          # Key browsing, inspection, and deletion
+│       ├── benchmark.py     # Latency probe, core synthetic suite, Lua profiler
+│       └── pubsub.py        # Live Pub/Sub WebSocket streaming & message publishing
 ├── config/
 │   └── connections.yaml     # Declarative connection definitions
 ├── dist/                    # Compiled frontend distribution (gitignored; built via npm run build)
@@ -479,8 +499,9 @@ For complete instructions, pre-push verification checklists, and design rules, s
 │   ├── vite.config.js       # Vite configuration
 │   └── src/
 │       ├── main.js          # Main client application logic
-│       └── style.css        # Glassmorphic dark theme styles
-└── tests/                   # Automated tests
+│       ├── style.css        # Glassmorphic dark theme styles
+│       └── modules/         # Modular feature architecture
+└── tests/                   # Automated tests (115+ backend tests)
 ```
 
 ---
@@ -492,8 +513,8 @@ The `main` branch is protected by GitHub branch rules (`enforce_admins: true`). 
 ### Mandatory Pre-Commit Checklist
 Before committing or submitting a PR, verify:
 - [ ] **Frontend Build**: `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
-- [ ] **Backend Tests**: `PYTHONPATH=. pytest tests/` (105+ tests passed).
-- [ ] **Playwright E2E**: `cd frontend && npx playwright test` (15+ tests passed).
+- [ ] **Backend Tests**: `PYTHONPATH=. pytest tests/` (115+ tests passed).
+- [ ] **Playwright E2E**: `cd frontend && npx playwright test` (26+ tests passed).
 - [ ] **Docs & Skills Sync**: All new features, UX conventions, and flags are documented in `AGENTS.md`, `SKILL.md`, `UI_UX_GUIDELINES.md`, and `README.md`.
 - [ ] **Branch Safety**: Never commit directly to `main`.
 

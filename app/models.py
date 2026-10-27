@@ -456,5 +456,16 @@ class ClusterMatrixResponse(BaseModel):
     error: Optional[str] = None
 
 
+class PublishRequest(BaseModel):
+    channel: str = Field(..., min_length=1, description="Redis channel to publish to")
+    message: str = Field(..., description="Message payload to broadcast")
+
+
+class PublishResponse(BaseModel):
+    channel: str
+    receivers: int = Field(default=0, description="Number of clients that received the message")
+
+
+
 
 
