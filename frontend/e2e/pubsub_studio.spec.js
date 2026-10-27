@@ -135,9 +135,20 @@ test.describe('Pub/Sub Studio Live Stream & Subscription Lifecycle', () => {
     const betaConn = await betaRes.json();
 
     try {
-      // Connect both and explicitly select Alpha
-      await request.post(`/api/connections/${alphaConn.id}/connect`);
-      await request.post(`/api/connections/${betaConn.id}/connect`);
+      // Free connected slots to respect max connection limit
+      const limitRes = await request.get('/api/connections/limit');
+      if (limitRes.ok()) {
+        const limitData = await limitRes.json();
+        for (const cid of (limitData.connected_ids || [])) {
+          await request.post(`/api/connections/${cid}/disconnect`);
+        }
+      }
+
+      // Connect both Alpha and Beta
+      const conn1Act = await request.post(`/api/connections/${alphaConn.id}/connect`);
+      expect(conn1Act.ok()).toBeTruthy();
+      const conn2Act = await request.post(`/api/connections/${betaConn.id}/connect`);
+      expect(conn2Act.ok()).toBeTruthy();
       await request.post(`/api/connections/${alphaConn.id}/select`);
 
       await page.goto('/');
