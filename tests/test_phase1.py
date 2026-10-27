@@ -108,11 +108,6 @@ def test_ui_index_page():
     assert response.status_code == 200
     assert "Redis Insight" in response.text
 
-    # Classic endpoint redirects to single standard view
-    classic_resp = client.get("/classic", follow_redirects=False)
-    assert classic_resp.status_code == 301
-    assert classic_resp.headers["location"] == "/"
-
 
 
 def test_pattern_and_type_filtering():

@@ -15,7 +15,7 @@ export function switchWorkspaceTab(tabId, updateHash = true) {
   isSwitchingTab = true;
 
   try {
-    const validTabs = ["keys", "benchmark", "memory", "slowlog", "topology", "clients"];
+    const validTabs = ["keys", "benchmark", "memory", "slowlog", "topology", "clients", "pubsub"];
     if (!validTabs.includes(tabId)) {
       tabId = "keys";
     }
@@ -46,6 +46,7 @@ export function switchWorkspaceTab(tabId, updateHash = true) {
     slowlog: "slowlogModal",
     topology: "clusterTopologyModal",
     clients: "clientsListModal",
+    pubsub: "pubsubModal",
   };
 
   Object.entries(modalMap).forEach(([t, modalId]) => {
@@ -66,6 +67,7 @@ export function switchWorkspaceTab(tabId, updateHash = true) {
     memory: "btnOpenMemoryModal",
     topology: "btnOpenTopologyTop",
     clients: "btnOpenClientsModal",
+    pubsub: "btnOpenPubsubModal",
   };
 
   Object.entries(toolPills).forEach(([t, btnId]) => {
@@ -133,6 +135,7 @@ export function initWorkspaceTabs() {
         "4": "slowlog",
         "5": "topology",
         "6": "clients",
+        "7": "pubsub",
       };
       if (keyMap[e.key]) {
         e.preventDefault();

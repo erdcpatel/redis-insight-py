@@ -208,6 +208,26 @@ When adding new keyspace controls, place them in the appropriate dedicated bar:
    - **Arguments Breakdown Table**: Lists every argument with its index, role (`COMMAND`, `LUA SCRIPT`, `NUMKEYS`, `KEYS[i]`, `ARGV[i]`), byte length, and individual copy action.
    - **Redis Server-Side Truncation Notice**: Automatically detects when Redis truncated an argument (`... (N more bytes)`) and renders an explicit informational badge explaining the Redis C engine compile-time limit (`SLOWLOG_ENTRY_MAX_STRING = 128`), preventing operator confusion.
 
+### I. Live Pub/Sub Studio Standards
+
+1. **Zero Auto-Command on Switch**:
+   - Follows the zero auto-command rule: displays a clean Target Cluster Prompt Card until user explicitly connects to the live stream.
+2. **WebSocket Live Streaming Indicator**:
+   - Displays a pulsing status pill (`Live Stream Active`, green pulsing dot `.status-dot`) or red `Disconnected` indicator.
+3. **Dynamic Channel & Pattern Subscriptions**:
+   - Compact inline form allows subscribing to channels or glob patterns (`PSUBSCRIBE`).
+   - Active subscriptions are rendered as dismissible chips with distinct colors for channel vs pattern subscriptions.
+4. **Live Message Stream Cards**:
+   - Each message is rendered as a glassmorphic card with channel pill, pattern indicator, type badge (`MESSAGE` vs `PMESSAGE`), timestamp with relative time, byte size, and automatic JSON detection badge.
+   - Includes 1-click copy with in-place checkmark feedback (`Copied!`).
+5. **Publish Message Drawer & JSON Beautifier**:
+   - Collapsible publish drawer with channel input, payload textarea, and a 1-click `[Beautify JSON]` button.
+   - Protected in read-only and PROD environments.
+6. **Local Filter & Buffer Controls**:
+   - Real-time client-side search input instantly filters captured messages across channel, pattern, and payload text.
+   - Pause / Resume toggle button with queued new message count badge.
+   - Clear buffer button with item count telemetry.
+
 ---
 
 ## 5. Read-Only Mode & Safety Guardrails
@@ -332,8 +352,8 @@ Before opening any Pull Request or committing changes, verify and complete this 
 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 120+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 27+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

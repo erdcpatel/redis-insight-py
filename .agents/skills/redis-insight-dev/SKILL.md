@@ -197,14 +197,14 @@ npm run build
 cd /Users/dhavalpatel/workspace/redis-insight-py
 PYTHONPATH=. /Users/dhavalpatel/workspace/venv/py313/bin/pytest tests/
 ```
-Expected: 105+ tests pass (1 skipped for macOS AirPlay port 7000).
+Expected: 120+ tests pass (1 skipped for macOS AirPlay port 7000).
 
 ### Run Playwright Browser E2E Tests
 ```bash
 cd /Users/dhavalpatel/workspace/redis-insight-py/frontend
 npx playwright test
 ```
-Expected: 15+ tests pass (1 skipped for macOS AirPlay port 7000).
+Expected: 27+ tests pass (1 skipped for macOS AirPlay port 7000).
 
 ---
 
@@ -223,7 +223,19 @@ To add a new analytical diagnostic surface:
 
 ---
 
-## 8. UI/UX, Performance & Toast Standards
+## 8. Pub/Sub Studio Architecture & WebSocket Streaming
+
+Redis Pub/Sub Studio provides real-time event streaming and message inspection:
+- **WebSocket Streaming**: `/api/ws/pubsub?conn_id=<id>` creates a dedicated background subscription instance. For Redis Cluster, creates a dedicated `aioredis.Redis` connection directly to a cluster node.
+- **Dynamic Subscriptions**: Clients send `{"action": "subscribe", "channel": "..."}` or `{"action": "psubscribe", "pattern": "..."}`.
+- **Clean Lifecycle**: Unsubscribes and closes pubsub cleanly on disconnect with zero dangling connections.
+- **Message Publishing**: `POST /api/pubsub/publish` requires write permissions (`require_write_permission`) and returns receiver count. Supports standalone Redis (`client.publish`) and Redis Cluster (`client.execute_command("PUBLISH", ..., target_nodes="default")`).
+- **Zero Auto-Command on Switch**: Shows Target Cluster Prompt Card until user explicitly connects.
+- **Rich Message Cards**: Displays channel pill, pattern pill, relative time, JSON detection, byte size, and copy feedback.
+
+---
+
+## 9. UI/UX, Performance & Toast Standards
 
 1. **Zero Native Alerts & Dialog System**: Never use `window.alert()`, `window.confirm()`, or `window.prompt()`. Always use `showToast(msg, type)` from `frontend/src/modules/toast.js` and promise-based dialogs (`showConfirmDialog`, `showPromptDialog`, `showAddHashFieldDialog`) from `frontend/src/modules/dialog.js`.
 2. **In-Place Copy Feedback**: Use `triggerButtonFeedback(btn, "Copied!")` and `copyToClipboard(text)` which provides automatic fallback (`document.execCommand('copy')`) for unprivileged/HTTP environments.
@@ -248,14 +260,14 @@ To add a new analytical diagnostic surface:
 
 ---
 
-## 9. Mandatory Pre-Commit & Pre-Push Checklist
+## 10. Mandatory Pre-Commit & Pre-Push Checklist
 
 Before committing or pushing any code, verify and complete this checklist:
 
 ```markdown
 - [ ] 1. Frontend Build: `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
-- [ ] 2. Backend Pytest: `PYTHONPATH=. pytest tests/` (106+ tests passed).
-- [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (19+ tests passed).
+- [ ] 2. Backend Pytest: `PYTHONPATH=. pytest tests/` (120+ tests passed).
+- [ ] 3. Playwright E2E: `cd frontend && npx playwright test` (27+ tests passed).
 - [ ] 4. Documentation & Skills Synchronization:
       - `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

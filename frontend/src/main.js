@@ -36,6 +36,11 @@ import {
   registerClientsRefresh
 } from "./modules/clients.js";
 import {
+  initPubSubModule,
+  initOrRefreshPubSubUI,
+  resetPubSubState
+} from "./modules/pubsub.js";
+import {
   loadConnections,
   renderEmptyWorkspace,
   connectCluster,
@@ -118,6 +123,7 @@ registerClusterSwitchedCallback((conn) => {
   resetSlowlogState(conn);
   resetClientsState(conn);
   resetTopologyState(conn);
+  resetPubSubState(conn);
 });
 
 // Register tab lazy loaders - tabs render clean safeguard/prompt UI until user explicitly requests data
@@ -126,6 +132,7 @@ registerTabLoader("memory", () => openMemoryModal());
 registerTabLoader("slowlog", () => openSlowlogModal());
 registerTabLoader("topology", () => openTopologyModal());
 registerTabLoader("clients", () => openClientsModal());
+registerTabLoader("pubsub", () => initOrRefreshPubSubUI());
 
 function renderAppShell() {
   const app = document.getElementById("app");
@@ -272,6 +279,10 @@ function renderAppShell() {
           <button type="button" class="ws-tab-btn" id="tabBtnWorkspaceClients" data-tab="clients" role="tab" aria-selected="false" title="Connected Client Sessions (Ctrl+6)">
             <i data-lucide="users" style="width: 13px; height: 13px; color: #38bdf8;"></i>
             <span>Clients</span>
+          </button>
+          <button type="button" class="ws-tab-btn" id="btnOpenPubsubModal" data-tab="pubsub" role="tab" aria-selected="false" title="Pub/Sub Studio (Live Message Stream) (Ctrl+7)">
+            <i data-lucide="radio" style="width: 13px; height: 13px; color: #ec4899;"></i>
+            <span>Pub/Sub Studio</span>
           </button>
         </nav>
 
@@ -827,6 +838,128 @@ function renderAppShell() {
 
               <div style="flex: 1; overflow-y: auto; padding: 0.75rem 1.25rem;" id="clientsTableContainer">
                 <div style="padding: 2.5rem; text-align: center; color: var(--text-muted);">Fetching connected clients...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7. Pub/Sub Studio Tab Pane (Full Width) -->
+          <div class="ws-tab-pane ws-dashboard-pane modal-backdrop" id="pubsubModal">
+            <div class="pubsub-modal-card">
+              <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                  <i data-lucide="radio" style="width: 20px; height: 20px; color: #ec4899;"></i>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <h3 class="modal-title">Pub/Sub Studio</h3>
+                      <span class="badge-status-pill disconnected" id="pubsubWsStatusBadge">
+                        <span class="status-dot"></span>
+                        <span id="pubsubWsStatusText">Disconnected</span>
+                      </span>
+                      <span class="badge-tag" id="pubsubSubsCountBadge" style="font-size: 0.72rem; color: #a78bfa; background: rgba(167, 139, 250, 0.15);">
+                        0 Subscriptions
+                      </span>
+                      <span class="badge-tag" id="pubsubMsgCountBadge" style="font-size: 0.72rem; color: #38bdf8; background: rgba(56, 189, 248, 0.15);">
+                        0 Messages
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button type="button" class="btn btn-secondary" id="btnTogglePublishCard" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="send" style="width: 13px; height: 13px; color: #ec4899;"></i>
+                    Publish Message
+                  </button>
+                  <button type="button" class="btn btn-secondary" id="btnPubsubPauseToggle" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="pause" style="width: 13px; height: 13px;"></i>
+                    <span>Pause Stream</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary" id="btnPubsubClearMessages" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+                    Clear Buffer
+                  </button>
+                  <button type="button" class="btn btn-primary" id="btnPubsubReconnect" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">
+                    <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i>
+                    Reconnect
+                  </button>
+                </div>
+              </div>
+
+              <!-- Active Subscription Controls & Filter Bar -->
+              <div class="pubsub-controls-bar">
+                <!-- Subscription Input Group -->
+                <form id="pubsubSubscribeForm" class="pubsub-sub-form">
+                  <div class="search-group" style="flex: 1; min-width: 220px;">
+                    <i data-lucide="hash" class="search-icon" style="width: 14px; height: 14px;"></i>
+                    <input type="text" id="pubsubChannelInput" class="search-input" placeholder="Channel or glob pattern (e.g. events:*, orders, chat)" required style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+                  </div>
+                  <label class="pubsub-pattern-checkbox-label" title="Subscribe using glob pattern (PSUBSCRIBE)">
+                    <input type="checkbox" id="pubsubIsPattern">
+                    <span>Pattern (*)</span>
+                  </label>
+                  <button type="submit" class="btn btn-primary btn-sm" id="btnPubsubSubscribe" style="white-space: nowrap;">
+                    <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
+                    <span>Subscribe</span>
+                  </button>
+                </form>
+
+                <!-- Message Search / Filter -->
+                <div class="search-group" style="min-width: 200px; max-width: 320px;">
+                  <i data-lucide="search" class="search-icon" style="width: 14px; height: 14px;"></i>
+                  <input type="text" id="pubsubSearchInput" class="search-input" placeholder="Filter captured messages..." style="padding: 0.45rem 0.75rem 0.45rem 2rem; font-size: 0.8rem;">
+                </div>
+                <span id="pubsubFilterMatchBadge" class="search-match-badge" style="display: none;"></span>
+              </div>
+
+              <!-- Active Subscriptions Chips Bar -->
+              <div class="pubsub-active-subs-bar" id="pubsubActiveSubsContainer">
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Active Subscriptions:</span>
+                <div id="pubsubActiveSubsList" class="pubsub-chips-wrap">
+                  <span class="pubsub-no-subs-text">No active subscriptions. Enter a channel or pattern above to subscribe.</span>
+                </div>
+              </div>
+
+              <!-- Collapsible Publish Message Card -->
+              <div class="pubsub-publish-drawer" id="pubsubPublishDrawer" style="display: none;">
+                <div class="pubsub-publish-card">
+                  <div class="pubsub-publish-header">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <i data-lucide="send" style="width: 15px; height: 15px; color: #ec4899;"></i>
+                      <h4 style="margin: 0; font-size: 0.88rem; font-weight: 600;">Publish Message to Channel</h4>
+                    </div>
+                    <button type="button" class="btn-close-subcard" id="btnClosePublishDrawer" title="Close Publish Card">
+                      <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    </button>
+                  </div>
+                  <div class="pubsub-publish-body">
+                    <div style="margin-bottom: 0.75rem;">
+                      <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 0.25rem;">Target Channel</label>
+                      <input type="text" id="pubsubPublishChannel" class="search-input" placeholder="e.g. notifications, events:user, orders" style="width: 100%; font-family: var(--font-mono); font-size: 0.82rem; padding: 0.45rem 0.75rem;">
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                        <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">Payload (Text or JSON)</label>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnPubsubBeautifyJson" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
+                          <i data-lucide="code" style="width: 11px; height: 11px;"></i>
+                          Beautify JSON
+                        </button>
+                      </div>
+                      <textarea id="pubsubPublishPayload" class="pubsub-textarea" rows="4" placeholder='{"event": "user_signup", "userId": 42}'></textarea>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span id="pubsubPublishStatus" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+                      <button type="button" class="btn btn-primary" id="btnSubmitPublish" style="font-size: 0.82rem; padding: 0.45rem 1.15rem;">
+                        <i data-lucide="send" style="width: 13px; height: 13px;"></i>
+                        Publish Message
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Messages Feed Container / Target Cluster Prompt Container -->
+              <div class="pubsub-messages-container" id="pubsubMessagesContainer">
+                <div id="pubsubPromptContainer"></div>
+                <div id="pubsubFeedList" class="pubsub-feed-list" style="display: none;"></div>
               </div>
             </div>
           </div>
@@ -1746,6 +1879,7 @@ async function startApp() {
   setupSlowlogEventListeners();
   setupTopologyEventListeners();
   setupClientsEventListeners();
+  initPubSubModule();
   setupInspectorEventListeners();
   setupActionsEventListeners();
   setupGlobalEventListeners();
