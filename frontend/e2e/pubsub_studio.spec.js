@@ -139,8 +139,7 @@ test.describe('Pub/Sub Studio Live Stream & Subscription Lifecycle', () => {
       await page.locator('#connSearchInput').fill('PubSub Target Cluster Beta');
       const betaCard = page.locator(`.conn-card[data-id="${betaConn.id}"]`);
       await expect(betaCard).toBeVisible({ timeout: 5000 });
-      await betaCard.hover();
-      await betaCard.locator('.btn-card-select').click({ force: true });
+      await betaCard.locator('.btn-card-select, button:has-text("Connect")').first().click({ force: true });
 
       // Verify Rule 6: Pub/Sub Studio must reset immediately to Target Cluster Prompt Card
       const promptCard = page.locator('#pubsubPromptContainer');
