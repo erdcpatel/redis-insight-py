@@ -3,6 +3,8 @@ import datetime
 import json
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Body, Depends, WebSocket, WebSocketDisconnect, status
+import redis.asyncio as aioredis
+from redis.asyncio.cluster import RedisCluster
 from redis.exceptions import (
     RedisError,
     AuthenticationError,
@@ -13,6 +15,7 @@ from redis.exceptions import (
     ResponseError,
 )
 from app.logger import logger
+from app.db import get_connection
 from app.dependencies import require_write_permission, get_target_conn_id
 from app.models import PublishRequest, PublishResponse
 from app.redis_manager import redis_manager
@@ -52,6 +55,7 @@ async def publish_message(
     """
     Publish a message to a Redis Pub/Sub channel.
     Requires write permissions (protected in read-only / PROD mode).
+    Supports both standalone Redis and Redis Cluster instances.
     Returns the channel name and the count of receivers that received the payload.
     """
     channel = payload.channel.strip()
@@ -60,9 +64,14 @@ async def publish_message(
 
     try:
         client = await redis_manager.get_client(conn_id)
-        receivers = await client.publish(channel, payload.message)
+        if isinstance(client, RedisCluster):
+            receivers = await client.execute_command("PUBLISH", channel, payload.message, target_nodes="default")
+            if isinstance(receivers, dict):
+                receivers = sum(int(v) for v in receivers.values() if isinstance(v, (int, str)) and str(v).isdigit())
+        else:
+            receivers = await client.publish(channel, payload.message)
         logger.info(f"Published message to channel '{channel}' via conn '{conn_id}': received by {receivers} clients")
-        return PublishResponse(channel=channel, receivers=int(receivers))
+        return PublishResponse(channel=channel, receivers=int(receivers or 0))
     except Exception as e:
         raise_mapped_exception(e, f"Failed to publish message to channel '{payload.channel}'")
 
@@ -72,6 +81,7 @@ async def websocket_pubsub(websocket: WebSocket, conn_id: Optional[str] = Query(
     """
     Real-time WebSocket endpoint for Redis Pub/Sub live message streaming.
     Supports dynamic SUBSCRIBE / PSUBSCRIBE and UNSUBSCRIBE / PUNSUBSCRIBE commands.
+    Supports both standalone Redis and Redis Cluster topologies via dedicated connection.
     Ensures safe resource cleanup upon disconnect with zero connection leaks.
     """
     target_id = (conn_id or "").strip() or redis_manager.selected_id
@@ -82,8 +92,35 @@ async def websocket_pubsub(websocket: WebSocket, conn_id: Optional[str] = Query(
         await websocket.close(code=1008)
         return
 
+    # Dedicated subscription client handling for Redis Cluster or Standalone
+    is_dedicated = False
+    sub_client = client
+    if isinstance(client, RedisCluster):
+        conn_dict = redis_manager.get_conn_info(target_id) or get_connection(target_id, include_password=True) or {}
+        try:
+            default_node = client.get_default_node()
+        except Exception:
+            default_node = None
+
+        node_host = default_node.host if default_node else conn_dict.get("host", "localhost")
+        node_port = int(default_node.port if default_node else conn_dict.get("port", 6379))
+        sub_client = aioredis.Redis(
+            host=node_host,
+            port=node_port,
+            username=conn_dict.get("username") or None,
+            password=conn_dict.get("password") or None,
+            ssl=bool(conn_dict.get("use_tls", False)),
+            client_name="redisinsight-py",
+            decode_responses=True,
+            encoding="utf-8",
+            encoding_errors="replace",
+            socket_connect_timeout=3.0,
+            socket_timeout=5.0,
+        )
+        is_dedicated = True
+
     await websocket.accept()
-    pubsub = client.pubsub()
+    pubsub = sub_client.pubsub()
     stop_event = asyncio.Event()
 
     # Send initial connected greeting
@@ -109,6 +146,15 @@ async def websocket_pubsub(websocket: WebSocket, conn_id: Optional[str] = Query(
                     continue
 
                 if msg is not None:
+                    raw_type = msg.get("type")
+                    msg_type = raw_type.decode("utf-8", errors="replace") if isinstance(raw_type, bytes) else str(raw_type or "")
+
+                    raw_channel = msg.get("channel")
+                    channel_str = raw_channel.decode("utf-8", errors="replace") if isinstance(raw_channel, bytes) else (str(raw_channel) if raw_channel is not None else None)
+
+                    raw_pattern = msg.get("pattern")
+                    pattern_str = raw_pattern.decode("utf-8", errors="replace") if isinstance(raw_pattern, bytes) else (str(raw_pattern) if raw_pattern is not None else None)
+
                     raw_data = msg.get("data")
                     if isinstance(raw_data, bytes):
                         try:
@@ -125,9 +171,9 @@ async def websocket_pubsub(websocket: WebSocket, conn_id: Optional[str] = Query(
                         data_size = len(str(data_str).encode("utf-8", errors="replace"))
 
                     out_payload = {
-                        "type": msg.get("type"),
-                        "channel": msg.get("channel"),
-                        "pattern": msg.get("pattern"),
+                        "type": msg_type,
+                        "channel": channel_str,
+                        "pattern": pattern_str,
                         "data": data_str,
                         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                         "size": data_size,
@@ -152,7 +198,11 @@ async def websocket_pubsub(websocket: WebSocket, conn_id: Optional[str] = Query(
                     await websocket.send_json({"type": "error", "message": "Invalid JSON format"})
                     continue
 
-                action = (payload.get("action") or "").lower()
+                if not isinstance(payload, dict):
+                    await websocket.send_json({"type": "error", "message": "Expected JSON object payload"})
+                    continue
+
+                action = str(payload.get("action") or "").strip().lower()
 
                 if action == "ping":
                     await websocket.send_json({
@@ -164,31 +214,29 @@ async def websocket_pubsub(websocket: WebSocket, conn_id: Optional[str] = Query(
                     channels = payload.get("channels") or ([payload["channel"]] if "channel" in payload else [])
                     patterns = payload.get("patterns") or ([payload["pattern"]] if "pattern" in payload else [])
 
-                    if is_pat:
-                        targets = patterns or channels
-                        valid_targets = [str(t).strip() for t in targets if str(t).strip()]
-                        if valid_targets:
+                    targets = (patterns or channels) if is_pat else (channels or patterns)
+                    valid_targets = [str(t).strip() for t in targets if str(t).strip()]
+                    if valid_targets:
+                        if is_pat:
                             await pubsub.psubscribe(*valid_targets)
-                    else:
-                        targets = channels
-                        valid_targets = [str(t).strip() for t in targets if str(t).strip()]
-                        if valid_targets:
+                        else:
                             await pubsub.subscribe(*valid_targets)
+                    else:
+                        await websocket.send_json({"type": "error", "message": "No valid channel or pattern specified for subscription."})
                 elif action in ("unsubscribe", "punsubscribe"):
                     is_pat = action == "punsubscribe" or bool(payload.get("is_pattern", False))
                     channels = payload.get("channels") or ([payload["channel"]] if "channel" in payload else [])
                     patterns = payload.get("patterns") or ([payload["pattern"]] if "pattern" in payload else [])
 
+                    targets = (patterns or channels) if is_pat else (channels or patterns)
+                    valid_targets = [str(t).strip() for t in targets if str(t).strip()]
+
                     if is_pat:
-                        targets = patterns or channels
-                        valid_targets = [str(t).strip() for t in targets if str(t).strip()]
                         if valid_targets:
                             await pubsub.punsubscribe(*valid_targets)
                         else:
                             await pubsub.punsubscribe()
                     else:
-                        targets = channels
-                        valid_targets = [str(t).strip() for t in targets if str(t).strip()]
                         if valid_targets:
                             await pubsub.unsubscribe(*valid_targets)
                         else:
@@ -236,4 +284,11 @@ async def websocket_pubsub(websocket: WebSocket, conn_id: Optional[str] = Query(
                     await pubsub.close()
             except Exception:
                 pass
+
+            if is_dedicated:
+                try:
+                    await sub_client.aclose()
+                except Exception:
+                    pass
+
             logger.info("Closed dedicated Pub/Sub subscription connection cleanly.")

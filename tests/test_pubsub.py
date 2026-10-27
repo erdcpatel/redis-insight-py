@@ -190,3 +190,103 @@ def test_websocket_unknown_action():
         err = ws.receive_json()
         assert err["type"] == "error"
         assert "foobar" in err["message"]
+
+
+def test_websocket_malformed_and_non_dict_payloads():
+    """WebSocket gracefully handles non-dict JSON and invalid action types without crashing."""
+    with client.websocket_connect("/api/ws/pubsub") as ws:
+        ws.receive_json()  # greeting
+
+        # Non-dict JSON integer
+        ws.send_text("12345")
+        err1 = ws.receive_json()
+        assert err1["type"] == "error"
+        assert "JSON object" in err1["message"]
+
+        # Non-dict JSON string
+        ws.send_text('"hello string"')
+        err2 = ws.receive_json()
+        assert err2["type"] == "error"
+        assert "JSON object" in err2["message"]
+
+        # Non-string action
+        ws.send_json({"action": 999})
+        err3 = ws.receive_json()
+        assert err3["type"] == "error"
+        assert "999" in err3["message"]
+
+        # Empty subscription target
+        ws.send_json({"action": "subscribe", "channel": "   "})
+        err4 = ws.receive_json()
+        assert err4["type"] == "error"
+        assert "No valid channel" in err4["message"]
+
+        # WebSocket is still alive and responsive to ping
+        ws.send_json({"action": "ping"})
+        pong = ws.receive_json()
+        assert pong["type"] == "pong"
+
+
+def test_publish_message_cluster_support():
+    """POST /api/pubsub/publish works seamlessly with RedisCluster using execute_command."""
+    from redis.asyncio.cluster import RedisCluster
+
+    mock_cluster = AsyncMock(spec=RedisCluster)
+    mock_cluster.execute_command.return_value = 3
+
+    with patch("app.redis_manager.redis_manager.get_client", return_value=mock_cluster):
+        resp = client.post("/api/pubsub/publish", json={
+            "channel": "cluster-channel",
+            "message": "Cluster payload"
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["channel"] == "cluster-channel"
+        assert data["receivers"] == 3
+        mock_cluster.execute_command.assert_called_once_with(
+            "PUBLISH", "cluster-channel", "Cluster payload", target_nodes="default"
+        )
+
+
+def test_publish_message_cluster_dict_response():
+    """POST /api/pubsub/publish sums receiver counts when cluster returns per-node dict."""
+    from redis.asyncio.cluster import RedisCluster
+
+    mock_cluster = AsyncMock(spec=RedisCluster)
+    mock_cluster.execute_command.return_value = {"node1": 2, "node2": 3}
+
+    with patch("app.redis_manager.redis_manager.get_client", return_value=mock_cluster):
+        resp = client.post("/api/pubsub/publish", json={
+            "channel": "multi-node-channel",
+            "message": "Broadcast"
+        })
+        assert resp.status_code == 200
+        assert resp.json()["receivers"] == 5
+
+
+def test_websocket_cluster_support():
+    """WebSocket /api/ws/pubsub creates dedicated node client and cleans up for RedisCluster."""
+    from redis.asyncio.cluster import RedisCluster, ClusterNode
+    import redis.asyncio as aioredis
+
+    mock_cluster = AsyncMock(spec=RedisCluster)
+    mock_cluster.get_default_node.return_value = ClusterNode("127.0.0.1", 6379)
+
+    mock_sub = AsyncMock()
+    mock_sub.get_message.return_value = None
+    mock_node_client = AsyncMock(spec=aioredis.Redis)
+    mock_node_client.pubsub.return_value = mock_sub
+
+    with patch("app.redis_manager.redis_manager.get_client", return_value=mock_cluster):
+        with patch("redis.asyncio.Redis", return_value=mock_node_client):
+            with client.websocket_connect("/api/ws/pubsub") as ws:
+                greeting = ws.receive_json()
+                assert greeting["type"] == "connected"
+                ws.send_json({"action": "ping"})
+                assert ws.receive_json()["type"] == "pong"
+
+            # Verify cleanup
+            mock_sub.unsubscribe.assert_called()
+            mock_sub.punsubscribe.assert_called()
+            mock_node_client.aclose.assert_called_once()
+

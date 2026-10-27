@@ -152,6 +152,7 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
 19. **Live Pub/Sub Studio & Zero-Leak WebSocket Streaming**:
     - Dedicated live message stream supporting dynamic channel (`SUBSCRIBE`) and glob pattern (`PSUBSCRIBE`) subscriptions via bidirectional WebSocket (`/api/ws/pubsub`).
     - Dedicated background connection cleanly unsubscribes and closes on client disconnect with zero resource leaks.
+    - Redis Cluster topology resilience: for Redis Cluster, instantiates a dedicated `aioredis.Redis` connection to the target cluster node for subscriptions and uses `execute_command("PUBLISH", ..., target_nodes="default")` for cluster broadcasts.
     - Zero auto-command firing on cluster switch with dedicated Target Cluster Prompt Card.
     - Message inspection cards render channel badges, relative time tags, payload byte size, JSON format detection, 1-click clipboard copy with feedback, pause/resume buffering, and real-time client-side message filtering.
     - Protected message publishing (`POST /api/pubsub/publish`) requiring write permissions with JSON beautifier.
@@ -179,8 +180,8 @@ Every AI agent and human engineer **MUST** review and complete this checklist be
 ```markdown
 ### Pre-Commit & Pre-Push Checklist
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (Must complete with 0 errors, bundling into `dist/assets/`; `dist/` is gitignored).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 115+ tests must pass; AirPlay port 7000 skipped if occupied).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 26+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 120+ tests must pass; AirPlay port 7000 skipped if occupied).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 27+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with new rules, architectural conventions, or flags.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks, module APIs, or testing recipes.

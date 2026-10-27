@@ -352,8 +352,8 @@ Before opening any Pull Request or committing changes, verify and complete this 
 
 ```markdown
 - [ ] 1. Frontend Build: Run `cd frontend && npm run build` (0 errors, dist generated; `dist/` is gitignored).
-- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 106+ tests must pass).
-- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 19+ tests must pass).
+- [ ] 2. Backend Automated Tests: Run `PYTHONPATH=. pytest tests/` (All 120+ tests must pass).
+- [ ] 3. Playwright E2E Tests: Run `cd frontend && npx playwright test` (All 27+ tests must pass).
 - [ ] 4. Documentation & Skills Synchronization:
       - [ ] `AGENTS.md` updated with any new architecture rules, flags, or modules.
       - [ ] `.agents/skills/redis-insight-dev/SKILL.md` updated with new runbooks or APIs.

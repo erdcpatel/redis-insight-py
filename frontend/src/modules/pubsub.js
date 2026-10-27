@@ -69,6 +69,25 @@ export function resetPubSubState(conn) {
   pubsubState.hasConnectedExplicitly = false;
   pubsubState.publishDrawerOpen = false;
 
+  // Clean DOM controls, forms, and badges
+  const channelInput = document.getElementById("pubsubChannelInput");
+  if (channelInput) channelInput.value = "";
+  const isPatternCheckbox = document.getElementById("pubsubIsPattern");
+  if (isPatternCheckbox) isPatternCheckbox.checked = false;
+  const searchInput = document.getElementById("pubsubSearchInput");
+  if (searchInput) searchInput.value = "";
+  const matchBadge = document.getElementById("pubsubFilterMatchBadge");
+  if (matchBadge) matchBadge.style.display = "none";
+  const publishDrawer = document.getElementById("pubsubPublishDrawer");
+  if (publishDrawer) publishDrawer.style.display = "none";
+  const btnTogglePublish = document.getElementById("btnTogglePublishCard");
+  if (btnTogglePublish) btnTogglePublish.classList.remove("active");
+  const publishStatus = document.getElementById("pubsubPublishStatus");
+  if (publishStatus) publishStatus.textContent = "";
+
+  renderActiveSubscriptions();
+  renderMessagesList();
+  updatePauseButtonBadge();
   updateVitalsBadges();
   renderPubSubPrompt(conn);
 }
@@ -142,6 +161,11 @@ export function connectLivePubSub() {
   const targetConnId = state.selectedConnectionId || "";
   pubsubState.loadedForConnId = targetConnId;
 
+  // Synchronize state and view elements upon connecting
+  renderActiveSubscriptions();
+  renderMessagesList();
+  updateVitalsBadges();
+
   disconnectWebSocket();
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -154,6 +178,10 @@ export function connectLivePubSub() {
     pubsubState.ws = ws;
 
     ws.onopen = () => {
+      if (String(targetConnId) !== String(state.selectedConnectionId || "")) {
+        try { ws.close(); } catch (_) {}
+        return;
+      }
       pubsubState.isConnected = true;
       updateWsStatus("connected");
       showToast("Connected to Redis Pub/Sub WebSocket stream", "success", 2000);
@@ -170,6 +198,10 @@ export function connectLivePubSub() {
     };
 
     ws.onmessage = (event) => {
+      // Discard out-of-order messages from previously selected cluster (Rule 6)
+      if (String(targetConnId) !== String(state.selectedConnectionId || "")) {
+        return;
+      }
       try {
         const payload = JSON.parse(event.data);
         handleIncomingWsMessage(payload);

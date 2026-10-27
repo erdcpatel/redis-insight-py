@@ -103,4 +103,56 @@ test.describe('Pub/Sub Studio Live Stream & Subscription Lifecycle', () => {
     await removeBtn.click();
     await expect(page.locator('#pubsubSubsCountBadge')).toContainText('1 Subscription');
   });
+
+  test('Pub/Sub Studio resets state and active subscription chips cleanly on cluster switch (Rule 6)', async ({ page, request }) => {
+    // 1. Create a second connection for cluster switch testing
+    const connRes = await request.post('/api/connections', {
+      data: {
+        name: 'PubSub Target Cluster Beta',
+        host: '127.0.0.1',
+        port: 6379,
+        conn_type: 'standalone',
+        env: 'DEV',
+      }
+    });
+    expect(connRes.ok()).toBeTruthy();
+    const betaConn = await connRes.json();
+
+    try {
+      await page.goto('/');
+      await expect(page.locator('#topConnContainer')).toBeVisible({ timeout: 10000 });
+
+      // Open Pub/Sub tab and connect
+      const pubsubTabBtn = page.locator('#btnOpenPubsubModal');
+      await pubsubTabBtn.click();
+      await page.locator('#btnConnectPubsubExplicit').click();
+      await expect(page.locator('#pubsubWsStatusBadge')).toHaveClass(/connected/, { timeout: 8000 });
+
+      // Subscribe to a test channel
+      await page.locator('#pubsubChannelInput').fill('cluster-switch-chan');
+      await page.locator('#btnPubsubSubscribe').click();
+      const subsList = page.locator('#pubsubActiveSubsList');
+      await expect(subsList.locator('.pubsub-sub-chip')).toContainText('cluster-switch-chan');
+
+      // Now switch to betaConn via sidebar filter
+      await request.post(`/api/connections/${betaConn.id}/connect`);
+      await page.locator('#connSearchInput').fill('PubSub Target Cluster Beta');
+      const betaCard = page.locator(`.conn-card[data-id="${betaConn.id}"]`);
+      await expect(betaCard).toBeVisible({ timeout: 5000 });
+      await betaCard.hover();
+      await betaCard.locator('.btn-card-select').click({ force: true });
+
+      // Verify Rule 6: Pub/Sub Studio must reset immediately to Target Cluster Prompt Card
+      const promptCard = page.locator('#pubsubPromptContainer');
+      await expect(promptCard).toBeVisible({ timeout: 6000 });
+      await expect(promptCard).toContainText('PubSub Target Cluster Beta');
+
+      // Verify active subscription chips were cleared from DOM
+      await expect(subsList).toContainText('No active subscriptions');
+      await expect(page.locator('#pubsubWsStatusBadge')).toHaveClass(/disconnected/);
+    } finally {
+      await request.delete(`/api/connections/${betaConn.id}`);
+    }
+  });
 });
+
