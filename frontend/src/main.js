@@ -48,7 +48,8 @@ import {
 import {
   openKeyDetail,
   setupInspectorEventListeners,
-  registerInspectorDeleteKey
+  registerInspectorDeleteKey,
+  registerInspectorKeyDeleted
 } from "./modules/inspector.js";
 import {
   triggerDeleteConfirmation,
@@ -57,6 +58,7 @@ import {
 } from "./modules/actions.js";
 import {
   resetAndScan,
+  removeKeySurgically,
   setupKeysEventListeners,
   updateScanUI,
   loadDelimitersForActiveConnection
@@ -65,7 +67,7 @@ import {
 // Global test and diagnostic access
 if (typeof window !== "undefined") {
   window.__redisState = state;
-  window.__redisKeys = { updateScanUI, resetAndScan };
+  window.__redisKeys = { updateScanUI, resetAndScan, removeKeySurgically };
 }
 
 // Global fetch interceptor to inject X-Connection-ID header for multi-user session isolation
@@ -104,6 +106,7 @@ window.fetch = function (input, init) {
 registerConnectionsCallbacks(refreshStatus, resetAndScan);
 registerActionsResetAndScan(resetAndScan);
 registerInspectorDeleteKey(triggerDeleteConfirmation);
+registerInspectorKeyDeleted(removeKeySurgically);
 registerMemoryKeyHandlers(openKeyDetail, triggerDeleteConfirmation, refreshStatus);
 registerClientsRefresh(refreshStatus);
 registerTopologyClusterConnect(connectCluster);

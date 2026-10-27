@@ -131,13 +131,21 @@ Redis is single-threaded. Blocking commands degrade cluster throughput and trigg
     - Intensive regex matching, prefix tokenization, and key hygiene analysis are offloaded to a dedicated Web Worker (`keys-worker.js`), keeping the UI at a locked 60fps.
     - **Keyspace Namespace & Hygiene Studio** (`#namespaceModal`) provides instant prefix share breakdown (with 1-click filtering) and key hygiene linting (whitespace, double/trailing delimiters, long keys > 128 chars) with **zero Redis cluster queries**.
 14. **Responsive Keys Actions Bar & Zero Horizontal Clipping**:
-    - `.keys-actions-bar` uses `flex-wrap: wrap; gap: 0.45rem;` to ensure buttons (`Batch`, `Load More`, `Namespaces`, `Export`, `Bulk Delete`) never clip or require horizontal scrolling.
+    - `.keys-actions-bar` uses compact gaps (`0.35rem`) and padding (`0.3rem 0.5rem`) so all controls (`View Mode`, `Auto Refresh`, `Refresh`, `Batch`, `Load More`, `Namespaces`, `Export`, `Bulk Delete`) fit comfortably on desktop without orphan button line wrapping.
     - Status telemetry is formatted compactly (`Loaded X / Y keys`) to preserve screen real estate.
+    - TTL filter dropdown (`.ttl-filter-control-wrap`) sits flush next to the Redis Type filter pills.
 15. **Slowlog Time Horizon Profiling, Export & Command Zoom Inspector**:
     - The Slowlog Profiler provides an interactive Time Window selector (`All`, `5m`, `15m`, `1h`, `24h`) with cyan active indicators, enabling operators to inspect slow commands executed within the last $X$ minutes.
     - Renders relative time tags (`15s ago`, `2m ago`, `1h ago`) directly below the ISO timestamp for instant cognitive orientation without extra Redis round-trips.
     - **Export Slowlog (JSON & CSV)**: Export modal (`#exportSlowlogModal`) supporting structured JSON and spreadsheet-compatible CSV across filtered or all loaded buffer entries.
     - **Command Zoom & Detailed Inspector (`#slowlogDetailModal`)**: 1-click command inspection displaying vitals, full raw command, arguments breakdown table, dedicated Lua script zoom box with KEYS/ARGV extraction, and Redis server-side truncation notice (explaining the `SLOWLOG_ENTRY_MAX_STRING = 128` C engine limit).
+16. **Surgical Single-Key Deletion & Ghost-Row Elimination**:
+    - Single-key deletions from both the keys table and the Slide-Over inspector drawer execute surgical deletions (`removeKeySurgically(keyName)`), directly splicing the deleted key from `state.keysTableRows` and `state.loadedKeysSet`, decrementing counters, and re-rendering without triggering a blocking `resetAndScan()`.
+    - Centered confirmation dialogs use `z-index: 1100` to layer reliably above the Slide-Over inspector drawer (`z-index: 1050`).
+17. **Sticky Table Headers in Virtual Windowing**:
+    - Table column headers (`thead th`) use `position: sticky; top: 0; background: var(--bg-surface); z-index: 20;` with dynamic top/bottom `<tbody id="keysTableBody">` spacers so headers stay pinned and column alignment remains locked during virtual scrolling.
+18. **Virtual Tree View Folder Child Pagination (200 Cap)**:
+    - Large namespace folders cap rendered child keys to 200 per folder with an incremental `[Show next 200 keys...]` toggle, preventing DOM lockup when expanding large namespaces (>10,000 keys).
 
 ---
 

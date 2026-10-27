@@ -48,6 +48,7 @@ export const state = {
     this.treeDelimiterPreset = val;
   },
   treeExpandedPaths: new Set(),
+  treeFolderPageLimits: new Map(),
   treeInitialized: false,
   currentTreeFilterQuery: "",
 
