@@ -141,10 +141,8 @@ export function renderPubSubPrompt(conn) {
  * Initialize or refresh the Pub/Sub tab UI when selected.
  */
 export function initOrRefreshPubSubUI() {
-  if (!pubsubState.hasConnectedExplicitly) {
+  if (pubsubState.loadedForConnId !== state.selectedConnectionId || !pubsubState.hasConnectedExplicitly) {
     renderPubSubPrompt();
-  } else if (!pubsubState.ws || pubsubState.ws.readyState !== WebSocket.OPEN) {
-    connectLivePubSub();
   }
 }
 
