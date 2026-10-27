@@ -1,6 +1,6 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
-import { openKeyDetail } from "./inspector.js";
+import { openKeyDetail, closeKeyDetail } from "./inspector.js";
 import { triggerDeleteConfirmation } from "./actions.js";
 import {
   initNamespaceHygieneModal,
@@ -18,6 +18,35 @@ export function getKeysWorker() {
   return keysWorker;
 }
 
+export function removeKeySurgically(keyName) {
+  if (!keyName) return;
+
+  // 1. Close slide-over drawer if this key was open
+  if (state.activeDetailKey === keyName) {
+    closeKeyDetail();
+  }
+
+  // 2. Surgically remove from loaded keys array and set
+  state.keysTableRows = (state.keysTableRows || []).filter(r => r.key !== keyName);
+  state.loadedKeysSet.delete(keyName);
+
+  // 3. Decrement counters
+  state.totalScanned = state.loadedKeysSet.size;
+  if (state.dbTotalKeys > 0) {
+    state.dbTotalKeys = Math.max(0, state.dbTotalKeys - 1);
+  }
+
+  // 4. Update tab badge in workspace bar
+  const tabBadgeKeys = document.getElementById("tabBadgeKeys");
+  if (tabBadgeKeys) {
+    tabBadgeKeys.textContent = state.totalScanned.toLocaleString();
+  }
+
+  // 5. Re-render current keys view and refresh telemetry
+  renderKeysView();
+  updateScanUI();
+}
+
 export async function resetAndScan() {
   state.isScanning = false;
   state.currentScanEpoch++;
@@ -30,6 +59,7 @@ export async function resetAndScan() {
   state.loadedKeysSet.clear();
   state.treeInitialized = false;
   state.treeExpandedPaths.clear();
+  if (state.treeFolderPageLimits) state.treeFolderPageLimits.clear();
   state.isMemoryCeilingReached = false;
 
   const limitBanner = document.getElementById("memoryLimitBanner");
@@ -676,10 +706,10 @@ export function renderKeysFlatTable() {
         <table class="data-table" style="width: 100%; border-collapse: collapse;">
           <thead>
             <tr>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
             </tr>
           </thead>
           <tbody id="keysTableBody">
@@ -693,22 +723,25 @@ export function renderKeysFlatTable() {
 
   const totalHeight = totalRows * VIRTUAL_ROW_HEIGHT;
   const initialEnd = Math.min(totalRows, 60);
+  const initialBottomSpacer = Math.max(0, (totalRows - initialEnd) * VIRTUAL_ROW_HEIGHT);
 
   container.innerHTML = `
     <div class="virtual-scroll-viewport" id="keysTableViewport" style="overflow-y: auto; height: 100%; width: 100%; padding: 0.5rem; position: relative;">
       <div class="virtual-scroll-spacer" style="height: ${totalHeight}px; width: 100%; pointer-events: none;"></div>
-      <div class="virtual-scroll-content" id="virtualScrollContent" style="position: absolute; top: 0px; left: 0; right: 0; visibility: visible; pointer-events: auto;">
+      <div class="virtual-scroll-content" id="virtualScrollContent" style="position: absolute; top: 0px; left: 0; right: 0; width: 100%; visibility: visible; pointer-events: auto;">
         <table class="data-table" style="width: 100%; border-collapse: collapse;">
           <thead>
             <tr>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
-              <th style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">KEY (CLICK TO VIEW)</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TYPE</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: left;">TTL / EXPIRATION</th>
+              <th style="position: sticky; top: 0; background: var(--bg-surface); z-index: 20; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.75rem; text-align: right;">ACTION</th>
             </tr>
           </thead>
           <tbody id="keysTableBody">
+            <tr class="virtual-spacer-top" style="height: 0px; border: none; padding: 0;"><td colspan="4" style="height: 0px; padding: 0; border: none;"></td></tr>
             ${rowsToDisplay.slice(0, initialEnd).map(renderTableRowHtml).join("")}
+            <tr class="virtual-spacer-bottom" style="height: ${initialBottomSpacer}px; border: none; padding: 0;"><td colspan="4" style="height: ${initialBottomSpacer}px; padding: 0; border: none;"></td></tr>
           </tbody>
         </table>
       </div>
@@ -733,9 +766,13 @@ export function renderKeysFlatTable() {
       if (startIndex !== lastStart || endIndex !== lastEnd) {
         lastStart = startIndex;
         lastEnd = endIndex;
-        const offsetY = startIndex * VIRTUAL_ROW_HEIGHT;
-        content.style.top = `${offsetY}px`;
-        tbody.innerHTML = rowsToDisplay.slice(startIndex, endIndex).map(renderTableRowHtml).join("");
+        const topSpacer = startIndex * VIRTUAL_ROW_HEIGHT;
+        const bottomSpacer = Math.max(0, (totalRows - endIndex) * VIRTUAL_ROW_HEIGHT);
+        tbody.innerHTML = `
+          <tr class="virtual-spacer-top" style="height: ${topSpacer}px; border: none; padding: 0;"><td colspan="4" style="height: ${topSpacer}px; padding: 0; border: none;"></td></tr>
+          ${rowsToDisplay.slice(startIndex, endIndex).map(renderTableRowHtml).join("")}
+          <tr class="virtual-spacer-bottom" style="height: ${bottomSpacer}px; border: none; padding: 0;"><td colspan="4" style="height: ${bottomSpacer}px; padding: 0; border: none;"></td></tr>
+        `;
       }
     }, { passive: true });
   }
@@ -846,13 +883,31 @@ export function renderKeysTreeView() {
       for (const sub of folder.folders.values()) {
         innerChildren += renderFolderNode(sub, depth + 1);
       }
-      for (const k of folder.keys) {
-        if (isFiltered) {
-          if (!k.key.toLowerCase().includes(q) && !(k.leafName && k.leafName.toLowerCase().includes(q))) {
-            continue;
-          }
-        }
+      let matchingKeys = folder.keys;
+      if (isFiltered) {
+        matchingKeys = matchingKeys.filter(k =>
+          k.key.toLowerCase().includes(q) || (k.leafName && k.leafName.toLowerCase().includes(q))
+        );
+      }
+      if (!state.treeFolderPageLimits) {
+        state.treeFolderPageLimits = new Map();
+      }
+      const pageLimit = state.treeFolderPageLimits.get(folder.id) || 200;
+      const visibleKeys = matchingKeys.slice(0, pageLimit);
+      for (const k of visibleKeys) {
         innerChildren += renderTreeKeyRow(k, depth + 1);
+      }
+      if (matchingKeys.length > pageLimit) {
+        const remaining = matchingKeys.length - pageLimit;
+        const nextBatch = Math.min(200, remaining);
+        innerChildren += `
+          <div class="tree-pagination-row" style="padding-left: ${(depth + 1) * 20 + 26}px; padding-top: 6px; padding-bottom: 6px;">
+            <button type="button" class="btn btn-secondary btn-sm btn-tree-show-more" data-folder-id="${encodedId}" style="font-size: 0.72rem; padding: 0.25rem 0.65rem; color: var(--accent-primary); border-color: rgba(56, 189, 248, 0.3); display: inline-flex; align-items: center; gap: 4px;">
+              <i data-lucide="chevrons-down" style="width: 12px; height: 12px;"></i>
+              <span>Show next ${nextBatch.toLocaleString()} keys (${remaining.toLocaleString()} remaining)</span>
+            </button>
+          </div>
+        `;
       }
     }
 
@@ -891,6 +946,24 @@ export function renderKeysTreeView() {
       ? treeRoot.keys.filter(k => k.key.toLowerCase().includes(q) || (k.leafName && k.leafName.toLowerCase().includes(q)))
       : treeRoot.keys;
     if (filteredRootKeys.length > 0) {
+      if (!state.treeFolderPageLimits) {
+        state.treeFolderPageLimits = new Map();
+      }
+      const rootLimit = state.treeFolderPageLimits.get("__root__") || 200;
+      const visibleRootKeys = filteredRootKeys.slice(0, rootLimit);
+      let rootMoreHtml = "";
+      if (filteredRootKeys.length > rootLimit) {
+        const remaining = filteredRootKeys.length - rootLimit;
+        const nextBatch = Math.min(200, remaining);
+        rootMoreHtml = `
+          <div class="tree-pagination-row" style="padding-left: 26px; padding-top: 6px; padding-bottom: 6px;">
+            <button type="button" class="btn btn-secondary btn-sm btn-tree-show-more" data-folder-id="__root__" style="font-size: 0.72rem; padding: 0.25rem 0.65rem; color: var(--accent-primary); border-color: rgba(56, 189, 248, 0.3); display: inline-flex; align-items: center; gap: 4px;">
+              <i data-lucide="chevrons-down" style="width: 12px; height: 12px;"></i>
+              <span>Show next ${nextBatch.toLocaleString()} keys (${remaining.toLocaleString()} remaining)</span>
+            </button>
+          </div>
+        `;
+      }
       rootKeysHtml = `
         <div class="tree-root-keys-section">
           <div class="tree-root-keys-header" style="padding-left: 10px;">
@@ -898,7 +971,8 @@ export function renderKeysTreeView() {
             <span class="tree-count-badge">${filteredRootKeys.length.toLocaleString()} ${filteredRootKeys.length === 1 ? 'key' : 'keys'}</span>
           </div>
           <div class="tree-root-keys-list">
-            ${filteredRootKeys.map(k => renderTreeKeyRow(k, 0)).join("")}
+            ${visibleRootKeys.map(k => renderTreeKeyRow(k, 0)).join("")}
+            ${rootMoreHtml}
           </div>
         </div>
       `;
@@ -988,13 +1062,24 @@ export function renderKeysTreeView() {
 
   container.querySelectorAll(".tree-folder").forEach(folderEl => {
     folderEl.addEventListener("click", (e) => {
-      if (e.target.closest(".tree-filter-prefix-btn")) return;
+      if (e.target.closest(".tree-filter-prefix-btn") || e.target.closest(".btn-tree-show-more")) return;
       const folderId = decodeURIComponent(folderEl.getAttribute("data-folder-id"));
       if (state.treeExpandedPaths.has(folderId)) {
         state.treeExpandedPaths.delete(folderId);
       } else {
         state.treeExpandedPaths.add(folderId);
       }
+      renderKeysTreeView();
+    });
+  });
+
+  container.querySelectorAll(".btn-tree-show-more").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const folderId = decodeURIComponent(btn.getAttribute("data-folder-id"));
+      if (!state.treeFolderPageLimits) state.treeFolderPageLimits = new Map();
+      const current = state.treeFolderPageLimits.get(folderId) || 200;
+      state.treeFolderPageLimits.set(folderId, current + 200);
       renderKeysTreeView();
     });
   });
@@ -1322,7 +1407,7 @@ export function setupKeysEventListeners() {
         e.stopPropagation();
         const k = decodeURIComponent(delBtn.getAttribute("data-key"));
         triggerDeleteConfirmation(k, () => {
-          resetAndScan();
+          removeKeySurgically(k);
         });
         return;
       }

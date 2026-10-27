@@ -44,17 +44,18 @@ This skill provides comprehensive instructions, code patterns, architectural ref
   - DOM event listeners for top navigation tabs (`.ws-tab-btn`), sidebar interactions, and modals.
   - Coordinates between specialized modules.
 - **`frontend/src/modules/`**:
-  - **`state.js`**: Central shared state (`activeConnection`, `readOnlyMode`, `connectedClusters`, `activeTab`).
-  - **`keys.js`**: Flat Table & Virtual Folder Tree rendering, multi-delimiter tokenization, delimiter chip bar, custom delimiter popover, TTL filter selector, and row-level key inspection.
+  - **`state.js`**: Central shared state (`activeConnection`, `readOnlyMode`, `connectedClusters`, `activeTab`, `treeFolderPageLimits`).
+  - **`keys.js`**: Flat Table & Virtual Folder Tree rendering, multi-delimiter tokenization, delimiter chip bar, custom delimiter popover, TTL filter selector, sticky table headers (`position: sticky; top: 0`), dynamic tbody spacers, folder child key pagination (200 keys/folder cap), surgical deletion (`removeKeySurgically(keyName)`), and row-level key inspection.
+  - **`inspector.js`**: Slide-Over right drawer key inspector (`#keyDetailModal`, `z-index: 1050`), field-level editing/pagination, and drawer-level key deletion with surgical row removal (`registerInspectorKeyDeleted`).
   - **`memory.js`**: Memory overview, BigKeys leaderboard, TTL Expiry Horizon cards & stacked progress bar, Persistent Keys Leak Audit table, and Deep Scan Safety Modal gate.
   - **`benchmark.js`**: 4-level diagnostic benchmark engine (Level 1 Probe, Level 2 Commands, Level 3 Lua Sandbox, Level 4 Cluster Matrix).
   - **`clients.js`**: Connected clients table, search filter, `[THIS APP]` badge highlighting, and client kill action.
   - **`slowlog.js`**: Slowlog fetching across cluster shards, latency badges, time horizon filtering (`All`, `5m`, `15m`, `1h`, `24h`), relative time tags, slowlog export (JSON & CSV), command zoom detail modal with Lua script inspector, and slowlog reset.
   - **`topology.js`**: Cluster node discovery table, master/replica hierarchy, slot allocation, and keyspace node distribution.
-  - **`actions.js`**: Export modal logic (CSV/TXT with TTL filtering), bulk delete two-stage safety gate, and key deletions.
+  - **`actions.js`**: Export modal logic (CSV/TXT with TTL filtering), bulk delete two-stage safety gate, centered dialog confirmation modals (`z-index: 1100`), and single key delete confirmations.
   - **`toast.js`**: Glassmorphic non-blocking toast notifications (`showToast`), resilient `copyToClipboard` with fallback, and in-place feedback helpers.
 - **`frontend/src/style.css`**:
-  - Modern dark glassmorphic styling, responsive grid, tab pane layouts, animations, and typography.
+  - Modern dark glassmorphic styling, responsive grid, compact toolbar layouts (`.keys-actions-bar`, flush `.ttl-filter-control-wrap`), sticky table headers (`.data-table thead th`), tab pane layouts, animations, and typography.
 
 
 ---

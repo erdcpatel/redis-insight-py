@@ -4,6 +4,7 @@ import { showToast, copyToClipboard } from "./toast.js";
 import { showConfirmDialog, showPromptDialog, showAddHashFieldDialog } from "./dialog.js";
 
 let onDeleteKey = null;
+let onKeyDeleted = null;
 
 export function triggerButtonFeedback(btn, newText = "Copied!", durationMs = 1500) {
   if (!btn) return;
@@ -18,6 +19,10 @@ export function triggerButtonFeedback(btn, newText = "Copied!", durationMs = 150
 
 export function registerInspectorDeleteKey(deleteFn) {
   onDeleteKey = deleteFn;
+}
+
+export function registerInspectorKeyDeleted(fn) {
+  onKeyDeleted = fn;
 }
 
 export async function openKeyDetail(keyName) {
@@ -766,8 +771,12 @@ export function setupInspectorEventListeners() {
   if (btnDeleteFromDetail) {
     btnDeleteFromDetail.addEventListener("click", () => {
       if (state.activeDetailKey && onDeleteKey) {
-        onDeleteKey(state.activeDetailKey, () => {
+        const keyToDelete = state.activeDetailKey;
+        onDeleteKey(keyToDelete, () => {
           closeKeyDetail();
+          if (onKeyDeleted) {
+            onKeyDeleted(keyToDelete);
+          }
         });
       }
     });

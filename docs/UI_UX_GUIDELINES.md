@@ -309,11 +309,20 @@ When Read-Only mode is active (globally via `APP_READONLY=true` or per-connectio
    - **Keyspace Namespace & Hygiene Studio Modal** (`#namespaceModal`):
      - Purple header badge with KPI overview (Total Keys, Distinct Namespaces, Top Namespace % share, Hygiene Flags).
      - **Namespace Distribution**: lists prefixes with color-coded horizontal progress bars and a 1-click `[🔍 Filter]` button that instantly updates local search and closes the modal.
-4. **Responsive Keys Actions Bar & Compact Telemetry**:
+4. **Responsive Keys Actions Bar, Flush TTL Filter & Compact Telemetry**:
    - The keys actions bar (`.keys-actions-bar`) enforces zero horizontal clipping and zero horizontal scrolling on all desktop resolutions:
-     - `flex-wrap: wrap; gap: 0.45rem;` allows graceful wrapping onto balanced rows on narrower screens.
+     - Compact button padding (`0.22rem 0.45rem`) and tighter bar gap (`0.35rem`) prevent orphan buttons (like `[Bulk Delete]`) from wrapping alone onto a 3rd row.
+     - The TTL filter control (`.ttl-filter-control-wrap`) sits flush next to the Redis Type filter pills with no artificial left auto-margins.
      - Status telemetry uses compact notation (`Loaded X / Y keys (All)`) to conserve horizontal space.
-     - Uniform toolbar action buttons (`.btn-toolbar-action`) with standardized padding (`0.26rem 0.52rem`) keep controls aligned and compact.
+5. **Sticky Table Headers in Virtual Scrolling**:
+   - Both flat and virtual windowed tables maintain pinned column headers via `position: sticky; top: 0; background: var(--bg-surface); z-index: 20;`.
+   - In virtual windowing, tbody uses dynamic top and bottom spacer rows (`.virtual-spacer-top` and `.virtual-spacer-bottom`) calculated at fixed 44px row height, guaranteeing headers stay pinned at the top through 100K+ scrolled keys.
+6. **Virtual Tree View Folder Child Pagination**:
+   - Large namespace folders cap direct child keys rendered in the DOM to 200 per folder.
+   - Folders exceeding 200 direct keys render an ergonomic `[Show next X keys (Y remaining)]` toggle button (`.btn-tree-show-more`), completely preventing main-thread DOM lockups on 10,000+ key namespaces.
+7. **Surgical Deletion & Modal Layering**:
+   - Single-key deletions from the table or Slide-Over inspector drawer surgically splice `state.keysTableRows` and `state.loadedKeysSet`, decrement counters, and re-render without reloading the keyspace.
+   - Dialog confirmation backdrops (`.modal-backdrop`) use `z-index: 1100` to layer smoothly above the Slide-Over drawer (`#keyDetailModal`, `z-index: 1050`).
 
 ---
 

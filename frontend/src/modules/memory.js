@@ -240,17 +240,10 @@ export function renderMemoryProfilingSafeguardUI(options = {}) {
     </div>
 
     <div class="mem-safeguard-box">
-      <div class="mem-safeguard-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <i data-lucide="shield-check" style="width: 22px; height: 22px; color: #38bdf8;"></i>
-          <span>Non-Blocking Keyspace Profiling & TTL Forecast</span>
-        </div>
-        <div style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; background: rgba(15,23,42,0.8); border: 1px solid var(--border-subtle); padding: 0.2rem 0.6rem; border-radius: 4px;">
-          <span style="color: var(--text-muted);">Target:</span>
-          <strong style="color: var(--accent-primary);">${escapeHtml(connName)}</strong>
-          <span style="color: var(--text-muted); font-family: var(--font-mono);">(${escapeHtml(connHost)}:${connPort})</span>
-          <span class="badge-env badge-env-${env.toLowerCase()}">${env}</span>
-        </div>
+      <div class="mem-safeguard-header" style="display: flex; align-items: center; gap: 0.5rem; position: relative;">
+        <i data-lucide="shield-check" style="width: 22px; height: 22px; color: #38bdf8;"></i>
+        <span>Non-Blocking Keyspace Profiling & TTL Forecast</span>
+        <span style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; white-space: nowrap;">Target: ${escapeHtml(connName)}</span>
       </div>
       <div class="mem-safeguard-body">
         Profiling samples keys using cursor-based <code>SCAN</code>, reads byte footprints with <code>MEMORY USAGE</code>, and projects when RAM will be freed based on expiration horizons.
