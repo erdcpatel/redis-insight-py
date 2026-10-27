@@ -1,7 +1,7 @@
 import { state, escapeHtml } from "./state.js";
 import { setupIcons } from "./icons.js";
 import { switchWorkspaceTab } from "./tabs.js";
-import { resetAndScan } from "./keys.js";
+import { resetAndScan, removeKeySurgically } from "./keys.js";
 import { copyToClipboard } from "./toast.js";
 
 // Callbacks set during registration
@@ -826,6 +826,7 @@ export function attachBigKeyRowHandlers() {
       const keyName = btn.getAttribute("data-key");
       if (keyName && onDeleteKey) {
         onDeleteKey(keyName, async () => {
+          removeKeySurgically(keyName);
           if (state.currentMemoryAnalysis) {
             state.currentMemoryAnalysis.top_bigkeys = state.currentMemoryAnalysis.top_bigkeys.filter(k => k.key !== keyName);
             renderMemoryAnalysisUI(state.currentMemoryAnalysis);

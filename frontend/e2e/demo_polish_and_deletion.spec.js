@@ -87,6 +87,14 @@ while True:
     expect(position).toBe('sticky');
     expect(top).toBe('0px');
     expect(Number(zIndex)).toBeGreaterThanOrEqual(20);
+
+    // Verify that after scrolling down, the sticky header stays pinned at top
+    const viewport = page.locator('#keysTableViewport');
+    const thBoxBefore = await firstTh.boundingBox();
+    await viewport.evaluate(el => { el.scrollTop = 2000; });
+    await page.waitForTimeout(100);
+    const thBoxAfter = await firstTh.boundingBox();
+    expect(Math.round(thBoxAfter.y)).toBe(Math.round(thBoxBefore.y));
   });
 
   test('Surgical deletion from drawer removes row and closes drawer without reload', async ({ page }) => {
@@ -175,5 +183,12 @@ while True:
 
     // Button should now disappear as all 225 keys are displayed
     await expect(btnShowMore).toHaveCount(0);
+
+    // Collapsing all and re-expanding resets page limits to prevent unbounded DOM accumulation
+    const btnCollapseAll = page.locator('#btnCollapseAllTree');
+    await btnCollapseAll.click();
+    await btnExpandAll.click();
+    await expect(page.locator('.btn-tree-show-more').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.btn-tree-show-more').first()).toContainText('Show next 25 keys');
   });
 });

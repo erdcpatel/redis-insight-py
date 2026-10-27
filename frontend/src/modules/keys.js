@@ -35,6 +35,13 @@ export function removeKeySurgically(keyName) {
   if (state.dbTotalKeys > 0) {
     state.dbTotalKeys = Math.max(0, state.dbTotalKeys - 1);
   }
+  if (state.lastStatus && typeof state.lastStatus.dbsize === "number" && state.lastStatus.dbsize > 0) {
+    state.lastStatus.dbsize = Math.max(0, state.lastStatus.dbsize - 1);
+    const keyspaceTopVal = document.querySelector("#btnOpenKeyspaceTop .vital-val");
+    if (keyspaceTopVal) {
+      keyspaceTopVal.textContent = state.lastStatus.dbsize.toLocaleString();
+    }
+  }
 
   // 4. Update tab badge in workspace bar
   const tabBadgeKeys = document.getElementById("tabBadgeKeys");
@@ -1066,6 +1073,9 @@ export function renderKeysTreeView() {
       const folderId = decodeURIComponent(folderEl.getAttribute("data-folder-id"));
       if (state.treeExpandedPaths.has(folderId)) {
         state.treeExpandedPaths.delete(folderId);
+        if (state.treeFolderPageLimits) {
+          state.treeFolderPageLimits.delete(folderId);
+        }
       } else {
         state.treeExpandedPaths.add(folderId);
       }
@@ -1109,6 +1119,7 @@ export function renderKeysTreeView() {
       }
       saveDelimitersForActiveConnection();
       state.treeExpandedPaths.clear();
+      if (state.treeFolderPageLimits) state.treeFolderPageLimits.clear();
       state.treeInitialized = false;
       renderKeysTreeView();
     });
@@ -1127,6 +1138,7 @@ export function renderKeysTreeView() {
       state.treeDelimiterPreset = derivePresetFromDelimiters(state.activeTreeDelimiters);
       saveDelimitersForActiveConnection();
       state.treeExpandedPaths.clear();
+      if (state.treeFolderPageLimits) state.treeFolderPageLimits.clear();
       state.treeInitialized = false;
       renderKeysTreeView();
     });
@@ -1142,6 +1154,7 @@ export function renderKeysTreeView() {
       state.treeDelimiterPreset = derivePresetFromDelimiters(state.activeTreeDelimiters);
       saveDelimitersForActiveConnection();
       state.treeExpandedPaths.clear();
+      if (state.treeFolderPageLimits) state.treeFolderPageLimits.clear();
       state.treeInitialized = false;
       renderKeysTreeView();
     });
@@ -1179,6 +1192,7 @@ export function renderKeysTreeView() {
     state.treeDelimiterPreset = derivePresetFromDelimiters(state.activeTreeDelimiters);
     saveDelimitersForActiveConnection();
     state.treeExpandedPaths.clear();
+    if (state.treeFolderPageLimits) state.treeFolderPageLimits.clear();
     state.treeInitialized = false;
     renderKeysTreeView();
   }
@@ -1226,6 +1240,7 @@ export function renderKeysTreeView() {
   if (btnCollapseAll) {
     btnCollapseAll.addEventListener("click", () => {
       state.treeExpandedPaths.clear();
+      if (state.treeFolderPageLimits) state.treeFolderPageLimits.clear();
       renderKeysTreeView();
     });
   }
