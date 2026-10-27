@@ -105,23 +105,43 @@ test.describe('Pub/Sub Studio Live Stream & Subscription Lifecycle', () => {
   });
 
   test('Pub/Sub Studio resets state and active subscription chips cleanly on cluster switch (Rule 6)', async ({ page, request }) => {
-    // 1. Create and connect a second connection for cluster switch testing
-    const connRes = await request.post('/api/connections', {
+    const timestamp = Date.now();
+    const alphaName = `PubSub Alpha ${timestamp}`;
+    const betaName = `PubSub Beta ${timestamp}`;
+
+    // 1. Create two standalone test connections
+    const alphaRes = await request.post('/api/connections', {
       data: {
-        name: 'PubSub Target Cluster Beta',
+        name: alphaName,
         host: '127.0.0.1',
         port: 6379,
         conn_type: 'standalone',
         env: 'DEV',
       }
     });
-    expect(connRes.ok()).toBeTruthy();
-    const betaConn = await connRes.json();
-    await request.post(`/api/connections/${betaConn.id}/connect`);
+    expect(alphaRes.ok()).toBeTruthy();
+    const alphaConn = await alphaRes.json();
+
+    const betaRes = await request.post('/api/connections', {
+      data: {
+        name: betaName,
+        host: '127.0.0.1',
+        port: 6379,
+        conn_type: 'standalone',
+        env: 'DEV',
+      }
+    });
+    expect(betaRes.ok()).toBeTruthy();
+    const betaConn = await betaRes.json();
 
     try {
+      // Connect both and explicitly select Alpha
+      await request.post(`/api/connections/${alphaConn.id}/connect`);
+      await request.post(`/api/connections/${betaConn.id}/connect`);
+      await request.post(`/api/connections/${alphaConn.id}/select`);
+
       await page.goto('/');
-      await expect(page.locator('#topConnContainer')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('#topConnContainer')).toContainText(alphaName, { timeout: 10000 });
 
       // Open Pub/Sub tab and connect
       const pubsubTabBtn = page.locator('#btnOpenPubsubModal');
@@ -136,22 +156,26 @@ test.describe('Pub/Sub Studio Live Stream & Subscription Lifecycle', () => {
       await expect(subsList.locator('.pubsub-sub-chip')).toContainText('cluster-switch-chan');
 
       // Now switch to betaConn via sidebar filter
-      await page.locator('#connSearchInput').fill('PubSub Target Cluster Beta');
+      await page.locator('#connSearchInput').fill(betaName);
       const betaCard = page.locator(`.conn-card[data-id="${betaConn.id}"]`);
       await expect(betaCard).toBeVisible({ timeout: 5000 });
       await betaCard.hover();
       await betaCard.locator('.btn-card-select').click({ force: true });
 
+      // Wait for top bar to update to Beta
+      await expect(page.locator('#topConnContainer')).toContainText(betaName, { timeout: 8000 });
+
       // Verify Rule 6: Pub/Sub Studio must reset immediately to Target Cluster Prompt Card
       const promptCard = page.locator('#pubsubPromptContainer');
       await expect(promptCard).toBeVisible({ timeout: 6000 });
-      await expect(promptCard).toContainText('PubSub Target Cluster Beta');
+      await expect(promptCard).toContainText(betaName);
 
       // Verify active subscription chips were cleared from DOM
       await expect(subsList).toContainText('No active subscriptions');
       await expect(page.locator('#pubsubWsStatusBadge')).toHaveClass(/disconnected/);
     } finally {
-      await request.delete(`/api/connections/${betaConn.id}`);
+      await request.delete(`/api/connections/${alphaConn.id}`).catch(() => {});
+      await request.delete(`/api/connections/${betaConn.id}`).catch(() => {});
     }
   });
 });
